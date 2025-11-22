@@ -14,6 +14,7 @@ type Config struct {
 	ClickHouse ClickHouseConfig
 	Auth       AuthConfig
 	Sampler    SamplerConfig
+	GRPC       GRPCConfig
 }
 
 // ServerConfig holds HTTP server configuration
@@ -83,6 +84,15 @@ type SamplerConfig struct {
 	SampleErrors  bool    `envconfig:"SAMPLER_ERRORS" default:"true"`       // Always sample errors
 	SampleSlow    bool    `envconfig:"SAMPLER_SLOW" default:"true"`         // Always sample slow traces
 	SlowThreshold int     `envconfig:"SAMPLER_SLOW_MS" default:"5000"`      // Threshold for slow in ms
+}
+
+// GRPCConfig holds gRPC server configuration
+type GRPCConfig struct {
+	Enabled          bool `envconfig:"GRPC_ENABLED" default:"true"`
+	Port             int  `envconfig:"GRPC_PORT" default:"4317"`
+	MaxRecvMsgSize   int  `envconfig:"GRPC_MAX_RECV_MSG_SIZE" default:"16777216"` // 16MB
+	MaxSendMsgSize   int  `envconfig:"GRPC_MAX_SEND_MSG_SIZE" default:"16777216"` // 16MB
+	EnableReflection bool `envconfig:"GRPC_ENABLE_REFLECTION" default:"true"`
 }
 
 // Load reads configuration from environment variables

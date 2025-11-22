@@ -14,6 +14,8 @@ require (
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/lib/pq v1.10.9
+	go.opentelemetry.io/proto/otlp v1.1.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/crypto v0.23.0
+	google.golang.org/grpc v1.62.0
 )

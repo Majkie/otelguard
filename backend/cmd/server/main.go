@@ -16,6 +16,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/otelguard/otelguard/internal/api"
+	grpcserver "github.com/otelguard/otelguard/internal/api/grpc"
 	"github.com/otelguard/otelguard/internal/api/handlers"
 	"github.com/otelguard/otelguard/internal/api/middleware"
 	"github.com/otelguard/otelguard/internal/config"
@@ -141,13 +142,30 @@ func main() {
 		IdleTimeout:  cfg.Server.IdleTimeout,
 	}
 
-	// Start server in a goroutine
+	// Start HTTP server in a goroutine
 	go func() {
-		logger.Info("server listening", zap.String("addr", srv.Addr))
+		logger.Info("HTTP server listening", zap.String("addr", srv.Addr))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("server error", zap.Error(err))
+			logger.Fatal("HTTP server error", zap.Error(err))
 		}
 	}()
+
+	// Start gRPC server if enabled
+	var grpcServer *grpcserver.Server
+	if cfg.GRPC.Enabled {
+		otlpTraceService := grpcserver.NewOTLPTraceService(traceService, logger)
+		grpcConfig := &grpcserver.ServerConfig{
+			Port:             cfg.GRPC.Port,
+			MaxRecvMsgSize:   cfg.GRPC.MaxRecvMsgSize,
+			MaxSendMsgSize:   cfg.GRPC.MaxSendMsgSize,
+			EnableReflection: cfg.GRPC.EnableReflection,
+		}
+		grpcServer = grpcserver.NewServer(grpcConfig, otlpTraceService, logger)
+		if err := grpcServer.Start(); err != nil {
+			logger.Fatal("failed to start gRPC server", zap.Error(err))
+		}
+		logger.Info("gRPC OTLP receiver started", zap.Int("port", cfg.GRPC.Port))
+	}
 
 	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
@@ -161,7 +179,17 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Fatal("server forced shutdown", zap.Error(err))
+		logger.Fatal("HTTP server forced shutdown", zap.Error(err))
+	}
+
+	// Stop gRPC server
+	if grpcServer != nil {
+		logger.Info("stopping gRPC server...")
+		grpcCtx, grpcCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := grpcServer.Stop(grpcCtx); err != nil {
+			logger.Error("failed to stop gRPC server cleanly", zap.Error(err))
+		}
+		grpcCancel()
 	}
 
 	// Stop batch writer and flush remaining data

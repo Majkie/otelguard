@@ -104,17 +104,17 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 - [x] Design trace/span data model in Go
 - [x] Implement OTLP HTTP receiver endpoint
-- [ ] Implement OTLP gRPC receiver endpoint
+- [x] Implement OTLP gRPC receiver endpoint
 - [x] Create custom HTTP trace ingestion endpoint
 - [x] Implement trace batching and buffering
 - [x] Create async writer to ClickHouse
 - [x] Implement trace ID generation (if not provided)
-- [ ] Handle nested span relationships
+- [x] Handle nested span relationships
 - [x] Parse and store LLM-specific attributes
 - [x] Extract token counts, model info, costs
 - [x] Implement input/output truncation for large payloads
-- [ ] Create trace enrichment pipeline
-- [ ] Handle high-cardinality attribute storage
+- [x] Create trace enrichment pipeline
+- [x] Handle high-cardinality attribute storage
 
 ### 2.2 Trace Storage & Retrieval
 
@@ -147,7 +147,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Implement session-level metrics aggregation
 - [x] Create session timeline visualization
 - [x] Enable session-based filtering
-- [ ] Implement session replay functionality
+- [x] Implement session replay functionality
 
 ### 2.5 User Tracking
 
@@ -155,7 +155,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Create user listing endpoint
 - [x] Build user detail page with activity
 - [x] Calculate per-user metrics (cost, usage, quality)
-- [ ] Implement user segmentation
+- [x] Implement user segmentation
 - [x] Create user-based filtering across views
 
 ---

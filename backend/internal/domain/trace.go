@@ -144,3 +144,153 @@ const (
 	StatusError   = "error"
 	StatusPending = "pending"
 )
+
+// SpanNode represents a span with its children in a tree structure
+type SpanNode struct {
+	Span     *Span       `json:"span"`
+	Children []*SpanNode `json:"children,omitempty"`
+	Depth    int         `json:"depth"`
+}
+
+// SpanTree represents a hierarchical tree of spans
+type SpanTree struct {
+	TraceID   uuid.UUID   `json:"traceId"`
+	RootSpans []*SpanNode `json:"rootSpans"`
+	TotalSpans int        `json:"totalSpans"`
+	MaxDepth   int        `json:"maxDepth"`
+}
+
+// BuildSpanTree builds a tree structure from a flat list of spans
+func BuildSpanTree(spans []*Span) *SpanTree {
+	if len(spans) == 0 {
+		return &SpanTree{RootSpans: []*SpanNode{}}
+	}
+
+	tree := &SpanTree{
+		TraceID:    spans[0].TraceID,
+		TotalSpans: len(spans),
+	}
+
+	// Create a map for quick lookup
+	nodeMap := make(map[uuid.UUID]*SpanNode)
+	for _, span := range spans {
+		nodeMap[span.ID] = &SpanNode{
+			Span:     span,
+			Children: []*SpanNode{},
+		}
+	}
+
+	// Build tree relationships
+	var rootSpans []*SpanNode
+	for _, span := range spans {
+		node := nodeMap[span.ID]
+		if span.ParentSpanID == nil {
+			// This is a root span
+			rootSpans = append(rootSpans, node)
+		} else {
+			// Find parent and add as child
+			if parentNode, ok := nodeMap[*span.ParentSpanID]; ok {
+				parentNode.Children = append(parentNode.Children, node)
+			} else {
+				// Parent not found, treat as root
+				rootSpans = append(rootSpans, node)
+			}
+		}
+	}
+
+	tree.RootSpans = rootSpans
+
+	// Calculate depths
+	tree.MaxDepth = calculateDepths(rootSpans, 0)
+
+	return tree
+}
+
+// calculateDepths recursively sets depths and returns max depth
+func calculateDepths(nodes []*SpanNode, depth int) int {
+	maxDepth := depth
+	for _, node := range nodes {
+		node.Depth = depth
+		if len(node.Children) > 0 {
+			childMaxDepth := calculateDepths(node.Children, depth+1)
+			if childMaxDepth > maxDepth {
+				maxDepth = childMaxDepth
+			}
+		}
+	}
+	return maxDepth
+}
+
+// FlattenSpanTree converts a span tree back to a flat slice in DFS order
+func (t *SpanTree) FlattenSpanTree() []*Span {
+	var spans []*Span
+	var flatten func(nodes []*SpanNode)
+	flatten = func(nodes []*SpanNode) {
+		for _, node := range nodes {
+			spans = append(spans, node.Span)
+			if len(node.Children) > 0 {
+				flatten(node.Children)
+			}
+		}
+	}
+	flatten(t.RootSpans)
+	return spans
+}
+
+// GetSpanByID finds a span in the tree by its ID
+func (t *SpanTree) GetSpanByID(spanID uuid.UUID) *SpanNode {
+	var find func(nodes []*SpanNode) *SpanNode
+	find = func(nodes []*SpanNode) *SpanNode {
+		for _, node := range nodes {
+			if node.Span.ID == spanID {
+				return node
+			}
+			if found := find(node.Children); found != nil {
+				return found
+			}
+		}
+		return nil
+	}
+	return find(t.RootSpans)
+}
+
+// GetAncestors returns all ancestor spans for a given span ID
+func (t *SpanTree) GetAncestors(spanID uuid.UUID) []*Span {
+	node := t.GetSpanByID(spanID)
+	if node == nil || node.Span.ParentSpanID == nil {
+		return nil
+	}
+
+	var ancestors []*Span
+	currentParentID := node.Span.ParentSpanID
+	for currentParentID != nil {
+		parentNode := t.GetSpanByID(*currentParentID)
+		if parentNode == nil {
+			break
+		}
+		ancestors = append(ancestors, parentNode.Span)
+		currentParentID = parentNode.Span.ParentSpanID
+	}
+	return ancestors
+}
+
+// GetDescendants returns all descendant spans for a given span ID
+func (t *SpanTree) GetDescendants(spanID uuid.UUID) []*Span {
+	node := t.GetSpanByID(spanID)
+	if node == nil {
+		return nil
+	}
+
+	var descendants []*Span
+	var collect func(nodes []*SpanNode)
+	collect = func(nodes []*SpanNode) {
+		for _, n := range nodes {
+			descendants = append(descendants, n.Span)
+			if len(n.Children) > 0 {
+				collect(n.Children)
+			}
+		}
+	}
+	collect(node.Children)
+	return descendants
+}
