@@ -1,0 +1,672 @@
+# OTelGuard Implementation Plan
+
+This document outlines all tasks required to build the OTelGuard LLM observability platform. Tasks are organized by phase and priority.
+
+---
+
+## Phase 1: Foundation & Infrastructure
+
+### 1.1 Project Setup
+
+- [ ] Initialize Go module with proper module path
+- [ ] Set up Go project structure (cmd/, internal/, pkg/, api/)
+- [ ] Initialize React project with Vite and TypeScript
+- [ ] Configure ShadCN UI components
+- [ ] Set up TanStack Query provider
+- [ ] Configure TanStack Table base setup
+- [ ] Create Docker Compose for development environment
+- [ ] Set up PostgreSQL container with initial schema
+- [ ] Set up ClickHouse container with initial schema
+- [ ] Configure environment variable management
+- [ ] Set up Makefile for common tasks
+- [ ] Configure ESLint, Prettier for frontend
+- [ ] Configure golangci-lint for backend
+- [ ] Set up pre-commit hooks
+
+### 1.2 Database Schema Design
+
+#### PostgreSQL (Metadata)
+
+- [ ] Design and create `organizations` table
+- [ ] Design and create `projects` table
+- [ ] Design and create `users` table
+- [ ] Design and create `api_keys` table
+- [ ] Design and create `prompts` table
+- [ ] Design and create `prompt_versions` table
+- [ ] Design and create `datasets` table
+- [ ] Design and create `dataset_items` table
+- [ ] Design and create `guardrail_policies` table
+- [ ] Design and create `guardrail_rules` table
+- [ ] Design and create `annotation_queues` table
+- [ ] Design and create `score_configs` table
+- [ ] Set up database migrations with golang-migrate
+- [ ] Create seed data for development
+
+#### ClickHouse (Events)
+
+- [ ] Design and create `traces` table (MergeTree)
+- [ ] Design and create `spans` table (MergeTree)
+- [ ] Design and create `events` table (MergeTree)
+- [ ] Design and create `metrics` table (MergeTree)
+- [ ] Design and create `scores` table (MergeTree)
+- [ ] Design and create `guardrail_events` table (MergeTree)
+- [ ] Create materialized views for common aggregations
+- [ ] Set up TTL policies for data retention
+- [ ] Configure partitioning strategy (by date/project)
+- [ ] Create indexes for common query patterns
+
+### 1.3 Backend Core
+
+- [ ] Set up Gin router with middleware
+- [ ] Implement structured logging (zerolog/zap)
+- [ ] Create database connection pools (PostgreSQL)
+- [ ] Create ClickHouse connection management
+- [ ] Implement graceful shutdown
+- [ ] Set up health check endpoints
+- [ ] Create base repository pattern
+- [ ] Implement request ID middleware
+- [ ] Set up CORS configuration
+- [ ] Create error handling middleware
+- [ ] Implement rate limiting middleware
+- [ ] Set up request validation (go-playground/validator)
+
+### 1.4 Authentication & Authorization
+
+- [ ] Implement JWT token generation and validation
+- [ ] Create API key authentication middleware
+- [ ] Implement user registration endpoint
+- [ ] Implement user login endpoint
+- [ ] Create password reset flow
+- [ ] Implement organization management
+- [ ] Create project-level permissions
+- [ ] Implement role-based access control (RBAC)
+- [ ] Create API key management endpoints
+- [ ] Implement session management
+
+### 1.5 Frontend Core
+
+- [ ] Set up React Router for navigation
+- [ ] Create authentication context and hooks
+- [ ] Implement login/register pages
+- [ ] Create main layout with sidebar navigation
+- [ ] Set up TanStack Query client configuration
+- [ ] Create API client with interceptors
+- [ ] Implement protected route wrapper
+- [ ] Create toast notification system
+- [ ] Set up dark/light theme support
+- [ ] Create loading states and skeletons
+
+---
+
+## Phase 2: Tracing & Observability
+
+### 2.1 Trace Ingestion
+
+- [ ] Design trace/span data model in Go
+- [ ] Implement OTLP HTTP receiver endpoint
+- [ ] Implement OTLP gRPC receiver endpoint
+- [ ] Create custom HTTP trace ingestion endpoint
+- [ ] Implement trace batching and buffering
+- [ ] Create async writer to ClickHouse
+- [ ] Implement trace ID generation (if not provided)
+- [ ] Handle nested span relationships
+- [ ] Parse and store LLM-specific attributes
+- [ ] Extract token counts, model info, costs
+- [ ] Implement input/output truncation for large payloads
+- [ ] Create trace enrichment pipeline
+- [ ] Handle high-cardinality attribute storage
+
+### 2.2 Trace Storage & Retrieval
+
+- [ ] Implement trace listing with pagination
+- [ ] Create trace filtering (by project, user, session, tags)
+- [ ] Implement full-text search on trace content
+- [ ] Create trace detail retrieval with spans
+- [ ] Implement span tree reconstruction
+- [ ] Calculate trace-level aggregations (latency, cost, tokens)
+- [ ] Create time-range queries optimization
+- [ ] Implement trace sampling for high-volume projects
+
+### 2.3 Trace Visualization (Frontend)
+
+- [ ] Create traces list page with TanStack Table
+- [ ] Implement column sorting and filtering
+- [ ] Create trace detail page
+- [ ] Build span waterfall/timeline visualization
+- [ ] Create span detail panel (input/output viewer)
+- [ ] Implement JSON viewer for structured data
+- [ ] Create diff viewer for comparing traces
+- [ ] Build trace search interface
+- [ ] Implement trace export (JSON, CSV)
+
+### 2.4 Session Management
+
+- [ ] Implement session grouping logic
+- [ ] Create session listing endpoint
+- [ ] Build session detail view (all traces in session)
+- [ ] Implement session-level metrics aggregation
+- [ ] Create session timeline visualization
+- [ ] Enable session-based filtering
+- [ ] Implement session replay functionality
+
+### 2.5 User Tracking
+
+- [ ] Implement user identification in traces
+- [ ] Create user listing endpoint
+- [ ] Build user detail page with activity
+- [ ] Calculate per-user metrics (cost, usage, quality)
+- [ ] Implement user segmentation
+- [ ] Create user-based filtering across views
+
+---
+
+## Phase 3: Prompt Management
+
+### 3.1 Prompt CRUD
+
+- [ ] Create prompt creation endpoint
+- [ ] Implement prompt listing with filtering
+- [ ] Create prompt detail retrieval
+- [ ] Implement prompt update endpoint
+- [ ] Create prompt deletion (soft delete)
+- [ ] Implement prompt duplication
+- [ ] Create prompt tagging system
+
+### 3.2 Version Control
+
+- [ ] Implement prompt version creation
+- [ ] Create version listing for a prompt
+- [ ] Implement version comparison (diff)
+- [ ] Create version rollback functionality
+- [ ] Implement version labeling (production, staging, etc.)
+- [ ] Create version promotion workflow
+- [ ] Implement version history timeline
+
+### 3.3 Template Engine
+
+- [ ] Design template syntax (Jinja2-like or custom)
+- [ ] Implement variable substitution
+- [ ] Create conditional logic support
+- [ ] Implement template includes/composition
+- [ ] Create template validation
+- [ ] Implement template preview
+- [ ] Build variable extraction from template
+
+### 3.4 Prompt Playground
+
+- [ ] Create playground UI component
+- [ ] Implement model selector (multi-provider)
+- [ ] Create variable input form
+- [ ] Implement real-time execution
+- [ ] Show token count estimates
+- [ ] Display cost estimates
+- [ ] Create response streaming support
+- [ ] Implement save to prompt functionality
+- [ ] Build comparison mode (side-by-side)
+- [ ] Create execution history in playground
+
+### 3.5 Prompt Frontend
+
+- [ ] Create prompts list page
+- [ ] Build prompt editor with syntax highlighting
+- [ ] Implement version history sidebar
+- [ ] Create prompt settings panel
+- [ ] Build prompt usage analytics
+- [ ] Implement prompt search
+- [ ] Create prompt organization (folders/tags)
+
+### 3.6 Prompt-Trace Linking
+
+- [ ] Implement prompt version tracking in traces
+- [ ] Create prompt usage analytics from traces
+- [ ] Build prompt performance metrics
+- [ ] Enable filtering traces by prompt version
+- [ ] Create prompt regression detection
+
+---
+
+## Phase 4: Evaluation & Scoring
+
+### 4.1 Score System
+
+- [ ] Design score data model
+- [ ] Create score submission endpoint
+- [ ] Implement score types (numeric, boolean, categorical)
+- [ ] Create score retrieval endpoints
+- [ ] Implement score aggregation queries
+- [ ] Build score trend analysis
+- [ ] Create score comparison across dimensions
+
+### 4.2 LLM-as-a-Judge
+
+- [ ] Design evaluator configuration schema
+- [ ] Create built-in evaluation templates
+- [ ] Implement evaluator execution engine
+- [ ] Support multiple judge models
+- [ ] Create async evaluation job queue
+- [ ] Implement evaluation result storage
+- [ ] Build evaluation cost tracking
+- [ ] Create custom evaluator creation UI
+- [ ] Implement batch evaluation
+
+### 4.3 Human Annotation
+
+- [ ] Create annotation queue data model
+- [ ] Implement queue creation and configuration
+- [ ] Build queue item assignment logic
+- [ ] Create annotation submission endpoint
+- [ ] Implement annotation UI workflow
+- [ ] Build keyboard shortcuts for annotation
+- [ ] Create annotation progress tracking
+- [ ] Implement inter-annotator agreement metrics
+- [ ] Build annotation export functionality
+
+### 4.4 User Feedback
+
+- [ ] Design feedback data model
+- [ ] Create feedback submission endpoint (thumbs, ratings)
+- [ ] Implement feedback widget SDK
+- [ ] Build feedback analytics dashboard
+- [ ] Create feedback-to-score mapping
+- [ ] Implement feedback trend analysis
+
+### 4.5 Datasets & Experiments
+
+- [ ] Create dataset CRUD endpoints
+- [ ] Implement dataset item management
+- [ ] Build dataset import (CSV, JSON)
+- [ ] Create experiment execution engine
+- [ ] Implement experiment result storage
+- [ ] Build experiment comparison UI
+- [ ] Create statistical significance testing
+- [ ] Implement experiment scheduling
+
+### 4.6 Score Analytics
+
+- [ ] Build score distribution charts
+- [ ] Implement correlation analysis
+- [ ] Create score breakdown by dimensions
+- [ ] Build Cohen's Kappa calculator
+- [ ] Implement F1 score computation
+- [ ] Create score trend visualizations
+- [ ] Build score alerting system
+
+---
+
+## Phase 5: Guardrails Engine
+
+### 5.1 Policy Engine Core
+
+- [ ] Design guardrail policy schema
+- [ ] Create policy CRUD endpoints
+- [ ] Implement policy matching logic (triggers)
+- [ ] Build policy priority/ordering system
+- [ ] Create policy versioning
+- [ ] Implement policy inheritance
+- [ ] Build policy testing framework
+
+### 5.2 Built-in Validators
+
+#### Input Validators
+
+- [ ] Implement prompt injection detector
+- [ ] Create jailbreak attempt detector
+- [ ] Build PII detector (email, phone, SSN, etc.)
+- [ ] Implement secrets detector (API keys, passwords)
+- [ ] Create topic classifier
+- [ ] Build language detector
+- [ ] Implement length/token limits
+- [ ] Create regex pattern matcher
+- [ ] Build custom keyword blocker
+
+#### Output Validators
+
+- [ ] Implement toxicity detector
+- [ ] Create hallucination detector
+- [ ] Build factual consistency checker
+- [ ] Implement JSON schema validator
+- [ ] Create format validators (email, URL, etc.)
+- [ ] Build relevance scorer
+- [ ] Implement completeness checker
+- [ ] Create citation validator
+- [ ] Build competitor mention detector
+
+### 5.3 Auto-Remediation Engine
+
+- [ ] Design remediation action framework
+- [ ] Implement `block` action with safe responses
+- [ ] Create `sanitize` action (PII redaction)
+- [ ] Build `retry` action with parameter modification
+- [ ] Implement `fallback` action (alternative model/response)
+- [ ] Create `alert` action (notification system)
+- [ ] Build `transform` action (output modification)
+- [ ] Implement remediation chain (multiple actions)
+- [ ] Create remediation audit logging
+- [ ] Build remediation metrics
+
+### 5.4 Real-Time Evaluation
+
+- [ ] Create synchronous evaluation endpoint
+- [ ] Implement async evaluation with webhooks
+- [ ] Build evaluation caching
+- [ ] Create batch evaluation endpoint
+- [ ] Implement evaluation timeout handling
+- [ ] Build circuit breaker for external validators
+- [ ] Create evaluation performance monitoring
+
+### 5.5 Guardrails SDK (In-Code)
+
+- [ ] Design SDK interface for Python
+- [ ] Implement decorator-based guards
+- [ ] Create context manager guards
+- [ ] Build middleware for popular frameworks
+- [ ] Implement local validation (no network)
+- [ ] Create remote validation client
+- [ ] Build validation result handling
+- [ ] Implement retry logic in SDK
+
+### 5.6 No-Code Configuration UI
+
+- [ ] Create policy builder UI
+- [ ] Implement rule condition builder
+- [ ] Build action configuration forms
+- [ ] Create policy testing interface
+- [ ] Implement policy preview
+- [ ] Build policy deployment workflow
+- [ ] Create policy monitoring dashboard
+- [ ] Implement policy A/B testing
+
+### 5.7 Guardrails Analytics
+
+- [ ] Create guardrail trigger dashboard
+- [ ] Build violation trend analysis
+- [ ] Implement remediation success rates
+- [ ] Create per-policy analytics
+- [ ] Build cost impact analysis
+- [ ] Create latency impact monitoring
+
+---
+
+## Phase 6: Multi-Agent Visualization
+
+### 6.1 Agent Data Model
+
+- [ ] Extend trace model for agent identification
+- [ ] Create agent relationship tracking
+- [ ] Implement tool call tracking
+- [ ] Build inter-agent message tracking
+- [ ] Create agent state snapshots
+- [ ] Implement agent hierarchy detection
+
+### 6.2 Graph Data Processing
+
+- [ ] Create graph construction from traces
+- [ ] Implement node/edge extraction
+- [ ] Build temporal ordering
+- [ ] Create parallel execution detection
+- [ ] Implement cycle detection
+- [ ] Build graph simplification for complex flows
+
+### 6.3 Real-Time Updates
+
+- [ ] Set up WebSocket server in Go
+- [ ] Implement trace event streaming
+- [ ] Create client subscription management
+- [ ] Build incremental graph updates
+- [ ] Implement reconnection handling
+- [ ] Create event buffering for slow clients
+
+### 6.4 Graph Visualization UI
+
+- [ ] Integrate graph library (React Flow, D3, or Cytoscape)
+- [ ] Create agent node components
+- [ ] Build edge visualization with message types
+- [ ] Implement zoom/pan controls
+- [ ] Create minimap for large graphs
+- [ ] Build node detail panel
+- [ ] Implement edge highlighting
+- [ ] Create execution path highlighting
+
+### 6.5 Timeline View
+
+- [ ] Create waterfall timeline component
+- [ ] Implement span duration visualization
+- [ ] Build parallel execution lanes
+- [ ] Create time scale controls
+- [ ] Implement span selection
+- [ ] Build timeline-graph synchronization
+
+### 6.6 Replay & Debugging
+
+- [ ] Implement execution replay controls
+- [ ] Create step-by-step navigation
+- [ ] Build state inspection at each step
+- [ ] Implement breakpoint-like markers
+- [ ] Create comparison between executions
+- [ ] Build performance bottleneck highlighting
+
+---
+
+## Phase 7: Analytics & Dashboards
+
+### 7.1 Metrics Engine
+
+- [ ] Define core metrics (latency, cost, tokens, errors)
+- [ ] Implement metric aggregation queries
+- [ ] Create time-series data generation
+- [ ] Build dimension-based breakdowns
+- [ ] Implement metric caching layer
+- [ ] Create metric alerting rules
+
+### 7.2 Dashboard Framework
+
+- [ ] Design dashboard data model
+- [ ] Create dashboard CRUD endpoints
+- [ ] Implement widget system
+- [ ] Build drag-and-drop layout
+- [ ] Create dashboard sharing
+- [ ] Implement dashboard templates
+
+### 7.3 Built-in Dashboards
+
+- [ ] Create overview dashboard
+- [ ] Build cost analytics dashboard
+- [ ] Create quality metrics dashboard
+- [ ] Build usage analytics dashboard
+- [ ] Create guardrails dashboard
+- [ ] Build prompt performance dashboard
+
+### 7.4 Visualization Components
+
+- [ ] Implement line charts (time series)
+- [ ] Create bar charts
+- [ ] Build pie/donut charts
+- [ ] Implement heatmaps
+- [ ] Create metric cards
+- [ ] Build data tables with sparklines
+- [ ] Implement geographic maps (if needed)
+
+### 7.5 Alerting System
+
+- [ ] Design alert rule schema
+- [ ] Create alert evaluation engine
+- [ ] Implement notification channels (email, Slack, webhook)
+- [ ] Build alert history and acknowledgment
+- [ ] Create alert escalation policies
+- [ ] Implement alert grouping/deduplication
+
+---
+
+## Phase 8: SDKs & Integrations
+
+### 8.1 Python SDK
+
+- [ ] Create package structure
+- [ ] Implement core client class
+- [ ] Build trace context management
+- [ ] Create decorator utilities
+- [ ] Implement OpenAI auto-instrumentation
+- [ ] Create Anthropic auto-instrumentation
+- [ ] Build LangChain integration
+- [ ] Implement LlamaIndex integration
+- [ ] Create async support
+- [ ] Build guardrails client
+- [ ] Implement prompt management client
+- [ ] Create comprehensive documentation
+- [ ] Publish to PyPI
+
+### 8.2 JavaScript/TypeScript SDK
+
+- [ ] Create package structure
+- [ ] Implement core client class
+- [ ] Build trace context management
+- [ ] Create wrapper utilities
+- [ ] Implement OpenAI auto-instrumentation
+- [ ] Create Vercel AI SDK integration
+- [ ] Build LangChain.js integration
+- [ ] Implement browser support
+- [ ] Create Node.js optimizations
+- [ ] Build guardrails client
+- [ ] Implement prompt management client
+- [ ] Create comprehensive documentation
+- [ ] Publish to npm
+
+### 8.3 Go SDK
+
+- [ ] Create module structure
+- [ ] Implement core client
+- [ ] Build context propagation
+- [ ] Create middleware for popular frameworks
+- [ ] Implement OpenTelemetry bridge
+- [ ] Build guardrails client
+- [ ] Create comprehensive documentation
+- [ ] Tag releases for go get
+
+### 8.4 OpenTelemetry Integration
+
+- [ ] Create OTLP receiver configuration
+- [ ] Implement semantic conventions for LLM
+- [ ] Build attribute mapping
+- [ ] Create collector configuration examples
+- [ ] Document OTEL integration
+
+### 8.5 Third-Party Integrations
+
+- [ ] Create Slack integration for alerts
+- [ ] Build GitHub integration for prompts
+- [ ] Implement webhook system
+- [ ] Create Zapier integration
+- [ ] Build API for custom integrations
+
+---
+
+## Phase 9: Enterprise Features
+
+### 9.1 Multi-Tenancy
+
+- [ ] Implement organization isolation
+- [ ] Create project-level data separation
+- [ ] Build resource quotas
+- [ ] Implement usage billing hooks
+- [ ] Create admin dashboard
+
+### 9.2 Security
+
+- [ ] Implement SSO (SAML, OIDC)
+- [ ] Create audit logging
+- [ ] Build data encryption at rest
+- [ ] Implement field-level encryption
+- [ ] Create IP allowlisting
+- [ ] Build compliance reports (SOC2, GDPR)
+
+### 9.3 Scalability
+
+- [ ] Implement horizontal scaling for API
+- [ ] Create read replicas for PostgreSQL
+- [ ] Build ClickHouse cluster configuration
+- [ ] Implement caching layer (Redis)
+- [ ] Create queue system for async jobs
+- [ ] Build auto-scaling configuration
+
+### 9.4 High Availability
+
+- [ ] Create Kubernetes deployment manifests
+- [ ] Implement health checks and probes
+- [ ] Build failover configuration
+- [ ] Create backup and restore procedures
+- [ ] Implement disaster recovery plan
+
+---
+
+## Phase 10: Documentation & DevOps
+
+### 10.1 Documentation
+
+- [ ] Create API documentation (OpenAPI/Swagger)
+- [ ] Write SDK documentation
+- [ ] Create user guides
+- [ ] Build integration tutorials
+- [ ] Write architecture documentation
+- [ ] Create runbooks for operations
+
+### 10.2 CI/CD
+
+- [ ] Set up GitHub Actions for backend
+- [ ] Create frontend build pipeline
+- [ ] Implement automated testing
+- [ ] Create Docker image builds
+- [ ] Set up staging environment
+- [ ] Implement production deployment
+
+### 10.3 Monitoring
+
+- [ ] Set up application metrics (Prometheus)
+- [ ] Create Grafana dashboards
+- [ ] Implement distributed tracing for OTelGuard itself
+- [ ] Set up error tracking (Sentry)
+- [ ] Create uptime monitoring
+- [ ] Build SLA reporting
+
+---
+
+## Task Priority Matrix
+
+| Priority | Phase | Description |
+|----------|-------|-------------|
+| P0 | 1.1-1.5 | Foundation - Must complete first |
+| P0 | 2.1-2.3 | Core tracing - MVP requirement |
+| P1 | 2.4-2.5 | Session/User tracking |
+| P1 | 3.1-3.3 | Basic prompt management |
+| P1 | 4.1-4.2 | Scoring and LLM evaluation |
+| P1 | 5.1-5.4 | Core guardrails engine |
+| P2 | 3.4-3.6 | Advanced prompt features |
+| P2 | 4.3-4.6 | Advanced evaluation |
+| P2 | 5.5-5.7 | Guardrails SDK and UI |
+| P2 | 6.1-6.6 | Multi-agent visualization |
+| P3 | 7.1-7.5 | Analytics and dashboards |
+| P3 | 8.1-8.5 | SDKs and integrations |
+| P4 | 9.1-9.4 | Enterprise features |
+| P4 | 10.1-10.3 | Documentation and DevOps |
+
+---
+
+## Definition of Done
+
+Each task is considered complete when:
+
+1. **Code Complete** - Implementation finished and self-reviewed
+2. **Tests Written** - Unit tests and integration tests where applicable
+3. **Documentation** - Code comments and API documentation updated
+4. **Code Review** - Approved by at least one team member
+5. **QA Verified** - Tested in staging environment
+6. **Merged** - Code merged to main branch
+
+---
+
+## Notes
+
+- Tasks within each section can often be parallelized
+- Database schema should be designed with future extensibility in mind
+- Performance testing should be done for high-throughput components
+- Security review required for authentication and guardrails features
+- Consider backward compatibility for SDK releases
