@@ -47,6 +47,14 @@ func (c PostgresConfig) DSN() string {
 	)
 }
 
+// MigrationDSN returns the PostgreSQL connection URL for golang-migrate
+func (c PostgresConfig) MigrationDSN() string {
+	return fmt.Sprintf(
+		"postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		c.User, c.Password, c.Host, c.Port, c.Database, c.SSLMode,
+	)
+}
+
 // ClickHouseConfig holds ClickHouse connection configuration
 type ClickHouseConfig struct {
 	Host        string        `envconfig:"CLICKHOUSE_HOST" default:"localhost"`

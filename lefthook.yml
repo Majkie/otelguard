@@ -1,0 +1,71 @@
+# OTelGuard Pre-commit Hooks Configuration
+# Install: go install github.com/evilmartians/lefthook@latest && lefthook install
+
+pre-commit:
+  parallel: true
+  commands:
+    go-fmt:
+      glob: "*.go"
+      run: cd backend && gofmt -l -w {staged_files}
+      stage_fixed: true
+
+    go-imports:
+      glob: "*.go"
+      run: cd backend && goimports -l -w {staged_files}
+      stage_fixed: true
+
+    go-lint:
+      glob: "*.go"
+      run: cd backend && golangci-lint run --fast --new-from-rev=HEAD~1
+
+    go-mod-tidy:
+      glob: "go.{mod,sum}"
+      run: cd backend && go mod tidy && git diff --exit-code go.mod go.sum
+
+    ts-lint:
+      glob: "*.{ts,tsx,js,jsx}"
+      run: cd frontend && npm run lint -- {staged_files}
+
+    ts-format:
+      glob: "*.{ts,tsx,js,jsx,json,css,md}"
+      run: cd frontend && npx prettier --write {staged_files}
+      stage_fixed: true
+
+    no-secrets:
+      glob: "*"
+      exclude: "*.{lock,sum}|node_modules/**"
+      run: |
+        if git diff --cached --name-only | xargs grep -l -E "(password|secret|api_key|private_key)\s*[:=]\s*['\"][^'\"]+['\"]" 2>/dev/null; then
+          echo "Warning: Potential secrets detected in staged files"
+          exit 1
+        fi
+
+pre-push:
+  parallel: true
+  commands:
+    go-test:
+      glob: "*.go"
+      run: cd backend && go test -short ./...
+
+    go-build:
+      glob: "*.go"
+      run: cd backend && go build -o /dev/null ./cmd/server
+
+    ts-typecheck:
+      glob: "*.{ts,tsx}"
+      run: cd frontend && npm run typecheck
+
+commit-msg:
+  commands:
+    conventional-commit:
+      run: |
+        MSG=$(cat "$1")
+        PATTERN="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?: .{1,72}"
+        if ! echo "$MSG" | grep -qE "$PATTERN"; then
+          echo "Commit message must follow Conventional Commits format:"
+          echo "  <type>(<scope>): <description>"
+          echo ""
+          echo "Types: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert"
+          echo "Example: feat(auth): add password reset flow"
+          exit 1
+        fi

@@ -1,4 +1,4 @@
-.PHONY: help build run test lint lint-fix format clean docker-up docker-down migrate dev
+.PHONY: help build run test lint lint-fix format clean docker-up docker-down migrate dev hooks hooks-install
 
 # Default target
 help:
@@ -19,9 +19,11 @@ help:
 	@echo "  build-frontend Build React frontend"
 	@echo ""
 	@echo "Database:"
-	@echo "  migrate-up    Run database migrations"
-	@echo "  migrate-down  Rollback database migrations"
-	@echo "  seed          Seed database with sample data"
+	@echo "  migrate-up     Run database migrations"
+	@echo "  migrate-down   Rollback database migrations"
+	@echo "  migrate-status Show current migration version"
+	@echo "  migrate-create Create new migration (NAME=...)"
+	@echo "  seed           Seed database with sample data"
 	@echo ""
 	@echo "Testing & Quality:"
 	@echo "  test          Run all tests"
@@ -30,6 +32,10 @@ help:
 	@echo "  lint          Run linters"
 	@echo "  lint-fix      Fix auto-fixable lint issues"
 	@echo "  format        Format code"
+	@echo ""
+	@echo "Git Hooks:"
+	@echo "  hooks-install Install git hooks (lefthook)"
+	@echo "  hooks         Run pre-commit hooks manually"
 	@echo ""
 	@echo "Other:"
 	@echo "  clean         Clean build artifacts"
@@ -73,17 +79,30 @@ build-frontend:
 	cd frontend && npm run build
 
 # Database
+POSTGRES_URL ?= postgres://otelguard:otelguard@localhost:5432/otelguard?sslmode=disable
+MIGRATIONS_PATH ?= backend/internal/database/migrations/postgres
+
 migrate-up:
 	@echo "Running PostgreSQL migrations..."
-	docker exec -i otelguard-postgres psql -U otelguard -d otelguard < backend/migrations/postgres/001_initial_schema.sql
+	@which migrate > /dev/null || go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+	migrate -path $(MIGRATIONS_PATH) -database "$(POSTGRES_URL)" up
 	@echo "Running ClickHouse migrations..."
 	docker exec -i otelguard-clickhouse clickhouse-client --database=otelguard < backend/migrations/clickhouse/001_traces.sql
 	docker exec -i otelguard-clickhouse clickhouse-client --database=otelguard < backend/migrations/clickhouse/002_events.sql
+	docker exec -i otelguard-clickhouse clickhouse-client --database=otelguard < backend/migrations/clickhouse/003_attributes.sql
 
 migrate-down:
-	@echo "Rolling back migrations..."
+	@echo "Rolling back PostgreSQL migrations..."
 	@echo "Warning: This will drop all tables!"
-	docker exec -i otelguard-postgres psql -U otelguard -d otelguard -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	migrate -path $(MIGRATIONS_PATH) -database "$(POSTGRES_URL)" down -all
+
+migrate-status:
+	@echo "Checking migration status..."
+	migrate -path $(MIGRATIONS_PATH) -database "$(POSTGRES_URL)" version
+
+migrate-create:
+	@if [ -z "$(NAME)" ]; then echo "Usage: make migrate-create NAME=migration_name"; exit 1; fi
+	migrate create -ext sql -dir $(MIGRATIONS_PATH) -seq $(NAME)
 
 seed:
 	@echo "Seeding database..."
@@ -140,6 +159,17 @@ install-backend:
 install-frontend:
 	@echo "Installing frontend dependencies..."
 	cd frontend && npm install
+
+# Git Hooks
+hooks-install:
+	@echo "Installing lefthook..."
+	@which lefthook > /dev/null || go install github.com/evilmartians/lefthook@latest
+	lefthook install
+	@echo "Git hooks installed successfully!"
+
+hooks:
+	@echo "Running pre-commit hooks..."
+	lefthook run pre-commit
 
 # Clean
 clean:

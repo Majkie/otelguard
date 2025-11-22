@@ -16,6 +16,7 @@ import (
 type Handlers struct {
 	Health    *handlers.HealthHandler
 	Auth      *handlers.AuthHandler
+	Org       *handlers.OrgHandler
 	Trace     *handlers.TraceHandler
 	OTLP      *handlers.OTLPHandler
 	Prompt    *handlers.PromptHandler
@@ -60,6 +61,8 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 			auth.POST("/register", h.Auth.Register)
 			auth.POST("/login", h.Auth.Login)
 			auth.POST("/refresh", h.Auth.RefreshToken)
+			auth.POST("/password-reset/request", h.Org.RequestPasswordReset)
+			auth.POST("/password-reset/confirm", h.Org.ResetPassword)
 		}
 
 		// SDK/API routes - API key authentication
@@ -96,29 +99,37 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 			// Organizations
 			orgs := dashboard.Group("/organizations")
 			{
-				orgs.GET("", h.Auth.ListOrganizations)
-				orgs.POST("", h.Auth.CreateOrganization)
-				orgs.GET("/:orgId", h.Auth.GetOrganization)
-				orgs.PUT("/:orgId", h.Auth.UpdateOrganization)
-				orgs.DELETE("/:orgId", h.Auth.DeleteOrganization)
-				orgs.GET("/:orgId/members", h.Auth.ListMembers)
-				orgs.POST("/:orgId/members", h.Auth.AddMember)
-				orgs.DELETE("/:orgId/members/:userId", h.Auth.RemoveMember)
+				orgs.GET("", h.Org.ListOrganizations)
+				orgs.POST("", h.Org.CreateOrganization)
+				orgs.GET("/:orgId", h.Org.GetOrganization)
+				orgs.PUT("/:orgId", h.Org.UpdateOrganization)
+				orgs.DELETE("/:orgId", h.Org.DeleteOrganization)
+				orgs.GET("/:orgId/members", h.Org.ListMembers)
+				orgs.POST("/:orgId/members", h.Org.AddMember)
+				orgs.DELETE("/:orgId/members/:userId", h.Org.RemoveMember)
 			}
 
 			// Projects
 			projects := dashboard.Group("/projects")
 			{
-				projects.GET("", h.Auth.ListProjects)
-				projects.POST("", h.Auth.CreateProject)
-				projects.GET("/:projectId", h.Auth.GetProject)
-				projects.PUT("/:projectId", h.Auth.UpdateProject)
-				projects.DELETE("/:projectId", h.Auth.DeleteProject)
+				projects.GET("", h.Org.ListProjects)
+				projects.POST("", h.Org.CreateProject)
+				projects.GET("/:projectId", h.Org.GetProject)
+				projects.PUT("/:projectId", h.Org.UpdateProject)
+				projects.DELETE("/:projectId", h.Org.DeleteProject)
 
 				// API Keys
 				projects.GET("/:projectId/api-keys", h.Auth.ListAPIKeys)
 				projects.POST("/:projectId/api-keys", h.Auth.CreateAPIKey)
 				projects.DELETE("/:projectId/api-keys/:keyId", h.Auth.RevokeAPIKey)
+			}
+
+			// Sessions
+			sessionRoutes := dashboard.Group("/sessions")
+			{
+				sessionRoutes.GET("", h.Org.ListSessions)
+				sessionRoutes.DELETE("/:sessionId", h.Org.RevokeSession)
+				sessionRoutes.DELETE("", h.Org.RevokeAllSessions)
 			}
 
 			// Traces (dashboard view)
