@@ -22,6 +22,7 @@ import (
 	chrepo "github.com/otelguard/otelguard/internal/repository/clickhouse"
 	pgrepo "github.com/otelguard/otelguard/internal/repository/postgres"
 	"github.com/otelguard/otelguard/internal/service"
+	"github.com/otelguard/otelguard/pkg/validator"
 )
 
 func main() {
@@ -35,6 +36,10 @@ func main() {
 	// Initialize logger
 	logger := initLogger(cfg.IsDevelopment())
 	defer logger.Sync()
+
+	// Initialize request validator
+	validator.Init()
+	logger.Info("request validator initialized")
 
 	logger.Info("starting OTelGuard server",
 		zap.String("environment", cfg.Server.Environment),

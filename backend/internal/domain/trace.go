@@ -85,6 +85,49 @@ type GuardrailEvent struct {
 	CreatedAt       time.Time  `ch:"created_at" json:"createdAt"`
 }
 
+// Event represents a generic event (log, exception, custom event, etc.)
+type Event struct {
+	ID                 uuid.UUID         `ch:"id" json:"id"`
+	ProjectID          uuid.UUID         `ch:"project_id" json:"projectId"`
+	TraceID            *uuid.UUID        `ch:"trace_id" json:"traceId,omitempty"`
+	SpanID             *uuid.UUID        `ch:"span_id" json:"spanId,omitempty"`
+	SessionID          *string           `ch:"session_id" json:"sessionId,omitempty"`
+	UserID             *string           `ch:"user_id" json:"userId,omitempty"`
+	Name               string            `ch:"name" json:"name"`
+	Type               string            `ch:"type" json:"type"` // log, exception, custom, user_action, system
+	Level              string            `ch:"level" json:"level"`
+	Message            string            `ch:"message" json:"message"`
+	Data               string            `ch:"data" json:"data,omitempty"`
+	ExceptionType      *string           `ch:"exception_type" json:"exceptionType,omitempty"`
+	ExceptionMessage   *string           `ch:"exception_message" json:"exceptionMessage,omitempty"`
+	ExceptionStacktrace *string           `ch:"exception_stacktrace" json:"exceptionStacktrace,omitempty"`
+	Source             string            `ch:"source" json:"source"`
+	Environment        string            `ch:"environment" json:"environment"`
+	Version            string            `ch:"version" json:"version"`
+	Tags               []string          `ch:"tags" json:"tags,omitempty"`
+	Attributes         map[string]string `ch:"attributes" json:"attributes,omitempty"`
+	Timestamp          time.Time         `ch:"timestamp" json:"timestamp"`
+	CreatedAt          time.Time         `ch:"created_at" json:"createdAt"`
+}
+
+// EventType constants
+const (
+	EventTypeLog        = "log"
+	EventTypeException  = "exception"
+	EventTypeCustom     = "custom"
+	EventTypeUserAction = "user_action"
+	EventTypeSystem     = "system"
+)
+
+// EventLevel constants
+const (
+	EventLevelDebug = "debug"
+	EventLevelInfo  = "info"
+	EventLevelWarn  = "warn"
+	EventLevelError = "error"
+	EventLevelFatal = "fatal"
+)
+
 // SpanType constants
 const (
 	SpanTypeLLM       = "llm"

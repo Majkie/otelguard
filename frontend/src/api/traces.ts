@@ -43,12 +43,28 @@ export interface Span {
 }
 
 export interface ListTracesParams {
+  // Pagination
   limit?: number;
   offset?: number;
+  // Basic filters
+  projectId?: string;
   sessionId?: string;
   userId?: string;
   model?: string;
-  projectId?: string;
+  name?: string;
+  status?: 'success' | 'error' | 'pending';
+  tags?: string;
+  // Time filters
+  startTime?: string;
+  endTime?: string;
+  // Numeric filters
+  minLatency?: number;
+  maxLatency?: number;
+  minCost?: number;
+  maxCost?: number;
+  // Sorting
+  sortBy?: 'start_time' | 'latency_ms' | 'cost' | 'total_tokens' | 'name' | 'model';
+  sortOrder?: 'ASC' | 'DESC';
 }
 
 export interface ListTracesResponse {

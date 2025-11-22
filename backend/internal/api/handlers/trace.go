@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -10,6 +11,7 @@ import (
 	"github.com/otelguard/otelguard/internal/api/middleware"
 	"github.com/otelguard/otelguard/internal/domain"
 	"github.com/otelguard/otelguard/internal/service"
+	"github.com/otelguard/otelguard/pkg/validator"
 	"go.uber.org/zap"
 )
 
@@ -29,24 +31,24 @@ func NewTraceHandler(traceService *service.TraceService, logger *zap.Logger) *Tr
 
 // IngestTraceRequest represents a trace ingestion request
 type IngestTraceRequest struct {
-	ID               string   `json:"id,omitempty"`
-	SessionID        string   `json:"sessionId,omitempty"`
-	UserID           string   `json:"userId,omitempty"`
-	Name             string   `json:"name" binding:"required"`
-	Input            string   `json:"input"`
-	Output           string   `json:"output"`
+	ID               string   `json:"id,omitempty" binding:"omitempty,uuid"`
+	SessionID        string   `json:"sessionId,omitempty" binding:"max=255"`
+	UserID           string   `json:"userId,omitempty" binding:"max=255"`
+	Name             string   `json:"name" binding:"required,min=1,max=255"`
+	Input            string   `json:"input" binding:"max=1000000"`
+	Output           string   `json:"output" binding:"max=1000000"`
 	Metadata         any      `json:"metadata,omitempty"`
 	StartTime        string   `json:"startTime"`
 	EndTime          string   `json:"endTime"`
-	LatencyMs        uint32   `json:"latencyMs"`
-	TotalTokens      uint32   `json:"totalTokens"`
-	PromptTokens     uint32   `json:"promptTokens"`
-	CompletionTokens uint32   `json:"completionTokens"`
-	Cost             float64  `json:"cost"`
-	Model            string   `json:"model"`
-	Tags             []string `json:"tags"`
-	Status           string   `json:"status"`
-	ErrorMessage     string   `json:"errorMessage,omitempty"`
+	LatencyMs        uint32   `json:"latencyMs" binding:"gte=0"`
+	TotalTokens      uint32   `json:"totalTokens" binding:"gte=0"`
+	PromptTokens     uint32   `json:"promptTokens" binding:"gte=0"`
+	CompletionTokens uint32   `json:"completionTokens" binding:"gte=0"`
+	Cost             float64  `json:"cost" binding:"gte=0"`
+	Model            string   `json:"model" binding:"max=100"`
+	Tags             []string `json:"tags" binding:"max=50,dive,max=50"`
+	Status           string   `json:"status" binding:"omitempty,status"`
+	ErrorMessage     string   `json:"errorMessage,omitempty" binding:"max=5000"`
 }
 
 // IngestTraceResponse represents the trace ingestion response
@@ -59,6 +61,15 @@ type IngestTraceResponse struct {
 func (h *TraceHandler) IngestTrace(c *gin.Context) {
 	var req IngestTraceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		validationErrors := validator.ParseValidationErrors(err)
+		if len(validationErrors) > 0 {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "validation_error",
+				"message": validationErrors.Error(),
+				"details": validationErrors,
+			})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid_request",
 			"message": err.Error(),
@@ -354,25 +365,67 @@ func (h *TraceHandler) SubmitScore(c *gin.Context) {
 
 // ListTraces returns paginated traces
 func (h *TraceHandler) ListTraces(c *gin.Context) {
+	// Pagination
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-	sessionID := c.Query("sessionId")
-	userID := c.Query("userId")
-	model := c.Query("model")
 
 	if limit > 100 {
 		limit = 100
 	}
+	if limit < 1 {
+		limit = 50
+	}
 
-	projectID := c.Query("projectId") // From dashboard context
+	// Basic filters
+	projectID := c.Query("projectId")
+	sessionID := c.Query("sessionId")
+	userID := c.Query("userId")
+	model := c.Query("model")
+	name := c.Query("name")
+	status := c.Query("status")
+
+	// Tags filter (comma-separated)
+	var tags []string
+	if tagsParam := c.Query("tags"); tagsParam != "" {
+		for _, tag := range splitAndTrim(tagsParam, ",") {
+			if tag != "" {
+				tags = append(tags, tag)
+			}
+		}
+	}
+
+	// Time filters
+	startTime := c.Query("startTime")
+	endTime := c.Query("endTime")
+
+	// Numeric filters
+	minLatency, _ := strconv.Atoi(c.DefaultQuery("minLatency", "0"))
+	maxLatency, _ := strconv.Atoi(c.DefaultQuery("maxLatency", "0"))
+	minCost, _ := strconv.ParseFloat(c.DefaultQuery("minCost", "0"), 64)
+	maxCost, _ := strconv.ParseFloat(c.DefaultQuery("maxCost", "0"), 64)
+
+	// Sorting
+	sortBy := c.DefaultQuery("sortBy", "start_time")
+	sortOrder := c.DefaultQuery("sortOrder", "DESC")
 
 	opts := &service.ListTracesOptions{
-		ProjectID: projectID,
-		SessionID: sessionID,
-		UserID:    userID,
-		Model:     model,
-		Limit:     limit,
-		Offset:    offset,
+		ProjectID:  projectID,
+		SessionID:  sessionID,
+		UserID:     userID,
+		Model:      model,
+		Name:       name,
+		Status:     status,
+		Tags:       tags,
+		StartTime:  startTime,
+		EndTime:    endTime,
+		MinLatency: minLatency,
+		MaxLatency: maxLatency,
+		MinCost:    minCost,
+		MaxCost:    maxCost,
+		SortBy:     sortBy,
+		SortOrder:  sortOrder,
+		Limit:      limit,
+		Offset:     offset,
 	}
 
 	traces, total, err := h.traceService.ListTraces(c.Request.Context(), opts)
@@ -391,6 +444,25 @@ func (h *TraceHandler) ListTraces(c *gin.Context) {
 		"limit":  limit,
 		"offset": offset,
 	})
+}
+
+// splitAndTrim splits a string by delimiter and trims each part
+func splitAndTrim(s, sep string) []string {
+	parts := make([]string, 0)
+	for _, part := range stringsplit(s, sep) {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+	}
+	return parts
+}
+
+func stringsplit(s, sep string) []string {
+	if s == "" {
+		return nil
+	}
+	return strings.Split(s, sep)
 }
 
 // GetTrace returns a single trace

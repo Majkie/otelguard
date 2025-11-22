@@ -19,8 +19,8 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Set up ClickHouse container with initial schema
 - [x] Configure environment variable management
 - [x] Set up Makefile for common tasks
-- [ ] Configure ESLint, Prettier for frontend
-- [ ] Configure golangci-lint for backend
+- [x] Configure ESLint, Prettier for frontend
+- [x] Configure golangci-lint for backend
 - [ ] Set up pre-commit hooks
 
 ### 1.2 Database Schema Design
@@ -46,7 +46,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 - [x] Design and create `traces` table (MergeTree)
 - [x] Design and create `spans` table (MergeTree)
-- [ ] Design and create `events` table (MergeTree)
+- [x] Design and create `events` table (MergeTree)
 - [x] Design and create `metrics` table (MergeTree)
 - [x] Design and create `scores` table (MergeTree)
 - [x] Design and create `guardrail_events` table (MergeTree)
@@ -68,7 +68,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Set up CORS configuration
 - [x] Create error handling middleware
 - [x] Implement rate limiting middleware
-- [ ] Set up request validation (go-playground/validator)
+- [x] Set up request validation (go-playground/validator)
 
 ### 1.4 Authentication & Authorization
 
@@ -93,8 +93,8 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Create API client with interceptors
 - [x] Implement protected route wrapper
 - [x] Create toast notification system
-- [ ] Set up dark/light theme support
-- [ ] Create loading states and skeletons
+- [x] Set up dark/light theme support
+- [x] Create loading states and skeletons
 
 ---
 
@@ -119,7 +119,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 ### 2.2 Trace Storage & Retrieval
 
 - [x] Implement trace listing with pagination
-- [ ] Create trace filtering (by project, user, session, tags)
+- [x] Create trace filtering (by project, user, session, tags)
 - [ ] Implement full-text search on trace content
 - [x] Create trace detail retrieval with spans
 - [ ] Implement span tree reconstruction
@@ -130,7 +130,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 ### 2.3 Trace Visualization (Frontend)
 
 - [x] Create traces list page with TanStack Table
-- [ ] Implement column sorting and filtering
+- [x] Implement column sorting and filtering
 - [x] Create trace detail page
 - [ ] Build span waterfall/timeline visualization
 - [ ] Create span detail panel (input/output viewer)

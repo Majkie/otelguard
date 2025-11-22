@@ -24,14 +24,23 @@ func NewTraceService(traceRepo *clickhouse.TraceRepository, logger *zap.Logger) 
 
 // ListTracesOptions contains options for listing traces
 type ListTracesOptions struct {
-	ProjectID string
-	SessionID string
-	UserID    string
-	Model     string
-	StartTime string
-	EndTime   string
-	Limit     int
-	Offset    int
+	ProjectID  string
+	SessionID  string
+	UserID     string
+	Model      string
+	Name       string   // Search by name
+	Status     string   // Filter by status
+	Tags       []string // Filter by tags
+	StartTime  string   // ISO8601 timestamp
+	EndTime    string   // ISO8601 timestamp
+	MinLatency int      // Minimum latency in ms
+	MaxLatency int      // Maximum latency in ms
+	MinCost    float64  // Minimum cost
+	MaxCost    float64  // Maximum cost
+	SortBy     string   // Field to sort by
+	SortOrder  string   // ASC or DESC
+	Limit      int
+	Offset     int
 }
 
 // IngestTrace ingests a single trace
@@ -57,12 +66,23 @@ func (s *TraceService) SubmitScore(ctx context.Context, score *domain.Score) err
 // ListTraces returns paginated traces
 func (s *TraceService) ListTraces(ctx context.Context, opts *ListTracesOptions) ([]*domain.Trace, int, error) {
 	return s.traceRepo.Query(ctx, &clickhouse.QueryOptions{
-		ProjectID: opts.ProjectID,
-		SessionID: opts.SessionID,
-		UserID:    opts.UserID,
-		Model:     opts.Model,
-		Limit:     opts.Limit,
-		Offset:    opts.Offset,
+		ProjectID:  opts.ProjectID,
+		SessionID:  opts.SessionID,
+		UserID:     opts.UserID,
+		Model:      opts.Model,
+		Name:       opts.Name,
+		Status:     opts.Status,
+		Tags:       opts.Tags,
+		StartTime:  opts.StartTime,
+		EndTime:    opts.EndTime,
+		MinLatency: opts.MinLatency,
+		MaxLatency: opts.MaxLatency,
+		MinCost:    opts.MinCost,
+		MaxCost:    opts.MaxCost,
+		SortBy:     opts.SortBy,
+		SortOrder:  opts.SortOrder,
+		Limit:      opts.Limit,
+		Offset:     opts.Offset,
 	})
 }
 
