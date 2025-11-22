@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatDate, formatCost, formatLatency, formatTokens } from '@/lib/utils';
+import { exportTracesToJson, exportTracesToCsv } from '@/lib/export';
 import {
   Search,
   ChevronLeft,
@@ -22,6 +23,8 @@ import {
   ArrowDown,
   Filter,
   X,
+  Download,
+  Calendar,
 } from 'lucide-react';
 
 type SortField = 'start_time' | 'latency_ms' | 'cost' | 'total_tokens' | 'name' | 'model';
@@ -38,6 +41,9 @@ export function TracesPage() {
   const [nameFilter, setNameFilter] = useState('');
   const [modelFilter, setModelFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<'' | 'success' | 'error' | 'pending'>('');
+  const [startTimeFilter, setStartTimeFilter] = useState('');
+  const [endTimeFilter, setEndTimeFilter] = useState('');
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const { data, isLoading, error } = useTraces(params);
 
@@ -58,21 +64,41 @@ export function TracesPage() {
       name: nameFilter || undefined,
       model: modelFilter || undefined,
       status: statusFilter || undefined,
+      startTime: startTimeFilter || undefined,
+      endTime: endTimeFilter || undefined,
     }));
-  }, [nameFilter, modelFilter, statusFilter]);
+  }, [nameFilter, modelFilter, statusFilter, startTimeFilter, endTimeFilter]);
 
   const handleClearFilters = useCallback(() => {
     setNameFilter('');
     setModelFilter('');
     setStatusFilter('');
+    setStartTimeFilter('');
+    setEndTimeFilter('');
     setParams((prev) => ({
       ...prev,
       offset: 0,
       name: undefined,
       model: undefined,
       status: undefined,
+      startTime: undefined,
+      endTime: undefined,
     }));
   }, []);
+
+  const handleExportJson = useCallback(() => {
+    if (data?.data) {
+      exportTracesToJson(data.data, `traces-export-${Date.now()}`);
+    }
+    setShowExportMenu(false);
+  }, [data]);
+
+  const handleExportCsv = useCallback(() => {
+    if (data?.data) {
+      exportTracesToCsv(data.data, `traces-export-${Date.now()}`);
+    }
+    setShowExportMenu(false);
+  }, [data]);
 
   const handleNextPage = () => {
     setParams((prev) => ({
@@ -99,7 +125,7 @@ export function TracesPage() {
     );
   };
 
-  const hasActiveFilters = params.name || params.model || params.status;
+  const hasActiveFilters = params.name || params.model || params.status || params.startTime || params.endTime;
 
   return (
     <div className="space-y-6">
@@ -144,10 +170,39 @@ export function TracesPage() {
                   Clear
                 </Button>
               )}
+              {/* Export dropdown */}
+              <div className="relative">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  disabled={!data?.data?.length}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export
+                </Button>
+                {showExportMenu && (
+                  <div className="absolute right-0 mt-2 w-40 rounded-md shadow-lg bg-popover border z-10">
+                    <div className="py-1">
+                      <button
+                        onClick={handleExportJson}
+                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
+                      >
+                        Export as JSON
+                      </button>
+                      <button
+                        onClick={handleExportCsv}
+                        className="block w-full text-left px-4 py-2 text-sm hover:bg-muted"
+                      >
+                        Export as CSV
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {showFilters && (
-              <div className="grid grid-cols-3 gap-4 pt-4 border-t">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t">
                 <div>
                   <label className="text-sm font-medium mb-1 block">Model</label>
                   <Input
@@ -171,8 +226,30 @@ export function TracesPage() {
                     <option value="pending">Pending</option>
                   </select>
                 </div>
-                <div className="flex items-end">
-                  <Button onClick={handleSearch} className="w-full">
+                <div>
+                  <label className="text-sm font-medium mb-1 block flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    Start Time
+                  </label>
+                  <Input
+                    type="datetime-local"
+                    value={startTimeFilter}
+                    onChange={(e) => setStartTimeFilter(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    End Time
+                  </label>
+                  <Input
+                    type="datetime-local"
+                    value={endTimeFilter}
+                    onChange={(e) => setEndTimeFilter(e.target.value)}
+                  />
+                </div>
+                <div className="md:col-span-4 flex justify-end">
+                  <Button onClick={handleSearch}>
                     Apply Filters
                   </Button>
                 </div>

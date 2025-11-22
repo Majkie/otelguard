@@ -40,7 +40,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Design and create `annotation_queues` table
 - [x] Design and create `score_configs` table
 - [ ] Set up database migrations with golang-migrate
-- [ ] Create seed data for development
+- [x] Create seed data for development
 
 #### ClickHouse (Events)
 
@@ -122,7 +122,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Create trace filtering (by project, user, session, tags)
 - [ ] Implement full-text search on trace content
 - [x] Create trace detail retrieval with spans
-- [ ] Implement span tree reconstruction
+- [x] Implement span tree reconstruction
 - [ ] Calculate trace-level aggregations (latency, cost, tokens)
 - [ ] Create time-range queries optimization
 - [ ] Implement trace sampling for high-volume projects
@@ -132,12 +132,12 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Create traces list page with TanStack Table
 - [x] Implement column sorting and filtering
 - [x] Create trace detail page
-- [ ] Build span waterfall/timeline visualization
-- [ ] Create span detail panel (input/output viewer)
-- [ ] Implement JSON viewer for structured data
+- [x] Build span waterfall/timeline visualization
+- [x] Create span detail panel (input/output viewer)
+- [x] Implement JSON viewer for structured data
 - [ ] Create diff viewer for comparing traces
-- [ ] Build trace search interface
-- [ ] Implement trace export (JSON, CSV)
+- [x] Build trace search interface
+- [x] Implement trace export (JSON, CSV)
 
 ### 2.4 Session Management
 

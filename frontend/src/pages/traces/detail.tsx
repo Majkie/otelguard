@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Clock, Hash, Coins, Cpu } from 'lucide-react';
+import { ArrowLeft, Clock, Hash, Coins, Cpu, Download } from 'lucide-react';
 import { useTrace, useTraceSpans } from '@/api/traces';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { SpanDetailPanel } from '@/components/features/traces/span-detail-panel'
 import { JsonViewer } from '@/components/features/traces/json-viewer';
 import { TraceDetailSkeleton } from '@/components/features/traces/traces-skeleton';
 import { formatDate, formatCost, formatLatency, formatTokens } from '@/lib/utils';
+import { exportTraceDetailToJson } from '@/lib/export';
 import type { SpanTreeNode } from '@/lib/span-tree';
 import { cn } from '@/lib/utils';
 
@@ -68,8 +69,18 @@ export function TraceDetailPage() {
             {trace.id}
           </p>
         </div>
-        <div className="text-right text-sm text-muted-foreground">
-          {formatDate(trace.startTime)}
+        <div className="flex items-center gap-4">
+          <div className="text-right text-sm text-muted-foreground">
+            {formatDate(trace.startTime)}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportTraceDetailToJson(trace, spansData?.data || [])}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Export
+          </Button>
         </div>
       </div>
 
