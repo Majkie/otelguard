@@ -15,6 +15,30 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// MaxInputOutputSize is the maximum size for input/output fields in bytes (500KB)
+	MaxInputOutputSize = 500000
+	// TruncationSuffix is appended to truncated content
+	TruncationSuffix = "\n...[truncated]"
+)
+
+// truncateString truncates a string to maxLen bytes, appending a suffix if truncated
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	// Find a safe place to cut (avoid breaking UTF-8 sequences)
+	truncateAt := maxLen - len(TruncationSuffix)
+	if truncateAt < 0 {
+		truncateAt = 0
+	}
+	// Ensure we don't cut in the middle of a UTF-8 character
+	for truncateAt > 0 && s[truncateAt]&0xC0 == 0x80 {
+		truncateAt--
+	}
+	return s[:truncateAt] + TruncationSuffix
+}
+
 // TraceHandler handles trace-related endpoints
 type TraceHandler struct {
 	traceService *service.TraceService
@@ -109,12 +133,16 @@ func (h *TraceHandler) IngestTrace(c *gin.Context) {
 	projectUUID, _ := uuid.Parse(projectID)
 	traceUUID, _ := uuid.Parse(traceID)
 
+	// Apply truncation to large input/output fields
+	input := truncateString(req.Input, MaxInputOutputSize)
+	output := truncateString(req.Output, MaxInputOutputSize)
+
 	trace := &domain.Trace{
 		ID:               traceUUID,
 		ProjectID:        projectUUID,
 		Name:             req.Name,
-		Input:            req.Input,
-		Output:           req.Output,
+		Input:            input,
+		Output:           output,
 		StartTime:        startTime,
 		EndTime:          endTime,
 		LatencyMs:        req.LatencyMs,
@@ -182,12 +210,16 @@ func (h *TraceHandler) IngestBatch(c *gin.Context) {
 		}
 		traceUUID, _ := uuid.Parse(traceID)
 
+		// Apply truncation to large input/output fields
+		input := truncateString(r.Input, MaxInputOutputSize)
+		output := truncateString(r.Output, MaxInputOutputSize)
+
 		trace := &domain.Trace{
 			ID:               traceUUID,
 			ProjectID:        projectUUID,
 			Name:             r.Name,
-			Input:            r.Input,
-			Output:           r.Output,
+			Input:            input,
+			Output:           output,
 			StartTime:        time.Now(),
 			EndTime:          time.Now(),
 			LatencyMs:        r.LatencyMs,
@@ -260,14 +292,18 @@ func (h *TraceHandler) IngestSpan(c *gin.Context) {
 	spanUUID, _ := uuid.Parse(spanID)
 	traceUUID, _ := uuid.Parse(req.TraceID)
 
+	// Apply truncation to large input/output fields
+	input := truncateString(req.Input, MaxInputOutputSize)
+	output := truncateString(req.Output, MaxInputOutputSize)
+
 	span := &domain.Span{
 		ID:        spanUUID,
 		TraceID:   traceUUID,
 		ProjectID: projectUUID,
 		Name:      req.Name,
 		Type:      req.Type,
-		Input:     req.Input,
-		Output:    req.Output,
+		Input:     input,
+		Output:    output,
 		StartTime: time.Now(),
 		EndTime:   time.Now(),
 		LatencyMs: req.LatencyMs,
@@ -604,27 +640,268 @@ func (h *TraceHandler) GetSession(c *gin.Context) {
 
 // GetOverview returns analytics overview
 func (h *TraceHandler) GetOverview(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"totalTraces":    0,
-		"totalTokens":    0,
-		"totalCost":      0,
-		"avgLatencyMs":   0,
-		"errorRate":      0,
-	})
+	projectID := c.Query("projectId")
+	startTime := c.Query("startTime")
+	endTime := c.Query("endTime")
+
+	opts := &service.AnalyticsOptions{
+		ProjectID: projectID,
+		StartTime: startTime,
+		EndTime:   endTime,
+	}
+
+	metrics, err := h.traceService.GetOverviewMetrics(c.Request.Context(), opts)
+	if err != nil {
+		h.logger.Error("failed to get overview metrics", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve overview metrics",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, metrics)
 }
 
 // GetCostAnalytics returns cost analytics
 func (h *TraceHandler) GetCostAnalytics(c *gin.Context) {
+	projectID := c.Query("projectId")
+	startTime := c.Query("startTime")
+	endTime := c.Query("endTime")
+	granularity := c.DefaultQuery("granularity", "day")
+
+	opts := &service.AnalyticsOptions{
+		ProjectID:   projectID,
+		StartTime:   startTime,
+		EndTime:     endTime,
+		Granularity: granularity,
+	}
+
+	timeSeries, totalCost, byModel, err := h.traceService.GetCostAnalytics(c.Request.Context(), opts)
+	if err != nil {
+		h.logger.Error("failed to get cost analytics", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve cost analytics",
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"data":      []interface{}{},
-		"totalCost": 0,
+		"data":      timeSeries,
+		"totalCost": totalCost,
+		"byModel":   byModel,
 	})
 }
 
 // GetUsageAnalytics returns usage analytics
 func (h *TraceHandler) GetUsageAnalytics(c *gin.Context) {
+	projectID := c.Query("projectId")
+	startTime := c.Query("startTime")
+	endTime := c.Query("endTime")
+	granularity := c.DefaultQuery("granularity", "day")
+
+	opts := &service.AnalyticsOptions{
+		ProjectID:   projectID,
+		StartTime:   startTime,
+		EndTime:     endTime,
+		Granularity: granularity,
+	}
+
+	timeSeries, totalTokens, err := h.traceService.GetUsageAnalytics(c.Request.Context(), opts)
+	if err != nil {
+		h.logger.Error("failed to get usage analytics", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve usage analytics",
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"data":        []interface{}{},
-		"totalTokens": 0,
+		"data":        timeSeries,
+		"totalTokens": totalTokens,
 	})
+}
+
+// ListUsers returns paginated users with aggregated metrics
+func (h *TraceHandler) ListUsers(c *gin.Context) {
+	// Pagination
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	if limit > 100 {
+		limit = 100
+	}
+	if limit < 1 {
+		limit = 50
+	}
+
+	// Filters
+	projectID := c.Query("projectId")
+	startTime := c.Query("startTime")
+	endTime := c.Query("endTime")
+
+	opts := &service.ListUsersOptions{
+		ProjectID: projectID,
+		StartTime: startTime,
+		EndTime:   endTime,
+		Limit:     limit,
+		Offset:    offset,
+	}
+
+	users, total, err := h.traceService.ListUsers(c.Request.Context(), opts)
+	if err != nil {
+		h.logger.Error("failed to list users", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve users",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":   users,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	})
+}
+
+// GetUser returns a single user with aggregated metrics and traces
+func (h *TraceHandler) GetUser(c *gin.Context) {
+	userID := c.Param("id")
+
+	// Get user summary
+	user, err := h.traceService.GetUser(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "not_found",
+			"message": "User not found",
+		})
+		return
+	}
+
+	// Get traces for this user
+	traceLimit, _ := strconv.Atoi(c.DefaultQuery("traceLimit", "50"))
+	traceOffset, _ := strconv.Atoi(c.DefaultQuery("traceOffset", "0"))
+
+	traces, traceTotal, err := h.traceService.GetUserTraces(c.Request.Context(), userID, traceLimit, traceOffset)
+	if err != nil {
+		h.logger.Error("failed to get user traces", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve user traces",
+		})
+		return
+	}
+
+	// Get sessions for this user
+	sessionLimit, _ := strconv.Atoi(c.DefaultQuery("sessionLimit", "20"))
+	sessionOffset, _ := strconv.Atoi(c.DefaultQuery("sessionOffset", "0"))
+
+	sessions, sessionTotal, err := h.traceService.GetUserSessions(c.Request.Context(), userID, sessionLimit, sessionOffset)
+	if err != nil {
+		h.logger.Error("failed to get user sessions", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve user sessions",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user": user,
+		"traces": gin.H{
+			"data":   traces,
+			"total":  traceTotal,
+			"limit":  traceLimit,
+			"offset": traceOffset,
+		},
+		"sessions": gin.H{
+			"data":   sessions,
+			"total":  sessionTotal,
+			"limit":  sessionLimit,
+			"offset": sessionOffset,
+		},
+	})
+}
+
+// SearchTraces performs full-text search on trace content
+func (h *TraceHandler) SearchTraces(c *gin.Context) {
+	// Pagination
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	if limit > 100 {
+		limit = 100
+	}
+	if limit < 1 {
+		limit = 50
+	}
+
+	// Search query
+	query := c.Query("q")
+	if query == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "missing_query",
+			"message": "Search query (q) is required",
+		})
+		return
+	}
+
+	// Filters
+	projectID := c.Query("projectId")
+	startTime := c.Query("startTime")
+	endTime := c.Query("endTime")
+
+	opts := &service.SearchTracesOptions{
+		ProjectID: projectID,
+		Query:     query,
+		StartTime: startTime,
+		EndTime:   endTime,
+		Limit:     limit,
+		Offset:    offset,
+	}
+
+	traces, total, err := h.traceService.SearchTraces(c.Request.Context(), opts)
+	if err != nil {
+		h.logger.Error("failed to search traces", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to search traces",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":   traces,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+		"query":  query,
+	})
+}
+
+// GetIngestionStats returns ingestion statistics (batch writer and sampler)
+func (h *TraceHandler) GetIngestionStats(c *gin.Context) {
+	response := gin.H{}
+
+	// Get batch writer metrics
+	batchMetrics := h.traceService.GetBatchWriterMetrics()
+	if batchMetrics != nil {
+		response["batchWriter"] = batchMetrics
+	}
+
+	// Get sampler metrics
+	samplerStats := h.traceService.GetSamplerStats()
+	if samplerStats != nil {
+		response["sampler"] = samplerStats
+	}
+
+	if len(response) == 0 {
+		response["message"] = "No ingestion features enabled"
+	}
+
+	c.JSON(http.StatusOK, response)
 }

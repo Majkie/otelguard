@@ -13,6 +13,8 @@ type Config struct {
 	Postgres   PostgresConfig
 	ClickHouse ClickHouseConfig
 	Auth       AuthConfig
+	Sampler    SamplerConfig
+	GRPC       GRPCConfig
 }
 
 // ServerConfig holds HTTP server configuration
@@ -55,6 +57,13 @@ type ClickHouseConfig struct {
 	DialTimeout time.Duration `envconfig:"CLICKHOUSE_DIAL_TIMEOUT" default:"5s"`
 	MaxOpenConn int           `envconfig:"CLICKHOUSE_MAX_OPEN_CONN" default:"10"`
 	MaxIdleConn int           `envconfig:"CLICKHOUSE_MAX_IDLE_CONN" default:"5"`
+
+	// Batch writer settings
+	BatchSize     int           `envconfig:"CLICKHOUSE_BATCH_SIZE" default:"1000"`
+	FlushInterval time.Duration `envconfig:"CLICKHOUSE_FLUSH_INTERVAL" default:"5s"`
+	MaxRetries    int           `envconfig:"CLICKHOUSE_MAX_RETRIES" default:"3"`
+	RetryDelay    time.Duration `envconfig:"CLICKHOUSE_RETRY_DELAY" default:"1s"`
+	AsyncWrite    bool          `envconfig:"CLICKHOUSE_ASYNC_WRITE" default:"true"`
 }
 
 // AuthConfig holds authentication configuration
@@ -64,6 +73,26 @@ type AuthConfig struct {
 	APIKeySalt         string        `envconfig:"API_KEY_SALT" required:"true"`
 	BcryptCost         int           `envconfig:"BCRYPT_COST" default:"12"`
 	RefreshTokenExpiry time.Duration `envconfig:"REFRESH_TOKEN_EXPIRY" default:"168h"` // 7 days
+}
+
+// SamplerConfig holds trace sampling configuration
+type SamplerConfig struct {
+	Enabled       bool    `envconfig:"SAMPLER_ENABLED" default:"false"`
+	Type          string  `envconfig:"SAMPLER_TYPE" default:"always"`       // always, random, rate_limit, consistent, priority
+	Rate          float64 `envconfig:"SAMPLER_RATE" default:"1.0"`          // 0.0 to 1.0 for random/consistent
+	MaxPerSecond  int     `envconfig:"SAMPLER_MAX_PER_SEC" default:"100"`   // For rate_limit sampling
+	SampleErrors  bool    `envconfig:"SAMPLER_ERRORS" default:"true"`       // Always sample errors
+	SampleSlow    bool    `envconfig:"SAMPLER_SLOW" default:"true"`         // Always sample slow traces
+	SlowThreshold int     `envconfig:"SAMPLER_SLOW_MS" default:"5000"`      // Threshold for slow in ms
+}
+
+// GRPCConfig holds gRPC server configuration
+type GRPCConfig struct {
+	Enabled          bool `envconfig:"GRPC_ENABLED" default:"true"`
+	Port             int  `envconfig:"GRPC_PORT" default:"4317"`
+	MaxRecvMsgSize   int  `envconfig:"GRPC_MAX_RECV_MSG_SIZE" default:"16777216"` // 16MB
+	MaxSendMsgSize   int  `envconfig:"GRPC_MAX_SEND_MSG_SIZE" default:"16777216"` // 16MB
+	EnableReflection bool `envconfig:"GRPC_ENABLE_REFLECTION" default:"true"`
 }
 
 // Load reads configuration from environment variables

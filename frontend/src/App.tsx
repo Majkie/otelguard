@@ -13,6 +13,8 @@ import { TraceDetailPage } from '@/pages/traces/detail';
 import { TraceComparePage } from '@/pages/traces/compare';
 import { SessionsPage } from '@/pages/sessions';
 import { SessionDetailPage } from '@/pages/sessions/detail';
+import { UsersPage } from '@/pages/users';
+import { UserDetailPage } from '@/pages/users/detail';
 import { PromptsPage } from '@/pages/prompts';
 import { PromptDetailPage } from '@/pages/prompts/detail';
 import { GuardrailsPage } from '@/pages/guardrails';
@@ -46,6 +48,8 @@ function App() {
           <Route path="traces/:id" element={<TraceDetailPage />} />
           <Route path="sessions" element={<SessionsPage />} />
           <Route path="sessions/:id" element={<SessionDetailPage />} />
+          <Route path="users" element={<UsersPage />} />
+          <Route path="users/:id" element={<UserDetailPage />} />
           <Route path="prompts" element={<PromptsPage />} />
           <Route path="prompts/:id" element={<PromptDetailPage />} />
           <Route path="guardrails" element={<GuardrailsPage />} />

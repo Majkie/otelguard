@@ -11,6 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { SessionTimeline } from '@/components/features/sessions/session-timeline';
 import { formatDate, formatCost, formatLatency, formatTokens } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
@@ -176,6 +177,13 @@ export function SessionDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Timeline */}
+      <SessionTimeline
+        traces={traces.data}
+        sessionStart={session.firstTraceTime}
+        sessionEnd={session.lastTraceTime}
+      />
 
       {/* Traces */}
       <Card>

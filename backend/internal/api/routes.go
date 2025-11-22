@@ -17,6 +17,7 @@ type Handlers struct {
 	Health    *handlers.HealthHandler
 	Auth      *handlers.AuthHandler
 	Trace     *handlers.TraceHandler
+	OTLP      *handlers.OTLPHandler
 	Prompt    *handlers.PromptHandler
 	Guardrail *handlers.GuardrailHandler
 }
@@ -69,6 +70,9 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 			sdk.POST("/traces", middleware.RequireScope("trace:write"), h.Trace.IngestTrace)
 			sdk.POST("/traces/batch", middleware.RequireScope("trace:write"), h.Trace.IngestBatch)
 			sdk.POST("/spans", middleware.RequireScope("trace:write"), h.Trace.IngestSpan)
+
+			// OTLP trace ingestion (OpenTelemetry Protocol)
+			sdk.POST("/otlp/v1/traces", middleware.RequireScope("trace:write"), h.OTLP.IngestTraces)
 
 			// Scores
 			sdk.POST("/scores", middleware.RequireScope("trace:write"), h.Trace.SubmitScore)
@@ -133,6 +137,16 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				sessions.GET("/:id", h.Trace.GetSession)
 			}
 
+			// Users (tracked users from traces)
+			users := dashboard.Group("/users")
+			{
+				users.GET("", h.Trace.ListUsers)
+				users.GET("/:id", h.Trace.GetUser)
+			}
+
+			// Search
+			dashboard.GET("/search/traces", h.Trace.SearchTraces)
+
 			// Prompts
 			prompts := dashboard.Group("/prompts")
 			{
@@ -170,6 +184,7 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				analytics.GET("/overview", h.Trace.GetOverview)
 				analytics.GET("/costs", h.Trace.GetCostAnalytics)
 				analytics.GET("/usage", h.Trace.GetUsageAnalytics)
+				analytics.GET("/ingestion", h.Trace.GetIngestionStats)
 			}
 		}
 	}

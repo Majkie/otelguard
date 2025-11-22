@@ -10,16 +10,79 @@ import (
 
 // TraceService handles trace business logic
 type TraceService struct {
-	traceRepo *clickhouse.TraceRepository
-	logger    *zap.Logger
+	traceRepo   *clickhouse.TraceRepository
+	batchWriter *clickhouse.TraceBatchWriter
+	sampler     *ProjectSampler
+	asyncWrite  bool
+	logger      *zap.Logger
+}
+
+// TraceServiceConfig contains configuration for trace service
+type TraceServiceConfig struct {
+	AsyncWrite     bool
+	SamplerEnabled bool
+	SamplerConfig  *SamplerConfig
 }
 
 // NewTraceService creates a new trace service
 func NewTraceService(traceRepo *clickhouse.TraceRepository, logger *zap.Logger) *TraceService {
 	return &TraceService{
-		traceRepo: traceRepo,
-		logger:    logger,
+		traceRepo:  traceRepo,
+		asyncWrite: false,
+		logger:     logger,
 	}
+}
+
+// NewTraceServiceWithBatchWriter creates a trace service with batch writer support
+func NewTraceServiceWithBatchWriter(
+	traceRepo *clickhouse.TraceRepository,
+	batchWriter *clickhouse.TraceBatchWriter,
+	asyncWrite bool,
+	logger *zap.Logger,
+) *TraceService {
+	return &TraceService{
+		traceRepo:   traceRepo,
+		batchWriter: batchWriter,
+		asyncWrite:  asyncWrite,
+		logger:      logger,
+	}
+}
+
+// NewTraceServiceFull creates a trace service with all features
+func NewTraceServiceFull(
+	traceRepo *clickhouse.TraceRepository,
+	batchWriter *clickhouse.TraceBatchWriter,
+	asyncWrite bool,
+	samplerConfig *SamplerConfig,
+	logger *zap.Logger,
+) *TraceService {
+	var sampler *ProjectSampler
+	if samplerConfig != nil {
+		sampler = NewProjectSampler(samplerConfig, logger)
+	}
+
+	return &TraceService{
+		traceRepo:   traceRepo,
+		batchWriter: batchWriter,
+		sampler:     sampler,
+		asyncWrite:  asyncWrite,
+		logger:      logger,
+	}
+}
+
+// SetProjectSamplerConfig sets sampling configuration for a specific project
+func (s *TraceService) SetProjectSamplerConfig(projectID string, config *SamplerConfig) {
+	if s.sampler != nil {
+		s.sampler.SetProjectConfig(projectID, config)
+	}
+}
+
+// GetSamplerStats returns current sampler statistics
+func (s *TraceService) GetSamplerStats() *SamplerStats {
+	if s.sampler == nil {
+		return nil
+	}
+	return s.sampler.GetStats()
 }
 
 // ListTracesOptions contains options for listing traces
@@ -45,22 +108,71 @@ type ListTracesOptions struct {
 
 // IngestTrace ingests a single trace
 func (s *TraceService) IngestTrace(ctx context.Context, trace *domain.Trace) error {
+	// Apply sampling if configured
+	if s.sampler != nil && !s.sampler.ShouldSample(ctx, trace) {
+		s.logger.Debug("trace dropped by sampler",
+			zap.String("trace_id", trace.ID.String()),
+			zap.String("project_id", trace.ProjectID.String()),
+		)
+		return nil
+	}
+
+	if s.asyncWrite && s.batchWriter != nil {
+		return s.batchWriter.WriteTrace(ctx, trace)
+	}
 	return s.traceRepo.Insert(ctx, []*domain.Trace{trace})
 }
 
 // IngestBatch ingests multiple traces
 func (s *TraceService) IngestBatch(ctx context.Context, traces []*domain.Trace) error {
+	// Apply sampling if configured
+	if s.sampler != nil {
+		sampledTraces := make([]*domain.Trace, 0, len(traces))
+		for _, trace := range traces {
+			if s.sampler.ShouldSample(ctx, trace) {
+				sampledTraces = append(sampledTraces, trace)
+			} else {
+				s.logger.Debug("trace dropped by sampler",
+					zap.String("trace_id", trace.ID.String()),
+					zap.String("project_id", trace.ProjectID.String()),
+				)
+			}
+		}
+		traces = sampledTraces
+
+		if len(traces) == 0 {
+			return nil
+		}
+	}
+
+	if s.asyncWrite && s.batchWriter != nil {
+		return s.batchWriter.WriteTraces(ctx, traces)
+	}
 	return s.traceRepo.Insert(ctx, traces)
 }
 
 // IngestSpan ingests a single span
 func (s *TraceService) IngestSpan(ctx context.Context, span *domain.Span) error {
+	if s.asyncWrite && s.batchWriter != nil {
+		return s.batchWriter.WriteSpan(ctx, span)
+	}
 	return s.traceRepo.InsertSpan(ctx, span)
 }
 
 // SubmitScore submits an evaluation score
 func (s *TraceService) SubmitScore(ctx context.Context, score *domain.Score) error {
+	if s.asyncWrite && s.batchWriter != nil {
+		return s.batchWriter.WriteScore(ctx, score)
+	}
 	return s.traceRepo.InsertScore(ctx, score)
+}
+
+// GetBatchWriterMetrics returns metrics from the batch writer
+func (s *TraceService) GetBatchWriterMetrics() *clickhouse.BatchWriterMetrics {
+	if s.batchWriter == nil {
+		return nil
+	}
+	return s.batchWriter.GetMetrics()
 }
 
 // ListTraces returns paginated traces
@@ -139,5 +251,120 @@ func (s *TraceService) GetSessionTraces(ctx context.Context, sessionID string, l
 		Offset:    offset,
 		SortBy:    "start_time",
 		SortOrder: "ASC",
+	})
+}
+
+// ListUsersOptions contains options for listing users
+type ListUsersOptions struct {
+	ProjectID string
+	StartTime string
+	EndTime   string
+	Limit     int
+	Offset    int
+}
+
+// ListUsers returns paginated users with aggregated metrics
+func (s *TraceService) ListUsers(ctx context.Context, opts *ListUsersOptions) ([]*clickhouse.User, int, error) {
+	return s.traceRepo.ListUsers(ctx, &clickhouse.UserQueryOptions{
+		ProjectID: opts.ProjectID,
+		StartTime: opts.StartTime,
+		EndTime:   opts.EndTime,
+		Limit:     opts.Limit,
+		Offset:    opts.Offset,
+	})
+}
+
+// GetUser retrieves a single user with aggregated metrics
+func (s *TraceService) GetUser(ctx context.Context, userID string) (*clickhouse.User, error) {
+	return s.traceRepo.GetUserByID(ctx, userID)
+}
+
+// GetUserTraces retrieves all traces for a user
+func (s *TraceService) GetUserTraces(ctx context.Context, userID string, limit, offset int) ([]*domain.Trace, int, error) {
+	return s.traceRepo.Query(ctx, &clickhouse.QueryOptions{
+		UserID:    userID,
+		Limit:     limit,
+		Offset:    offset,
+		SortBy:    "start_time",
+		SortOrder: "DESC",
+	})
+}
+
+// GetUserSessions retrieves all sessions for a user
+func (s *TraceService) GetUserSessions(ctx context.Context, userID string, limit, offset int) ([]*clickhouse.Session, int, error) {
+	return s.traceRepo.GetUserSessions(ctx, userID, limit, offset)
+}
+
+// SearchTracesOptions contains options for searching traces
+type SearchTracesOptions struct {
+	ProjectID string
+	Query     string
+	StartTime string
+	EndTime   string
+	Limit     int
+	Offset    int
+}
+
+// SearchTraces performs full-text search on trace content
+func (s *TraceService) SearchTraces(ctx context.Context, opts *SearchTracesOptions) ([]*domain.Trace, int, error) {
+	return s.traceRepo.SearchTraces(ctx, &clickhouse.SearchOptions{
+		ProjectID: opts.ProjectID,
+		Query:     opts.Query,
+		StartTime: opts.StartTime,
+		EndTime:   opts.EndTime,
+		Limit:     opts.Limit,
+		Offset:    opts.Offset,
+	})
+}
+
+// AnalyticsOptions contains options for analytics queries
+type AnalyticsOptions struct {
+	ProjectID   string
+	StartTime   string
+	EndTime     string
+	Granularity string // hour, day, week
+}
+
+// GetOverviewMetrics retrieves overview metrics
+func (s *TraceService) GetOverviewMetrics(ctx context.Context, opts *AnalyticsOptions) (*clickhouse.OverviewMetrics, error) {
+	return s.traceRepo.GetOverviewMetrics(ctx, &clickhouse.AnalyticsQueryOptions{
+		ProjectID:   opts.ProjectID,
+		StartTime:   opts.StartTime,
+		EndTime:     opts.EndTime,
+		Granularity: opts.Granularity,
+	})
+}
+
+// GetCostAnalytics retrieves cost analytics over time
+func (s *TraceService) GetCostAnalytics(ctx context.Context, opts *AnalyticsOptions) ([]*clickhouse.TimeSeriesPoint, float64, []*clickhouse.CostByModel, error) {
+	timeSeries, totalCost, err := s.traceRepo.GetCostTimeSeries(ctx, &clickhouse.AnalyticsQueryOptions{
+		ProjectID:   opts.ProjectID,
+		StartTime:   opts.StartTime,
+		EndTime:     opts.EndTime,
+		Granularity: opts.Granularity,
+	})
+	if err != nil {
+		return nil, 0, nil, err
+	}
+
+	byModel, err := s.traceRepo.GetCostByModel(ctx, &clickhouse.AnalyticsQueryOptions{
+		ProjectID: opts.ProjectID,
+		StartTime: opts.StartTime,
+		EndTime:   opts.EndTime,
+	})
+	if err != nil {
+		return nil, 0, nil, err
+	}
+
+	return timeSeries, totalCost, byModel, nil
+}
+
+// GetUsageAnalytics retrieves token usage analytics over time
+func (s *TraceService) GetUsageAnalytics(ctx context.Context, opts *AnalyticsOptions) ([]*clickhouse.TimeSeriesPoint, int, error) {
+	return s.traceRepo.GetUsageTimeSeries(ctx, &clickhouse.AnalyticsQueryOptions{
+		ProjectID:   opts.ProjectID,
+		StartTime:   opts.StartTime,
+		EndTime:     opts.EndTime,
+		Granularity: opts.Granularity,
 	})
 }
