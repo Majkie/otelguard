@@ -1,14 +1,14 @@
 -- OTelGuard PostgreSQL Schema
 -- Initial migration: Core tables for metadata storage
 
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- PostgreSQL 18+ has native UUID v7 support via uuidv7()
+-- No extension needed - UUID v7 is time-ordered for better index performance
 
 -- ============================================
 -- Organizations
 -- ============================================
 CREATE TABLE organizations (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -22,7 +22,7 @@ CREATE INDEX idx_organizations_slug ON organizations(slug);
 -- Projects
 -- ============================================
 CREATE TABLE projects (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     slug VARCHAR(255) NOT NULL,
@@ -40,7 +40,7 @@ CREATE INDEX idx_projects_slug ON projects(organization_id, slug);
 -- Users
 -- ============================================
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     name VARCHAR(255),
@@ -56,7 +56,7 @@ CREATE INDEX idx_users_email ON users(email);
 -- Organization Members
 -- ============================================
 CREATE TABLE organization_members (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role VARCHAR(50) NOT NULL DEFAULT 'member',
@@ -71,7 +71,7 @@ CREATE INDEX idx_org_members_user_id ON organization_members(user_id);
 -- API Keys
 -- ============================================
 CREATE TABLE api_keys (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     key_hash VARCHAR(255) NOT NULL UNIQUE,
@@ -89,7 +89,7 @@ CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
 -- Prompts
 -- ============================================
 CREATE TABLE prompts (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -106,7 +106,7 @@ CREATE INDEX idx_prompts_tags ON prompts USING GIN(tags);
 -- Prompt Versions
 -- ============================================
 CREATE TABLE prompt_versions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     prompt_id UUID NOT NULL REFERENCES prompts(id) ON DELETE CASCADE,
     version INTEGER NOT NULL,
     content TEXT NOT NULL,
@@ -123,7 +123,7 @@ CREATE INDEX idx_prompt_versions_prompt_id ON prompt_versions(prompt_id);
 -- Datasets
 -- ============================================
 CREATE TABLE datasets (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -138,7 +138,7 @@ CREATE INDEX idx_datasets_project_id ON datasets(project_id);
 -- Dataset Items
 -- ============================================
 CREATE TABLE dataset_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     dataset_id UUID NOT NULL REFERENCES datasets(id) ON DELETE CASCADE,
     input JSONB NOT NULL,
     expected_output JSONB,
@@ -152,7 +152,7 @@ CREATE INDEX idx_dataset_items_dataset_id ON dataset_items(dataset_id);
 -- Guardrail Policies
 -- ============================================
 CREATE TABLE guardrail_policies (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -170,7 +170,7 @@ CREATE INDEX idx_guardrail_policies_enabled ON guardrail_policies(project_id, en
 -- Guardrail Rules
 -- ============================================
 CREATE TABLE guardrail_rules (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     policy_id UUID NOT NULL REFERENCES guardrail_policies(id) ON DELETE CASCADE,
     type VARCHAR(100) NOT NULL,
     config JSONB NOT NULL DEFAULT '{}',
@@ -186,7 +186,7 @@ CREATE INDEX idx_guardrail_rules_policy_id ON guardrail_rules(policy_id);
 -- Annotation Queues
 -- ============================================
 CREATE TABLE annotation_queues (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
@@ -201,7 +201,7 @@ CREATE INDEX idx_annotation_queues_project_id ON annotation_queues(project_id);
 -- Score Configs
 -- ============================================
 CREATE TABLE score_configs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     data_type VARCHAR(50) NOT NULL,
