@@ -103,16 +103,16 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 ### 2.1 Trace Ingestion
 
 - [x] Design trace/span data model in Go
-- [ ] Implement OTLP HTTP receiver endpoint
+- [x] Implement OTLP HTTP receiver endpoint
 - [ ] Implement OTLP gRPC receiver endpoint
 - [x] Create custom HTTP trace ingestion endpoint
-- [ ] Implement trace batching and buffering
-- [ ] Create async writer to ClickHouse
+- [x] Implement trace batching and buffering
+- [x] Create async writer to ClickHouse
 - [x] Implement trace ID generation (if not provided)
 - [ ] Handle nested span relationships
-- [ ] Parse and store LLM-specific attributes
-- [ ] Extract token counts, model info, costs
-- [ ] Implement input/output truncation for large payloads
+- [x] Parse and store LLM-specific attributes
+- [x] Extract token counts, model info, costs
+- [x] Implement input/output truncation for large payloads
 - [ ] Create trace enrichment pipeline
 - [ ] Handle high-cardinality attribute storage
 
@@ -120,12 +120,12 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 - [x] Implement trace listing with pagination
 - [x] Create trace filtering (by project, user, session, tags)
-- [ ] Implement full-text search on trace content
+- [x] Implement full-text search on trace content
 - [x] Create trace detail retrieval with spans
 - [x] Implement span tree reconstruction
-- [ ] Calculate trace-level aggregations (latency, cost, tokens)
-- [ ] Create time-range queries optimization
-- [ ] Implement trace sampling for high-volume projects
+- [x] Calculate trace-level aggregations (latency, cost, tokens)
+- [x] Create time-range queries optimization
+- [x] Implement trace sampling for high-volume projects
 
 ### 2.3 Trace Visualization (Frontend)
 
@@ -145,18 +145,18 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Create session listing endpoint
 - [x] Build session detail view (all traces in session)
 - [x] Implement session-level metrics aggregation
-- [ ] Create session timeline visualization
+- [x] Create session timeline visualization
 - [x] Enable session-based filtering
 - [ ] Implement session replay functionality
 
 ### 2.5 User Tracking
 
-- [ ] Implement user identification in traces
-- [ ] Create user listing endpoint
-- [ ] Build user detail page with activity
-- [ ] Calculate per-user metrics (cost, usage, quality)
+- [x] Implement user identification in traces
+- [x] Create user listing endpoint
+- [x] Build user detail page with activity
+- [x] Calculate per-user metrics (cost, usage, quality)
 - [ ] Implement user segmentation
-- [ ] Create user-based filtering across views
+- [x] Create user-based filtering across views
 
 ---
 
