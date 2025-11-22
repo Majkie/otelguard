@@ -1,0 +1,98 @@
+version: '3.8'
+
+services:
+  # PostgreSQL - Metadata storage
+  postgres:
+    image: postgres:16-alpine
+    container_name: otelguard-postgres
+    environment:
+      POSTGRES_USER: otelguard
+      POSTGRES_PASSWORD: otelguard
+      POSTGRES_DB: otelguard
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/migrations/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otelguard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - otelguard
+
+  # ClickHouse - Event storage
+  clickhouse:
+    image: clickhouse/clickhouse-server:24-alpine
+    container_name: otelguard-clickhouse
+    environment:
+      CLICKHOUSE_DB: otelguard
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "8123:8123"  # HTTP interface
+      - "9000:9000"  # Native interface
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./backend/migrations/clickhouse:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - otelguard
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: otelguard-backend
+    environment:
+      OTELGUARD_PORT: 8080
+      OTELGUARD_ENV: development
+      OTELGUARD_POSTGRES_HOST: postgres
+      OTELGUARD_POSTGRES_PORT: 5432
+      OTELGUARD_POSTGRES_USER: otelguard
+      OTELGUARD_POSTGRES_PASSWORD: otelguard
+      OTELGUARD_POSTGRES_DB: otelguard
+      OTELGUARD_CLICKHOUSE_HOST: clickhouse
+      OTELGUARD_CLICKHOUSE_PORT: 9000
+      OTELGUARD_CLICKHOUSE_DB: otelguard
+      OTELGUARD_JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      OTELGUARD_API_KEY_SALT: ${API_KEY_SALT:-your-api-key-salt-change-in-production}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - otelguard
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: otelguard-frontend
+    environment:
+      VITE_API_URL: http://localhost:8080
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - otelguard
+
+volumes:
+  postgres_data:
+  clickhouse_data:
+
+networks:
+  otelguard:
+    driver: bridge
