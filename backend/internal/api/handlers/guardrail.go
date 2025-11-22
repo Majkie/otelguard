@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/otelguard/otelguard/internal/domain"
 	"github.com/otelguard/otelguard/internal/service"
 	"go.uber.org/zap"
 )
@@ -81,7 +84,37 @@ func (h *GuardrailHandler) Evaluate(c *gin.Context) {
 
 // List returns all guardrail policies
 func (h *GuardrailHandler) List(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"data": []interface{}{}, "total": 0})
+	projectID := c.GetString("project_id")
+	if projectID == "" {
+		projectID = "default"
+	}
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	if limit > 100 {
+		limit = 100
+	}
+
+	policies, total, err := h.guardrailService.List(c.Request.Context(), projectID, &service.ListOptions{
+		Limit:  limit,
+		Offset: offset,
+	})
+	if err != nil {
+		h.logger.Error("failed to list policies", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve policies",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":   policies,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	})
 }
 
 // Create creates a new guardrail policy
@@ -101,29 +134,138 @@ func (h *GuardrailHandler) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"id":      uuid.New().String(),
-		"message": "Policy created",
-	})
+	projectID := c.GetString("project_id")
+	if projectID == "" {
+		projectID = "default"
+	}
+
+	projectUUID, err := uuid.Parse(projectID)
+	if err != nil {
+		projectUUID = uuid.New()
+	}
+
+	triggersJSON, _ := json.Marshal(req.Triggers)
+	now := time.Now()
+	policy := &domain.GuardrailPolicy{
+		ID:          uuid.New(),
+		ProjectID:   projectUUID,
+		Name:        req.Name,
+		Description: req.Description,
+		Enabled:     req.Enabled,
+		Priority:    req.Priority,
+		Triggers:    triggersJSON,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+
+	if err := h.guardrailService.Create(c.Request.Context(), policy); err != nil {
+		h.logger.Error("failed to create policy", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to create policy",
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, policy)
 }
 
 // Get returns a single guardrail policy
 func (h *GuardrailHandler) Get(c *gin.Context) {
 	id := c.Param("id")
-	c.JSON(http.StatusNotFound, gin.H{
-		"error":   "not_found",
-		"message": "Policy not found: " + id,
-	})
+	policy, err := h.guardrailService.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if err == domain.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "not_found",
+				"message": "Policy not found",
+			})
+			return
+		}
+		h.logger.Error("failed to get policy", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve policy",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, policy)
 }
 
 // Update updates a guardrail policy
 func (h *GuardrailHandler) Update(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "not_implemented"})
+	id := c.Param("id")
+	var req struct {
+		Name        string                 `json:"name"`
+		Description string                 `json:"description"`
+		Enabled     *bool                  `json:"enabled"`
+		Priority    *int                   `json:"priority"`
+		Triggers    map[string]interface{} `json:"triggers"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	policy, err := h.guardrailService.GetByID(c.Request.Context(), id)
+	if err != nil {
+		if err == domain.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "not_found",
+				"message": "Policy not found",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve policy",
+		})
+		return
+	}
+
+	if req.Name != "" {
+		policy.Name = req.Name
+	}
+	policy.Description = req.Description
+	if req.Enabled != nil {
+		policy.Enabled = *req.Enabled
+	}
+	if req.Priority != nil {
+		policy.Priority = *req.Priority
+	}
+	if req.Triggers != nil {
+		triggersJSON, _ := json.Marshal(req.Triggers)
+		policy.Triggers = triggersJSON
+	}
+	policy.UpdatedAt = time.Now()
+
+	if err := h.guardrailService.Update(c.Request.Context(), policy); err != nil {
+		h.logger.Error("failed to update policy", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to update policy",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, policy)
 }
 
 // Delete deletes a guardrail policy
 func (h *GuardrailHandler) Delete(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "not_implemented"})
+	id := c.Param("id")
+	if err := h.guardrailService.Delete(c.Request.Context(), id); err != nil {
+		h.logger.Error("failed to delete policy", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to delete policy",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "Policy deleted"})
 }
 
 // ListRules returns all rules for a policy

@@ -2,6 +2,7 @@ import { Outlet, NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   Activity,
+  Users,
   FileText,
   Shield,
   Settings,
@@ -11,11 +12,13 @@ import {
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/hooks/use-auth';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Traces', href: '/traces', icon: Activity },
+  { name: 'Sessions', href: '/sessions', icon: Users },
   { name: 'Prompts', href: '/prompts', icon: FileText },
   { name: 'Guardrails', href: '/guardrails', icon: Shield },
   { name: 'Settings', href: '/settings', icon: Settings },
@@ -101,21 +104,31 @@ export function DashboardLayout() {
 
       {/* Main content */}
       <div className="lg:pl-64">
-        {/* Mobile header */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 lg:hidden">
+        {/* Header */}
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4">
+          {/* Mobile menu button */}
           <Button
             variant="ghost"
             size="icon"
             onClick={() => setSidebarOpen(true)}
+            className="lg:hidden"
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <div className="flex items-center gap-2">
+
+          {/* Mobile logo */}
+          <div className="flex items-center gap-2 lg:hidden">
             <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-primary-foreground font-bold text-sm">O</span>
             </div>
             <span className="font-bold">OTelGuard</span>
           </div>
+
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Theme toggle */}
+          <ThemeToggle />
         </header>
 
         {/* Page content */}

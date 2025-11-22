@@ -19,8 +19,8 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Set up ClickHouse container with initial schema
 - [x] Configure environment variable management
 - [x] Set up Makefile for common tasks
-- [ ] Configure ESLint, Prettier for frontend
-- [ ] Configure golangci-lint for backend
+- [x] Configure ESLint, Prettier for frontend
+- [x] Configure golangci-lint for backend
 - [ ] Set up pre-commit hooks
 
 ### 1.2 Database Schema Design
@@ -40,13 +40,13 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Design and create `annotation_queues` table
 - [x] Design and create `score_configs` table
 - [ ] Set up database migrations with golang-migrate
-- [ ] Create seed data for development
+- [x] Create seed data for development
 
 #### ClickHouse (Events)
 
 - [x] Design and create `traces` table (MergeTree)
 - [x] Design and create `spans` table (MergeTree)
-- [ ] Design and create `events` table (MergeTree)
+- [x] Design and create `events` table (MergeTree)
 - [x] Design and create `metrics` table (MergeTree)
 - [x] Design and create `scores` table (MergeTree)
 - [x] Design and create `guardrail_events` table (MergeTree)
@@ -68,7 +68,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Set up CORS configuration
 - [x] Create error handling middleware
 - [x] Implement rate limiting middleware
-- [ ] Set up request validation (go-playground/validator)
+- [x] Set up request validation (go-playground/validator)
 
 ### 1.4 Authentication & Authorization
 
@@ -93,8 +93,8 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Create API client with interceptors
 - [x] Implement protected route wrapper
 - [x] Create toast notification system
-- [ ] Set up dark/light theme support
-- [ ] Create loading states and skeletons
+- [x] Set up dark/light theme support
+- [x] Create loading states and skeletons
 
 ---
 
@@ -119,10 +119,10 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 ### 2.2 Trace Storage & Retrieval
 
 - [x] Implement trace listing with pagination
-- [ ] Create trace filtering (by project, user, session, tags)
+- [x] Create trace filtering (by project, user, session, tags)
 - [ ] Implement full-text search on trace content
 - [x] Create trace detail retrieval with spans
-- [ ] Implement span tree reconstruction
+- [x] Implement span tree reconstruction
 - [ ] Calculate trace-level aggregations (latency, cost, tokens)
 - [ ] Create time-range queries optimization
 - [ ] Implement trace sampling for high-volume projects
@@ -130,23 +130,23 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 ### 2.3 Trace Visualization (Frontend)
 
 - [x] Create traces list page with TanStack Table
-- [ ] Implement column sorting and filtering
+- [x] Implement column sorting and filtering
 - [x] Create trace detail page
-- [ ] Build span waterfall/timeline visualization
-- [ ] Create span detail panel (input/output viewer)
-- [ ] Implement JSON viewer for structured data
-- [ ] Create diff viewer for comparing traces
-- [ ] Build trace search interface
-- [ ] Implement trace export (JSON, CSV)
+- [x] Build span waterfall/timeline visualization
+- [x] Create span detail panel (input/output viewer)
+- [x] Implement JSON viewer for structured data
+- [x] Create diff viewer for comparing traces
+- [x] Build trace search interface
+- [x] Implement trace export (JSON, CSV)
 
 ### 2.4 Session Management
 
-- [ ] Implement session grouping logic
-- [ ] Create session listing endpoint
-- [ ] Build session detail view (all traces in session)
-- [ ] Implement session-level metrics aggregation
+- [x] Implement session grouping logic
+- [x] Create session listing endpoint
+- [x] Build session detail view (all traces in session)
+- [x] Implement session-level metrics aggregation
 - [ ] Create session timeline visualization
-- [ ] Enable session-based filtering
+- [x] Enable session-based filtering
 - [ ] Implement session replay functionality
 
 ### 2.5 User Tracking
@@ -207,12 +207,12 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 3.5 Prompt Frontend
 
-- [ ] Create prompts list page
-- [ ] Build prompt editor with syntax highlighting
+- [x] Create prompts list page
+- [x] Build prompt editor with syntax highlighting
 - [ ] Implement version history sidebar
-- [ ] Create prompt settings panel
+- [x] Create prompt settings panel
 - [ ] Build prompt usage analytics
-- [ ] Implement prompt search
+- [x] Implement prompt search
 - [ ] Create prompt organization (folders/tags)
 
 ### 3.6 Prompt-Trace Linking
@@ -367,7 +367,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 5.6 No-Code Configuration UI
 
-- [ ] Create policy builder UI
+- [x] Create policy builder UI
 - [ ] Implement rule condition builder
 - [ ] Build action configuration forms
 - [ ] Create policy testing interface

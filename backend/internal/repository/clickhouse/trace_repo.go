@@ -19,14 +19,23 @@ func NewTraceRepository(conn driver.Conn) *TraceRepository {
 
 // QueryOptions contains options for querying traces
 type QueryOptions struct {
-	ProjectID string
-	SessionID string
-	UserID    string
-	Model     string
-	StartTime string
-	EndTime   string
-	Limit     int
-	Offset    int
+	ProjectID  string
+	SessionID  string
+	UserID     string
+	Model      string
+	Name       string   // Search by name (partial match)
+	Status     string   // Filter by status (success, error, pending)
+	Tags       []string // Filter by tags (any match)
+	StartTime  string   // ISO8601 timestamp
+	EndTime    string   // ISO8601 timestamp
+	MinLatency int      // Minimum latency in ms
+	MaxLatency int      // Maximum latency in ms
+	MinCost    float64  // Minimum cost
+	MaxCost    float64  // Maximum cost
+	SortBy     string   // Field to sort by (start_time, latency_ms, cost, total_tokens)
+	SortOrder  string   // ASC or DESC
+	Limit      int
+	Offset     int
 }
 
 // Insert inserts traces into ClickHouse
@@ -175,7 +184,7 @@ func (r *TraceRepository) InsertScore(ctx context.Context, score *domain.Score) 
 // Query retrieves traces with filtering
 func (r *TraceRepository) Query(ctx context.Context, opts *QueryOptions) ([]*domain.Trace, int, error) {
 	// Build the query based on options
-	query := `
+	baseQuery := `
 		SELECT
 			id, project_id, session_id, user_id, name,
 			input, output, metadata, start_time, end_time,
@@ -186,36 +195,107 @@ func (r *TraceRepository) Query(ctx context.Context, opts *QueryOptions) ([]*dom
 	`
 	countQuery := `SELECT COUNT(*) FROM traces WHERE 1=1`
 	args := make([]interface{}, 0)
+	countArgs := make([]interface{}, 0)
+
+	// Build filter clauses
+	filterClause := ""
 
 	if opts.ProjectID != "" {
-		query += " AND project_id = ?"
-		countQuery += " AND project_id = ?"
+		filterClause += " AND project_id = ?"
 		args = append(args, opts.ProjectID)
+		countArgs = append(countArgs, opts.ProjectID)
 	}
 	if opts.SessionID != "" {
-		query += " AND session_id = ?"
-		countQuery += " AND session_id = ?"
+		filterClause += " AND session_id = ?"
 		args = append(args, opts.SessionID)
+		countArgs = append(countArgs, opts.SessionID)
 	}
 	if opts.UserID != "" {
-		query += " AND user_id = ?"
-		countQuery += " AND user_id = ?"
+		filterClause += " AND user_id = ?"
 		args = append(args, opts.UserID)
+		countArgs = append(countArgs, opts.UserID)
 	}
 	if opts.Model != "" {
-		query += " AND model = ?"
-		countQuery += " AND model = ?"
+		filterClause += " AND model = ?"
 		args = append(args, opts.Model)
+		countArgs = append(countArgs, opts.Model)
+	}
+	if opts.Name != "" {
+		filterClause += " AND name ILIKE ?"
+		args = append(args, "%"+opts.Name+"%")
+		countArgs = append(countArgs, "%"+opts.Name+"%")
+	}
+	if opts.Status != "" {
+		filterClause += " AND status = ?"
+		args = append(args, opts.Status)
+		countArgs = append(countArgs, opts.Status)
+	}
+	if len(opts.Tags) > 0 {
+		filterClause += " AND hasAny(tags, ?)"
+		args = append(args, opts.Tags)
+		countArgs = append(countArgs, opts.Tags)
+	}
+	if opts.StartTime != "" {
+		filterClause += " AND start_time >= ?"
+		args = append(args, opts.StartTime)
+		countArgs = append(countArgs, opts.StartTime)
+	}
+	if opts.EndTime != "" {
+		filterClause += " AND start_time <= ?"
+		args = append(args, opts.EndTime)
+		countArgs = append(countArgs, opts.EndTime)
+	}
+	if opts.MinLatency > 0 {
+		filterClause += " AND latency_ms >= ?"
+		args = append(args, opts.MinLatency)
+		countArgs = append(countArgs, opts.MinLatency)
+	}
+	if opts.MaxLatency > 0 {
+		filterClause += " AND latency_ms <= ?"
+		args = append(args, opts.MaxLatency)
+		countArgs = append(countArgs, opts.MaxLatency)
+	}
+	if opts.MinCost > 0 {
+		filterClause += " AND cost >= ?"
+		args = append(args, opts.MinCost)
+		countArgs = append(countArgs, opts.MinCost)
+	}
+	if opts.MaxCost > 0 {
+		filterClause += " AND cost <= ?"
+		args = append(args, opts.MaxCost)
+		countArgs = append(countArgs, opts.MaxCost)
 	}
 
 	// Get total count
 	var total uint64
-	if err := r.conn.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+	if err := r.conn.QueryRow(ctx, countQuery+filterClause, countArgs...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
-	// Add pagination
-	query += " ORDER BY start_time DESC LIMIT ? OFFSET ?"
+	// Determine sort order
+	sortBy := "start_time"
+	if opts.SortBy != "" {
+		// Validate sort field to prevent SQL injection
+		validSortFields := map[string]bool{
+			"start_time":   true,
+			"latency_ms":   true,
+			"cost":         true,
+			"total_tokens": true,
+			"name":         true,
+			"model":        true,
+		}
+		if validSortFields[opts.SortBy] {
+			sortBy = opts.SortBy
+		}
+	}
+
+	sortOrder := "DESC"
+	if opts.SortOrder == "ASC" || opts.SortOrder == "asc" {
+		sortOrder = "ASC"
+	}
+
+	// Add sorting and pagination
+	query := baseQuery + filterClause + " ORDER BY " + sortBy + " " + sortOrder + " LIMIT ? OFFSET ?"
 	args = append(args, opts.Limit, opts.Offset)
 
 	rows, err := r.conn.Query(ctx, query, args...)
@@ -286,6 +366,145 @@ func (r *TraceRepository) GetByID(ctx context.Context, id string) (*domain.Trace
 	}
 
 	return &t, nil
+}
+
+// Session represents aggregated session data
+type Session struct {
+	SessionID       string  `json:"sessionId"`
+	ProjectID       string  `json:"projectId"`
+	UserID          string  `json:"userId,omitempty"`
+	TraceCount      int     `json:"traceCount"`
+	TotalLatencyMs  int     `json:"totalLatencyMs"`
+	TotalTokens     int     `json:"totalTokens"`
+	TotalCost       float64 `json:"totalCost"`
+	SuccessCount    int     `json:"successCount"`
+	ErrorCount      int     `json:"errorCount"`
+	FirstTraceTime  string  `json:"firstTraceTime"`
+	LastTraceTime   string  `json:"lastTraceTime"`
+	Models          []string `json:"models,omitempty"`
+}
+
+// SessionQueryOptions contains options for querying sessions
+type SessionQueryOptions struct {
+	ProjectID string
+	UserID    string
+	StartTime string
+	EndTime   string
+	Limit     int
+	Offset    int
+}
+
+// ListSessions retrieves sessions with aggregated metrics
+func (r *TraceRepository) ListSessions(ctx context.Context, opts *SessionQueryOptions) ([]*Session, int, error) {
+	baseQuery := `
+		SELECT
+			session_id,
+			project_id,
+			any(user_id) as user_id,
+			count() as trace_count,
+			sum(latency_ms) as total_latency_ms,
+			sum(total_tokens) as total_tokens,
+			sum(cost) as total_cost,
+			countIf(status = 'success') as success_count,
+			countIf(status = 'error') as error_count,
+			min(start_time) as first_trace_time,
+			max(start_time) as last_trace_time,
+			groupUniqArray(model) as models
+		FROM traces
+		WHERE session_id != ''
+	`
+	countQuery := `SELECT count(DISTINCT session_id) FROM traces WHERE session_id != ''`
+	args := make([]interface{}, 0)
+	countArgs := make([]interface{}, 0)
+
+	filterClause := ""
+	if opts.ProjectID != "" {
+		filterClause += " AND project_id = ?"
+		args = append(args, opts.ProjectID)
+		countArgs = append(countArgs, opts.ProjectID)
+	}
+	if opts.UserID != "" {
+		filterClause += " AND user_id = ?"
+		args = append(args, opts.UserID)
+		countArgs = append(countArgs, opts.UserID)
+	}
+	if opts.StartTime != "" {
+		filterClause += " AND start_time >= ?"
+		args = append(args, opts.StartTime)
+		countArgs = append(countArgs, opts.StartTime)
+	}
+	if opts.EndTime != "" {
+		filterClause += " AND start_time <= ?"
+		args = append(args, opts.EndTime)
+		countArgs = append(countArgs, opts.EndTime)
+	}
+
+	// Get total count
+	var total uint64
+	if err := r.conn.QueryRow(ctx, countQuery+filterClause, countArgs...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	// Add grouping, sorting and pagination
+	query := baseQuery + filterClause + " GROUP BY session_id, project_id ORDER BY last_trace_time DESC LIMIT ? OFFSET ?"
+	args = append(args, opts.Limit, opts.Offset)
+
+	rows, err := r.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var sessions []*Session
+	for rows.Next() {
+		var s Session
+		if err := rows.Scan(
+			&s.SessionID, &s.ProjectID, &s.UserID,
+			&s.TraceCount, &s.TotalLatencyMs, &s.TotalTokens, &s.TotalCost,
+			&s.SuccessCount, &s.ErrorCount,
+			&s.FirstTraceTime, &s.LastTraceTime, &s.Models,
+		); err != nil {
+			return nil, 0, err
+		}
+		sessions = append(sessions, &s)
+	}
+
+	return sessions, int(total), nil
+}
+
+// GetSessionByID retrieves a session by ID with all its traces
+func (r *TraceRepository) GetSessionByID(ctx context.Context, sessionID string) (*Session, error) {
+	query := `
+		SELECT
+			session_id,
+			project_id,
+			any(user_id) as user_id,
+			count() as trace_count,
+			sum(latency_ms) as total_latency_ms,
+			sum(total_tokens) as total_tokens,
+			sum(cost) as total_cost,
+			countIf(status = 'success') as success_count,
+			countIf(status = 'error') as error_count,
+			min(start_time) as first_trace_time,
+			max(start_time) as last_trace_time,
+			groupUniqArray(model) as models
+		FROM traces
+		WHERE session_id = ?
+		GROUP BY session_id, project_id
+	`
+
+	var s Session
+	err := r.conn.QueryRow(ctx, query, sessionID).Scan(
+		&s.SessionID, &s.ProjectID, &s.UserID,
+		&s.TraceCount, &s.TotalLatencyMs, &s.TotalTokens, &s.TotalCost,
+		&s.SuccessCount, &s.ErrorCount,
+		&s.FirstTraceTime, &s.LastTraceTime, &s.Models,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &s, nil
 }
 
 // GetSpans retrieves spans for a trace

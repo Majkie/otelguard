@@ -146,6 +146,49 @@ func (s *GuardrailService) evaluateRule(rule *domain.GuardrailRule, input, outpu
 	}
 }
 
+// List returns guardrail policies for a project
+func (s *GuardrailService) List(ctx context.Context, projectID string, opts *ListOptions) ([]*domain.GuardrailPolicy, int, error) {
+	return s.policyRepo.List(ctx, projectID, &postgres.ListOptions{
+		Limit:  opts.Limit,
+		Offset: opts.Offset,
+	})
+}
+
+// GetByID retrieves a policy by ID
+func (s *GuardrailService) GetByID(ctx context.Context, id string) (*domain.GuardrailPolicy, error) {
+	return s.policyRepo.GetByID(ctx, id)
+}
+
+// Create creates a new guardrail policy
+func (s *GuardrailService) Create(ctx context.Context, policy *domain.GuardrailPolicy) error {
+	return s.policyRepo.Create(ctx, policy)
+}
+
+// Update updates a guardrail policy
+func (s *GuardrailService) Update(ctx context.Context, policy *domain.GuardrailPolicy) error {
+	return s.policyRepo.Update(ctx, policy)
+}
+
+// Delete deletes a guardrail policy
+func (s *GuardrailService) Delete(ctx context.Context, id string) error {
+	return s.policyRepo.Delete(ctx, id)
+}
+
+// GetRules returns all rules for a policy
+func (s *GuardrailService) GetRules(ctx context.Context, policyID uuid.UUID) ([]*domain.GuardrailRule, error) {
+	return s.policyRepo.GetRules(ctx, policyID)
+}
+
+// AddRule adds a rule to a policy
+func (s *GuardrailService) AddRule(ctx context.Context, rule *domain.GuardrailRule) error {
+	return s.policyRepo.AddRule(ctx, rule)
+}
+
+// DeleteRule deletes a rule
+func (s *GuardrailService) DeleteRule(ctx context.Context, id string) error {
+	return s.policyRepo.DeleteRule(ctx, id)
+}
+
 // logEvent logs a guardrail evaluation event to ClickHouse
 func (s *GuardrailService) logEvent(
 	ctx context.Context,

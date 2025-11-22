@@ -1,4 +1,4 @@
-.PHONY: help build run test lint clean docker-up docker-down migrate dev
+.PHONY: help build run test lint lint-fix format clean docker-up docker-down migrate dev
 
 # Default target
 help:
@@ -23,11 +23,13 @@ help:
 	@echo "  migrate-down  Rollback database migrations"
 	@echo "  seed          Seed database with sample data"
 	@echo ""
-	@echo "Testing:"
+	@echo "Testing & Quality:"
 	@echo "  test          Run all tests"
 	@echo "  test-backend  Run backend tests"
 	@echo "  test-frontend Run frontend tests"
 	@echo "  lint          Run linters"
+	@echo "  lint-fix      Fix auto-fixable lint issues"
+	@echo "  format        Format code"
 	@echo ""
 	@echo "Other:"
 	@echo "  clean         Clean build artifacts"
@@ -76,6 +78,7 @@ migrate-up:
 	docker exec -i otelguard-postgres psql -U otelguard -d otelguard < backend/migrations/postgres/001_initial_schema.sql
 	@echo "Running ClickHouse migrations..."
 	docker exec -i otelguard-clickhouse clickhouse-client --database=otelguard < backend/migrations/clickhouse/001_traces.sql
+	docker exec -i otelguard-clickhouse clickhouse-client --database=otelguard < backend/migrations/clickhouse/002_events.sql
 
 migrate-down:
 	@echo "Rolling back migrations..."
@@ -84,7 +87,7 @@ migrate-down:
 
 seed:
 	@echo "Seeding database..."
-	@go run backend/scripts/seed.go
+	cd backend && go run ./scripts/seed/main.go
 
 # Testing
 test: test-backend test-frontend
@@ -106,6 +109,26 @@ lint-backend:
 lint-frontend:
 	@echo "Linting frontend..."
 	cd frontend && npm run lint
+
+format: format-backend format-frontend
+
+format-backend:
+	@echo "Formatting backend..."
+	cd backend && gofmt -s -w . && goimports -w .
+
+format-frontend:
+	@echo "Formatting frontend..."
+	cd frontend && npm run format
+
+lint-fix: lint-fix-backend lint-fix-frontend
+
+lint-fix-backend:
+	@echo "Fixing backend lint issues..."
+	cd backend && golangci-lint run --fix
+
+lint-fix-frontend:
+	@echo "Fixing frontend lint issues..."
+	cd frontend && npm run lint:fix
 
 # Install
 install: install-backend install-frontend
