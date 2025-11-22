@@ -367,7 +367,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 5.6 No-Code Configuration UI
 
-- [ ] Create policy builder UI
+- [x] Create policy builder UI
 - [ ] Implement rule condition builder
 - [ ] Build action configuration forms
 - [ ] Create policy testing interface
