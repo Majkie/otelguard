@@ -368,6 +368,145 @@ func (r *TraceRepository) GetByID(ctx context.Context, id string) (*domain.Trace
 	return &t, nil
 }
 
+// Session represents aggregated session data
+type Session struct {
+	SessionID       string  `json:"sessionId"`
+	ProjectID       string  `json:"projectId"`
+	UserID          string  `json:"userId,omitempty"`
+	TraceCount      int     `json:"traceCount"`
+	TotalLatencyMs  int     `json:"totalLatencyMs"`
+	TotalTokens     int     `json:"totalTokens"`
+	TotalCost       float64 `json:"totalCost"`
+	SuccessCount    int     `json:"successCount"`
+	ErrorCount      int     `json:"errorCount"`
+	FirstTraceTime  string  `json:"firstTraceTime"`
+	LastTraceTime   string  `json:"lastTraceTime"`
+	Models          []string `json:"models,omitempty"`
+}
+
+// SessionQueryOptions contains options for querying sessions
+type SessionQueryOptions struct {
+	ProjectID string
+	UserID    string
+	StartTime string
+	EndTime   string
+	Limit     int
+	Offset    int
+}
+
+// ListSessions retrieves sessions with aggregated metrics
+func (r *TraceRepository) ListSessions(ctx context.Context, opts *SessionQueryOptions) ([]*Session, int, error) {
+	baseQuery := `
+		SELECT
+			session_id,
+			project_id,
+			any(user_id) as user_id,
+			count() as trace_count,
+			sum(latency_ms) as total_latency_ms,
+			sum(total_tokens) as total_tokens,
+			sum(cost) as total_cost,
+			countIf(status = 'success') as success_count,
+			countIf(status = 'error') as error_count,
+			min(start_time) as first_trace_time,
+			max(start_time) as last_trace_time,
+			groupUniqArray(model) as models
+		FROM traces
+		WHERE session_id != ''
+	`
+	countQuery := `SELECT count(DISTINCT session_id) FROM traces WHERE session_id != ''`
+	args := make([]interface{}, 0)
+	countArgs := make([]interface{}, 0)
+
+	filterClause := ""
+	if opts.ProjectID != "" {
+		filterClause += " AND project_id = ?"
+		args = append(args, opts.ProjectID)
+		countArgs = append(countArgs, opts.ProjectID)
+	}
+	if opts.UserID != "" {
+		filterClause += " AND user_id = ?"
+		args = append(args, opts.UserID)
+		countArgs = append(countArgs, opts.UserID)
+	}
+	if opts.StartTime != "" {
+		filterClause += " AND start_time >= ?"
+		args = append(args, opts.StartTime)
+		countArgs = append(countArgs, opts.StartTime)
+	}
+	if opts.EndTime != "" {
+		filterClause += " AND start_time <= ?"
+		args = append(args, opts.EndTime)
+		countArgs = append(countArgs, opts.EndTime)
+	}
+
+	// Get total count
+	var total uint64
+	if err := r.conn.QueryRow(ctx, countQuery+filterClause, countArgs...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	// Add grouping, sorting and pagination
+	query := baseQuery + filterClause + " GROUP BY session_id, project_id ORDER BY last_trace_time DESC LIMIT ? OFFSET ?"
+	args = append(args, opts.Limit, opts.Offset)
+
+	rows, err := r.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var sessions []*Session
+	for rows.Next() {
+		var s Session
+		if err := rows.Scan(
+			&s.SessionID, &s.ProjectID, &s.UserID,
+			&s.TraceCount, &s.TotalLatencyMs, &s.TotalTokens, &s.TotalCost,
+			&s.SuccessCount, &s.ErrorCount,
+			&s.FirstTraceTime, &s.LastTraceTime, &s.Models,
+		); err != nil {
+			return nil, 0, err
+		}
+		sessions = append(sessions, &s)
+	}
+
+	return sessions, int(total), nil
+}
+
+// GetSessionByID retrieves a session by ID with all its traces
+func (r *TraceRepository) GetSessionByID(ctx context.Context, sessionID string) (*Session, error) {
+	query := `
+		SELECT
+			session_id,
+			project_id,
+			any(user_id) as user_id,
+			count() as trace_count,
+			sum(latency_ms) as total_latency_ms,
+			sum(total_tokens) as total_tokens,
+			sum(cost) as total_cost,
+			countIf(status = 'success') as success_count,
+			countIf(status = 'error') as error_count,
+			min(start_time) as first_trace_time,
+			max(start_time) as last_trace_time,
+			groupUniqArray(model) as models
+		FROM traces
+		WHERE session_id = ?
+		GROUP BY session_id, project_id
+	`
+
+	var s Session
+	err := r.conn.QueryRow(ctx, query, sessionID).Scan(
+		&s.SessionID, &s.ProjectID, &s.UserID,
+		&s.TraceCount, &s.TotalLatencyMs, &s.TotalTokens, &s.TotalCost,
+		&s.SuccessCount, &s.ErrorCount,
+		&s.FirstTraceTime, &s.LastTraceTime, &s.Models,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &s, nil
+}
+
 // GetSpans retrieves spans for a trace
 func (r *TraceRepository) GetSpans(ctx context.Context, traceID string) ([]*domain.Span, error) {
 	query := `

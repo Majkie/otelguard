@@ -2,6 +2,7 @@ import { Outlet, NavLink } from 'react-router-dom';
 import {
   LayoutDashboard,
   Activity,
+  Users,
   FileText,
   Shield,
   Settings,
@@ -17,6 +18,7 @@ import { useAuth } from '@/hooks/use-auth';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Traces', href: '/traces', icon: Activity },
+  { name: 'Sessions', href: '/sessions', icon: Users },
   { name: 'Prompts', href: '/prompts', icon: FileText },
   { name: 'Guardrails', href: '/guardrails', icon: Shield },
   { name: 'Settings', href: '/settings', icon: Settings },

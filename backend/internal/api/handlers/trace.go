@@ -519,12 +519,87 @@ func (h *TraceHandler) DeleteTrace(c *gin.Context) {
 
 // ListSessions returns sessions with aggregated metrics
 func (h *TraceHandler) ListSessions(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"data": []interface{}{}, "total": 0})
+	// Pagination
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	if limit > 100 {
+		limit = 100
+	}
+	if limit < 1 {
+		limit = 50
+	}
+
+	// Filters
+	projectID := c.Query("projectId")
+	userID := c.Query("userId")
+	startTime := c.Query("startTime")
+	endTime := c.Query("endTime")
+
+	opts := &service.ListSessionsOptions{
+		ProjectID: projectID,
+		UserID:    userID,
+		StartTime: startTime,
+		EndTime:   endTime,
+		Limit:     limit,
+		Offset:    offset,
+	}
+
+	sessions, total, err := h.traceService.ListSessions(c.Request.Context(), opts)
+	if err != nil {
+		h.logger.Error("failed to list sessions", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve sessions",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":   sessions,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	})
 }
 
 // GetSession returns a single session with traces
 func (h *TraceHandler) GetSession(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{"error": "not_implemented"})
+	sessionID := c.Param("id")
+
+	// Get session summary
+	session, err := h.traceService.GetSession(c.Request.Context(), sessionID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "not_found",
+			"message": "Session not found",
+		})
+		return
+	}
+
+	// Get traces for this session
+	limit, _ := strconv.Atoi(c.DefaultQuery("traceLimit", "100"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("traceOffset", "0"))
+
+	traces, traceTotal, err := h.traceService.GetSessionTraces(c.Request.Context(), sessionID, limit, offset)
+	if err != nil {
+		h.logger.Error("failed to get session traces", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve session traces",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session": session,
+		"traces": gin.H{
+			"data":   traces,
+			"total":  traceTotal,
+			"limit":  limit,
+			"offset": offset,
+		},
+	})
 }
 
 // GetOverview returns analytics overview

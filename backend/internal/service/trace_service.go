@@ -103,3 +103,41 @@ func (s *TraceService) DeleteTrace(ctx context.Context, id string) error {
 	s.logger.Warn("trace deletion not fully implemented", zap.String("trace_id", id))
 	return nil
 }
+
+// ListSessionsOptions contains options for listing sessions
+type ListSessionsOptions struct {
+	ProjectID string
+	UserID    string
+	StartTime string
+	EndTime   string
+	Limit     int
+	Offset    int
+}
+
+// ListSessions returns paginated sessions with aggregated metrics
+func (s *TraceService) ListSessions(ctx context.Context, opts *ListSessionsOptions) ([]*clickhouse.Session, int, error) {
+	return s.traceRepo.ListSessions(ctx, &clickhouse.SessionQueryOptions{
+		ProjectID: opts.ProjectID,
+		UserID:    opts.UserID,
+		StartTime: opts.StartTime,
+		EndTime:   opts.EndTime,
+		Limit:     opts.Limit,
+		Offset:    opts.Offset,
+	})
+}
+
+// GetSession retrieves a single session with its aggregated metrics
+func (s *TraceService) GetSession(ctx context.Context, sessionID string) (*clickhouse.Session, error) {
+	return s.traceRepo.GetSessionByID(ctx, sessionID)
+}
+
+// GetSessionTraces retrieves all traces for a session
+func (s *TraceService) GetSessionTraces(ctx context.Context, sessionID string, limit, offset int) ([]*domain.Trace, int, error) {
+	return s.traceRepo.Query(ctx, &clickhouse.QueryOptions{
+		SessionID: sessionID,
+		Limit:     limit,
+		Offset:    offset,
+		SortBy:    "start_time",
+		SortOrder: "ASC",
+	})
+}

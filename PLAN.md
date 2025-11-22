@@ -141,12 +141,12 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 2.4 Session Management
 
-- [ ] Implement session grouping logic
-- [ ] Create session listing endpoint
-- [ ] Build session detail view (all traces in session)
-- [ ] Implement session-level metrics aggregation
+- [x] Implement session grouping logic
+- [x] Create session listing endpoint
+- [x] Build session detail view (all traces in session)
+- [x] Implement session-level metrics aggregation
 - [ ] Create session timeline visualization
-- [ ] Enable session-based filtering
+- [x] Enable session-based filtering
 - [ ] Implement session replay functionality
 
 ### 2.5 User Tracking
