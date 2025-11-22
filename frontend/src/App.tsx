@@ -14,6 +14,7 @@ import { TraceComparePage } from '@/pages/traces/compare';
 import { SessionsPage } from '@/pages/sessions';
 import { SessionDetailPage } from '@/pages/sessions/detail';
 import { PromptsPage } from '@/pages/prompts';
+import { PromptDetailPage } from '@/pages/prompts/detail';
 import { GuardrailsPage } from '@/pages/guardrails';
 import { SettingsPage } from '@/pages/settings';
 
@@ -46,6 +47,7 @@ function App() {
           <Route path="sessions" element={<SessionsPage />} />
           <Route path="sessions/:id" element={<SessionDetailPage />} />
           <Route path="prompts" element={<PromptsPage />} />
+          <Route path="prompts/:id" element={<PromptDetailPage />} />
           <Route path="guardrails" element={<GuardrailsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

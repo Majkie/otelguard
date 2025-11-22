@@ -207,12 +207,12 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 3.5 Prompt Frontend
 
-- [ ] Create prompts list page
-- [ ] Build prompt editor with syntax highlighting
+- [x] Create prompts list page
+- [x] Build prompt editor with syntax highlighting
 - [ ] Implement version history sidebar
-- [ ] Create prompt settings panel
+- [x] Create prompt settings panel
 - [ ] Build prompt usage analytics
-- [ ] Implement prompt search
+- [x] Implement prompt search
 - [ ] Create prompt organization (folders/tags)
 
 ### 3.6 Prompt-Trace Linking
