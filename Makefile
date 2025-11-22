@@ -87,7 +87,7 @@ migrate-down:
 
 seed:
 	@echo "Seeding database..."
-	@go run backend/scripts/seed.go
+	cd backend && go run ./scripts/seed/main.go
 
 # Testing
 test: test-backend test-frontend
