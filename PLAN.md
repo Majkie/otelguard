@@ -8,17 +8,17 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 1.1 Project Setup
 
-- [ ] Initialize Go module with proper module path
-- [ ] Set up Go project structure (cmd/, internal/, pkg/, api/)
-- [ ] Initialize React project with Vite and TypeScript
-- [ ] Configure ShadCN UI components
-- [ ] Set up TanStack Query provider
-- [ ] Configure TanStack Table base setup
-- [ ] Create Docker Compose for development environment
-- [ ] Set up PostgreSQL container with initial schema
-- [ ] Set up ClickHouse container with initial schema
-- [ ] Configure environment variable management
-- [ ] Set up Makefile for common tasks
+- [x] Initialize Go module with proper module path
+- [x] Set up Go project structure (cmd/, internal/, pkg/, api/)
+- [x] Initialize React project with Vite and TypeScript
+- [x] Configure ShadCN UI components
+- [x] Set up TanStack Query provider
+- [x] Configure TanStack Table base setup
+- [x] Create Docker Compose for development environment
+- [x] Set up PostgreSQL container with initial schema
+- [x] Set up ClickHouse container with initial schema
+- [x] Configure environment variable management
+- [x] Set up Makefile for common tasks
 - [ ] Configure ESLint, Prettier for frontend
 - [ ] Configure golangci-lint for backend
 - [ ] Set up pre-commit hooks
@@ -27,72 +27,72 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 #### PostgreSQL (Metadata)
 
-- [ ] Design and create `organizations` table
-- [ ] Design and create `projects` table
-- [ ] Design and create `users` table
-- [ ] Design and create `api_keys` table
-- [ ] Design and create `prompts` table
-- [ ] Design and create `prompt_versions` table
-- [ ] Design and create `datasets` table
-- [ ] Design and create `dataset_items` table
-- [ ] Design and create `guardrail_policies` table
-- [ ] Design and create `guardrail_rules` table
-- [ ] Design and create `annotation_queues` table
-- [ ] Design and create `score_configs` table
+- [x] Design and create `organizations` table
+- [x] Design and create `projects` table
+- [x] Design and create `users` table
+- [x] Design and create `api_keys` table
+- [x] Design and create `prompts` table
+- [x] Design and create `prompt_versions` table
+- [x] Design and create `datasets` table
+- [x] Design and create `dataset_items` table
+- [x] Design and create `guardrail_policies` table
+- [x] Design and create `guardrail_rules` table
+- [x] Design and create `annotation_queues` table
+- [x] Design and create `score_configs` table
 - [ ] Set up database migrations with golang-migrate
 - [ ] Create seed data for development
 
 #### ClickHouse (Events)
 
-- [ ] Design and create `traces` table (MergeTree)
-- [ ] Design and create `spans` table (MergeTree)
+- [x] Design and create `traces` table (MergeTree)
+- [x] Design and create `spans` table (MergeTree)
 - [ ] Design and create `events` table (MergeTree)
-- [ ] Design and create `metrics` table (MergeTree)
-- [ ] Design and create `scores` table (MergeTree)
-- [ ] Design and create `guardrail_events` table (MergeTree)
-- [ ] Create materialized views for common aggregations
-- [ ] Set up TTL policies for data retention
-- [ ] Configure partitioning strategy (by date/project)
-- [ ] Create indexes for common query patterns
+- [x] Design and create `metrics` table (MergeTree)
+- [x] Design and create `scores` table (MergeTree)
+- [x] Design and create `guardrail_events` table (MergeTree)
+- [x] Create materialized views for common aggregations
+- [x] Set up TTL policies for data retention
+- [x] Configure partitioning strategy (by date/project)
+- [x] Create indexes for common query patterns
 
 ### 1.3 Backend Core
 
-- [ ] Set up Gin router with middleware
-- [ ] Implement structured logging (zerolog/zap)
-- [ ] Create database connection pools (PostgreSQL)
-- [ ] Create ClickHouse connection management
-- [ ] Implement graceful shutdown
-- [ ] Set up health check endpoints
-- [ ] Create base repository pattern
-- [ ] Implement request ID middleware
-- [ ] Set up CORS configuration
-- [ ] Create error handling middleware
-- [ ] Implement rate limiting middleware
+- [x] Set up Gin router with middleware
+- [x] Implement structured logging (zerolog/zap)
+- [x] Create database connection pools (PostgreSQL)
+- [x] Create ClickHouse connection management
+- [x] Implement graceful shutdown
+- [x] Set up health check endpoints
+- [x] Create base repository pattern
+- [x] Implement request ID middleware
+- [x] Set up CORS configuration
+- [x] Create error handling middleware
+- [x] Implement rate limiting middleware
 - [ ] Set up request validation (go-playground/validator)
 
 ### 1.4 Authentication & Authorization
 
-- [ ] Implement JWT token generation and validation
-- [ ] Create API key authentication middleware
-- [ ] Implement user registration endpoint
-- [ ] Implement user login endpoint
+- [x] Implement JWT token generation and validation
+- [x] Create API key authentication middleware
+- [x] Implement user registration endpoint
+- [x] Implement user login endpoint
 - [ ] Create password reset flow
 - [ ] Implement organization management
 - [ ] Create project-level permissions
 - [ ] Implement role-based access control (RBAC)
-- [ ] Create API key management endpoints
+- [x] Create API key management endpoints
 - [ ] Implement session management
 
 ### 1.5 Frontend Core
 
-- [ ] Set up React Router for navigation
-- [ ] Create authentication context and hooks
-- [ ] Implement login/register pages
-- [ ] Create main layout with sidebar navigation
-- [ ] Set up TanStack Query client configuration
-- [ ] Create API client with interceptors
-- [ ] Implement protected route wrapper
-- [ ] Create toast notification system
+- [x] Set up React Router for navigation
+- [x] Create authentication context and hooks
+- [x] Implement login/register pages
+- [x] Create main layout with sidebar navigation
+- [x] Set up TanStack Query client configuration
+- [x] Create API client with interceptors
+- [x] Implement protected route wrapper
+- [x] Create toast notification system
 - [ ] Set up dark/light theme support
 - [ ] Create loading states and skeletons
 
@@ -102,13 +102,13 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 2.1 Trace Ingestion
 
-- [ ] Design trace/span data model in Go
+- [x] Design trace/span data model in Go
 - [ ] Implement OTLP HTTP receiver endpoint
 - [ ] Implement OTLP gRPC receiver endpoint
-- [ ] Create custom HTTP trace ingestion endpoint
+- [x] Create custom HTTP trace ingestion endpoint
 - [ ] Implement trace batching and buffering
 - [ ] Create async writer to ClickHouse
-- [ ] Implement trace ID generation (if not provided)
+- [x] Implement trace ID generation (if not provided)
 - [ ] Handle nested span relationships
 - [ ] Parse and store LLM-specific attributes
 - [ ] Extract token counts, model info, costs
@@ -118,10 +118,10 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 2.2 Trace Storage & Retrieval
 
-- [ ] Implement trace listing with pagination
+- [x] Implement trace listing with pagination
 - [ ] Create trace filtering (by project, user, session, tags)
 - [ ] Implement full-text search on trace content
-- [ ] Create trace detail retrieval with spans
+- [x] Create trace detail retrieval with spans
 - [ ] Implement span tree reconstruction
 - [ ] Calculate trace-level aggregations (latency, cost, tokens)
 - [ ] Create time-range queries optimization
@@ -129,9 +129,9 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 2.3 Trace Visualization (Frontend)
 
-- [ ] Create traces list page with TanStack Table
+- [x] Create traces list page with TanStack Table
 - [ ] Implement column sorting and filtering
-- [ ] Create trace detail page
+- [x] Create trace detail page
 - [ ] Build span waterfall/timeline visualization
 - [ ] Create span detail panel (input/output viewer)
 - [ ] Implement JSON viewer for structured data
@@ -164,11 +164,11 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 3.1 Prompt CRUD
 
-- [ ] Create prompt creation endpoint
-- [ ] Implement prompt listing with filtering
-- [ ] Create prompt detail retrieval
-- [ ] Implement prompt update endpoint
-- [ ] Create prompt deletion (soft delete)
+- [x] Create prompt creation endpoint
+- [x] Implement prompt listing with filtering
+- [x] Create prompt detail retrieval
+- [x] Implement prompt update endpoint
+- [x] Create prompt deletion (soft delete)
 - [ ] Implement prompt duplication
 - [ ] Create prompt tagging system
 
@@ -229,9 +229,9 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 4.1 Score System
 
-- [ ] Design score data model
-- [ ] Create score submission endpoint
-- [ ] Implement score types (numeric, boolean, categorical)
+- [x] Design score data model
+- [x] Create score submission endpoint
+- [x] Implement score types (numeric, boolean, categorical)
 - [ ] Create score retrieval endpoints
 - [ ] Implement score aggregation queries
 - [ ] Build score trend analysis
@@ -297,8 +297,8 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 5.1 Policy Engine Core
 
-- [ ] Design guardrail policy schema
-- [ ] Create policy CRUD endpoints
+- [x] Design guardrail policy schema
+- [x] Create policy CRUD endpoints
 - [ ] Implement policy matching logic (triggers)
 - [ ] Build policy priority/ordering system
 - [ ] Create policy versioning
@@ -346,7 +346,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 5.4 Real-Time Evaluation
 
-- [ ] Create synchronous evaluation endpoint
+- [x] Create synchronous evaluation endpoint
 - [ ] Implement async evaluation with webhooks
 - [ ] Build evaluation caching
 - [ ] Create batch evaluation endpoint
