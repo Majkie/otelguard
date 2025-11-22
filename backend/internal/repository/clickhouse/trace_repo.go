@@ -547,3 +547,484 @@ func (r *TraceRepository) GetSpans(ctx context.Context, traceID string) ([]*doma
 
 	return spans, nil
 }
+
+// User represents aggregated user activity data
+type User struct {
+	UserID          string   `json:"userId"`
+	ProjectID       string   `json:"projectId"`
+	TraceCount      int      `json:"traceCount"`
+	SessionCount    int      `json:"sessionCount"`
+	TotalLatencyMs  int      `json:"totalLatencyMs"`
+	AvgLatencyMs    float64  `json:"avgLatencyMs"`
+	TotalTokens     int      `json:"totalTokens"`
+	TotalCost       float64  `json:"totalCost"`
+	SuccessCount    int      `json:"successCount"`
+	ErrorCount      int      `json:"errorCount"`
+	SuccessRate     float64  `json:"successRate"`
+	FirstSeenTime   string   `json:"firstSeenTime"`
+	LastSeenTime    string   `json:"lastSeenTime"`
+	Models          []string `json:"models,omitempty"`
+}
+
+// UserQueryOptions contains options for querying users
+type UserQueryOptions struct {
+	ProjectID string
+	StartTime string
+	EndTime   string
+	Limit     int
+	Offset    int
+}
+
+// ListUsers retrieves users with aggregated metrics
+func (r *TraceRepository) ListUsers(ctx context.Context, opts *UserQueryOptions) ([]*User, int, error) {
+	baseQuery := `
+		SELECT
+			user_id,
+			project_id,
+			count() as trace_count,
+			uniqExact(session_id) as session_count,
+			sum(latency_ms) as total_latency_ms,
+			avg(latency_ms) as avg_latency_ms,
+			sum(total_tokens) as total_tokens,
+			sum(cost) as total_cost,
+			countIf(status = 'success') as success_count,
+			countIf(status = 'error') as error_count,
+			if(count() > 0, countIf(status = 'success') / count(), 0) as success_rate,
+			min(start_time) as first_seen_time,
+			max(start_time) as last_seen_time,
+			groupUniqArray(model) as models
+		FROM traces
+		WHERE user_id != ''
+	`
+	countQuery := `SELECT count(DISTINCT user_id) FROM traces WHERE user_id != ''`
+	args := make([]interface{}, 0)
+	countArgs := make([]interface{}, 0)
+
+	filterClause := ""
+	if opts.ProjectID != "" {
+		filterClause += " AND project_id = ?"
+		args = append(args, opts.ProjectID)
+		countArgs = append(countArgs, opts.ProjectID)
+	}
+	if opts.StartTime != "" {
+		filterClause += " AND start_time >= ?"
+		args = append(args, opts.StartTime)
+		countArgs = append(countArgs, opts.StartTime)
+	}
+	if opts.EndTime != "" {
+		filterClause += " AND start_time <= ?"
+		args = append(args, opts.EndTime)
+		countArgs = append(countArgs, opts.EndTime)
+	}
+
+	// Get total count
+	var total uint64
+	if err := r.conn.QueryRow(ctx, countQuery+filterClause, countArgs...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	// Add grouping, sorting and pagination
+	query := baseQuery + filterClause + " GROUP BY user_id, project_id ORDER BY last_seen_time DESC LIMIT ? OFFSET ?"
+	args = append(args, opts.Limit, opts.Offset)
+
+	rows, err := r.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var users []*User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(
+			&u.UserID, &u.ProjectID,
+			&u.TraceCount, &u.SessionCount, &u.TotalLatencyMs, &u.AvgLatencyMs,
+			&u.TotalTokens, &u.TotalCost,
+			&u.SuccessCount, &u.ErrorCount, &u.SuccessRate,
+			&u.FirstSeenTime, &u.LastSeenTime, &u.Models,
+		); err != nil {
+			return nil, 0, err
+		}
+		users = append(users, &u)
+	}
+
+	return users, int(total), nil
+}
+
+// GetUserByID retrieves a user by ID with aggregated metrics
+func (r *TraceRepository) GetUserByID(ctx context.Context, userID string) (*User, error) {
+	query := `
+		SELECT
+			user_id,
+			project_id,
+			count() as trace_count,
+			uniqExact(session_id) as session_count,
+			sum(latency_ms) as total_latency_ms,
+			avg(latency_ms) as avg_latency_ms,
+			sum(total_tokens) as total_tokens,
+			sum(cost) as total_cost,
+			countIf(status = 'success') as success_count,
+			countIf(status = 'error') as error_count,
+			if(count() > 0, countIf(status = 'success') / count(), 0) as success_rate,
+			min(start_time) as first_seen_time,
+			max(start_time) as last_seen_time,
+			groupUniqArray(model) as models
+		FROM traces
+		WHERE user_id = ?
+		GROUP BY user_id, project_id
+	`
+
+	var u User
+	err := r.conn.QueryRow(ctx, query, userID).Scan(
+		&u.UserID, &u.ProjectID,
+		&u.TraceCount, &u.SessionCount, &u.TotalLatencyMs, &u.AvgLatencyMs,
+		&u.TotalTokens, &u.TotalCost,
+		&u.SuccessCount, &u.ErrorCount, &u.SuccessRate,
+		&u.FirstSeenTime, &u.LastSeenTime, &u.Models,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+// GetUserSessions retrieves all sessions for a user
+func (r *TraceRepository) GetUserSessions(ctx context.Context, userID string, limit, offset int) ([]*Session, int, error) {
+	return r.ListSessions(ctx, &SessionQueryOptions{
+		UserID: userID,
+		Limit:  limit,
+		Offset: offset,
+	})
+}
+
+// SearchTraces performs full-text search on trace content
+func (r *TraceRepository) SearchTraces(ctx context.Context, opts *SearchOptions) ([]*domain.Trace, int, error) {
+	baseQuery := `
+		SELECT
+			id, project_id, session_id, user_id, name,
+			input, output, metadata, start_time, end_time,
+			latency_ms, total_tokens, prompt_tokens, completion_tokens,
+			cost, model, tags, status, error_message
+		FROM traces
+		WHERE 1=1
+	`
+	countQuery := `SELECT COUNT(*) FROM traces WHERE 1=1`
+	args := make([]interface{}, 0)
+	countArgs := make([]interface{}, 0)
+
+	filterClause := ""
+
+	if opts.ProjectID != "" {
+		filterClause += " AND project_id = ?"
+		args = append(args, opts.ProjectID)
+		countArgs = append(countArgs, opts.ProjectID)
+	}
+
+	// Full-text search on input, output, and name
+	if opts.Query != "" {
+		filterClause += " AND (input ILIKE ? OR output ILIKE ? OR name ILIKE ?)"
+		pattern := "%" + opts.Query + "%"
+		args = append(args, pattern, pattern, pattern)
+		countArgs = append(countArgs, pattern, pattern, pattern)
+	}
+
+	if opts.StartTime != "" {
+		filterClause += " AND start_time >= ?"
+		args = append(args, opts.StartTime)
+		countArgs = append(countArgs, opts.StartTime)
+	}
+	if opts.EndTime != "" {
+		filterClause += " AND start_time <= ?"
+		args = append(args, opts.EndTime)
+		countArgs = append(countArgs, opts.EndTime)
+	}
+
+	// Get total count
+	var total uint64
+	if err := r.conn.QueryRow(ctx, countQuery+filterClause, countArgs...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	// Add sorting and pagination
+	query := baseQuery + filterClause + " ORDER BY start_time DESC LIMIT ? OFFSET ?"
+	args = append(args, opts.Limit, opts.Offset)
+
+	rows, err := r.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var traces []*domain.Trace
+	for rows.Next() {
+		var t domain.Trace
+		var sessionID, userID, errorMsg string
+		if err := rows.Scan(
+			&t.ID, &t.ProjectID, &sessionID, &userID, &t.Name,
+			&t.Input, &t.Output, &t.Metadata, &t.StartTime, &t.EndTime,
+			&t.LatencyMs, &t.TotalTokens, &t.PromptTokens, &t.CompletionTokens,
+			&t.Cost, &t.Model, &t.Tags, &t.Status, &errorMsg,
+		); err != nil {
+			return nil, 0, err
+		}
+		if sessionID != "" {
+			t.SessionID = &sessionID
+		}
+		if userID != "" {
+			t.UserID = &userID
+		}
+		if errorMsg != "" {
+			t.ErrorMessage = &errorMsg
+		}
+		traces = append(traces, &t)
+	}
+
+	return traces, int(total), nil
+}
+
+// SearchOptions contains options for searching traces
+type SearchOptions struct {
+	ProjectID string
+	Query     string
+	StartTime string
+	EndTime   string
+	Limit     int
+	Offset    int
+}
+
+// OverviewMetrics contains aggregated overview metrics
+type OverviewMetrics struct {
+	TotalTraces    int     `json:"totalTraces"`
+	TotalTokens    int     `json:"totalTokens"`
+	TotalCost      float64 `json:"totalCost"`
+	AvgLatencyMs   float64 `json:"avgLatencyMs"`
+	ErrorRate      float64 `json:"errorRate"`
+	SuccessCount   int     `json:"successCount"`
+	ErrorCount     int     `json:"errorCount"`
+	UniqueUsers    int     `json:"uniqueUsers"`
+	UniqueSessions int     `json:"uniqueSessions"`
+}
+
+// TimeSeriesPoint represents a single data point in a time series
+type TimeSeriesPoint struct {
+	Timestamp string  `json:"timestamp"`
+	Value     float64 `json:"value"`
+	Count     int     `json:"count,omitempty"`
+}
+
+// CostByModel represents cost aggregated by model
+type CostByModel struct {
+	Model       string  `json:"model"`
+	TotalCost   float64 `json:"totalCost"`
+	TotalTokens int     `json:"totalTokens"`
+	TraceCount  int     `json:"traceCount"`
+}
+
+// AnalyticsQueryOptions contains options for analytics queries
+type AnalyticsQueryOptions struct {
+	ProjectID  string
+	StartTime  string
+	EndTime    string
+	Granularity string // hour, day, week
+}
+
+// GetOverviewMetrics retrieves overview metrics for a project
+func (r *TraceRepository) GetOverviewMetrics(ctx context.Context, opts *AnalyticsQueryOptions) (*OverviewMetrics, error) {
+	query := `
+		SELECT
+			count() as total_traces,
+			sum(total_tokens) as total_tokens,
+			sum(cost) as total_cost,
+			avg(latency_ms) as avg_latency_ms,
+			countIf(status = 'success') as success_count,
+			countIf(status = 'error') as error_count,
+			if(count() > 0, countIf(status = 'error') / count(), 0) as error_rate,
+			uniqExact(user_id) as unique_users,
+			uniqExact(session_id) as unique_sessions
+		FROM traces
+		WHERE 1=1
+	`
+	args := make([]interface{}, 0)
+
+	if opts.ProjectID != "" {
+		query += " AND project_id = ?"
+		args = append(args, opts.ProjectID)
+	}
+	if opts.StartTime != "" {
+		query += " AND start_time >= ?"
+		args = append(args, opts.StartTime)
+	}
+	if opts.EndTime != "" {
+		query += " AND start_time <= ?"
+		args = append(args, opts.EndTime)
+	}
+
+	var m OverviewMetrics
+	err := r.conn.QueryRow(ctx, query, args...).Scan(
+		&m.TotalTraces, &m.TotalTokens, &m.TotalCost, &m.AvgLatencyMs,
+		&m.SuccessCount, &m.ErrorCount, &m.ErrorRate,
+		&m.UniqueUsers, &m.UniqueSessions,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &m, nil
+}
+
+// GetCostTimeSeries retrieves cost over time
+func (r *TraceRepository) GetCostTimeSeries(ctx context.Context, opts *AnalyticsQueryOptions) ([]*TimeSeriesPoint, float64, error) {
+	granularity := "toStartOfDay(start_time)"
+	if opts.Granularity == "hour" {
+		granularity = "toStartOfHour(start_time)"
+	} else if opts.Granularity == "week" {
+		granularity = "toStartOfWeek(start_time)"
+	}
+
+	query := `
+		SELECT
+			` + granularity + ` as timestamp,
+			sum(cost) as value,
+			count() as count
+		FROM traces
+		WHERE 1=1
+	`
+	args := make([]interface{}, 0)
+
+	if opts.ProjectID != "" {
+		query += " AND project_id = ?"
+		args = append(args, opts.ProjectID)
+	}
+	if opts.StartTime != "" {
+		query += " AND start_time >= ?"
+		args = append(args, opts.StartTime)
+	}
+	if opts.EndTime != "" {
+		query += " AND start_time <= ?"
+		args = append(args, opts.EndTime)
+	}
+
+	query += " GROUP BY timestamp ORDER BY timestamp ASC"
+
+	rows, err := r.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var points []*TimeSeriesPoint
+	var totalCost float64
+	for rows.Next() {
+		var p TimeSeriesPoint
+		if err := rows.Scan(&p.Timestamp, &p.Value, &p.Count); err != nil {
+			return nil, 0, err
+		}
+		totalCost += p.Value
+		points = append(points, &p)
+	}
+
+	return points, totalCost, nil
+}
+
+// GetUsageTimeSeries retrieves token usage over time
+func (r *TraceRepository) GetUsageTimeSeries(ctx context.Context, opts *AnalyticsQueryOptions) ([]*TimeSeriesPoint, int, error) {
+	granularity := "toStartOfDay(start_time)"
+	if opts.Granularity == "hour" {
+		granularity = "toStartOfHour(start_time)"
+	} else if opts.Granularity == "week" {
+		granularity = "toStartOfWeek(start_time)"
+	}
+
+	query := `
+		SELECT
+			` + granularity + ` as timestamp,
+			sum(total_tokens) as value,
+			count() as count
+		FROM traces
+		WHERE 1=1
+	`
+	args := make([]interface{}, 0)
+
+	if opts.ProjectID != "" {
+		query += " AND project_id = ?"
+		args = append(args, opts.ProjectID)
+	}
+	if opts.StartTime != "" {
+		query += " AND start_time >= ?"
+		args = append(args, opts.StartTime)
+	}
+	if opts.EndTime != "" {
+		query += " AND start_time <= ?"
+		args = append(args, opts.EndTime)
+	}
+
+	query += " GROUP BY timestamp ORDER BY timestamp ASC"
+
+	rows, err := r.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var points []*TimeSeriesPoint
+	var totalTokens int
+	for rows.Next() {
+		var p TimeSeriesPoint
+		var tokens int
+		if err := rows.Scan(&p.Timestamp, &tokens, &p.Count); err != nil {
+			return nil, 0, err
+		}
+		p.Value = float64(tokens)
+		totalTokens += tokens
+		points = append(points, &p)
+	}
+
+	return points, totalTokens, nil
+}
+
+// GetCostByModel retrieves cost aggregated by model
+func (r *TraceRepository) GetCostByModel(ctx context.Context, opts *AnalyticsQueryOptions) ([]*CostByModel, error) {
+	query := `
+		SELECT
+			model,
+			sum(cost) as total_cost,
+			sum(total_tokens) as total_tokens,
+			count() as trace_count
+		FROM traces
+		WHERE model != ''
+	`
+	args := make([]interface{}, 0)
+
+	if opts.ProjectID != "" {
+		query += " AND project_id = ?"
+		args = append(args, opts.ProjectID)
+	}
+	if opts.StartTime != "" {
+		query += " AND start_time >= ?"
+		args = append(args, opts.StartTime)
+	}
+	if opts.EndTime != "" {
+		query += " AND start_time <= ?"
+		args = append(args, opts.EndTime)
+	}
+
+	query += " GROUP BY model ORDER BY total_cost DESC LIMIT 10"
+
+	rows, err := r.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []*CostByModel
+	for rows.Next() {
+		var c CostByModel
+		if err := rows.Scan(&c.Model, &c.TotalCost, &c.TotalTokens, &c.TraceCount); err != nil {
+			return nil, err
+		}
+		results = append(results, &c)
+	}
+
+	return results, nil
+}

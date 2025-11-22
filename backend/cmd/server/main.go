@@ -69,9 +69,44 @@ func main() {
 	traceRepo := chrepo.NewTraceRepository(chConn)
 	guardrailEventRepo := chrepo.NewGuardrailEventRepository(chConn)
 
+	// Initialize batch writer for async ClickHouse writes
+	var batchWriter *chrepo.TraceBatchWriter
+	if cfg.ClickHouse.AsyncWrite {
+		batchWriterConfig := &chrepo.BatchWriterConfig{
+			BatchSize:     cfg.ClickHouse.BatchSize,
+			FlushInterval: cfg.ClickHouse.FlushInterval,
+			MaxRetries:    cfg.ClickHouse.MaxRetries,
+			RetryDelay:    cfg.ClickHouse.RetryDelay,
+		}
+		batchWriter = chrepo.NewTraceBatchWriter(chConn, batchWriterConfig, logger)
+		batchWriter.Start()
+		logger.Info("batch writer started",
+			zap.Int("batch_size", batchWriterConfig.BatchSize),
+			zap.Duration("flush_interval", batchWriterConfig.FlushInterval),
+		)
+	}
+
+	// Initialize sampler configuration
+	var samplerConfig *service.SamplerConfig
+	if cfg.Sampler.Enabled {
+		samplerConfig = &service.SamplerConfig{
+			Type:          service.SamplerType(cfg.Sampler.Type),
+			Rate:          cfg.Sampler.Rate,
+			MaxPerSecond:  cfg.Sampler.MaxPerSecond,
+			SampleErrors:  cfg.Sampler.SampleErrors,
+			SampleSlow:    cfg.Sampler.SampleSlow,
+			SlowThreshold: cfg.Sampler.SlowThreshold,
+		}
+		logger.Info("trace sampling enabled",
+			zap.String("type", cfg.Sampler.Type),
+			zap.Float64("rate", cfg.Sampler.Rate),
+			zap.Int("max_per_sec", cfg.Sampler.MaxPerSecond),
+		)
+	}
+
 	// Initialize services
 	authService := service.NewAuthService(userRepo, logger, cfg.Auth.BcryptCost)
-	traceService := service.NewTraceService(traceRepo, logger)
+	traceService := service.NewTraceServiceFull(traceRepo, batchWriter, cfg.ClickHouse.AsyncWrite, samplerConfig, logger)
 	promptService := service.NewPromptService(promptRepo, logger)
 	guardrailService := service.NewGuardrailService(guardrailRepo, guardrailEventRepo, logger)
 
@@ -89,6 +124,7 @@ func main() {
 		Health:    handlers.NewHealthHandler(pgDB, logger),
 		Auth:      handlers.NewAuthHandler(authService, &cfg.Auth, logger),
 		Trace:     handlers.NewTraceHandler(traceService, logger),
+		OTLP:      handlers.NewOTLPHandler(traceService, logger),
 		Prompt:    handlers.NewPromptHandler(promptService, logger),
 		Guardrail: handlers.NewGuardrailHandler(guardrailService, logger),
 	}
@@ -126,6 +162,26 @@ func main() {
 
 	if err := srv.Shutdown(ctx); err != nil {
 		logger.Fatal("server forced shutdown", zap.Error(err))
+	}
+
+	// Stop batch writer and flush remaining data
+	if batchWriter != nil {
+		logger.Info("stopping batch writer...")
+		flushCtx, flushCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		if err := batchWriter.Stop(flushCtx); err != nil {
+			logger.Error("failed to stop batch writer cleanly", zap.Error(err))
+		}
+		flushCancel()
+
+		// Log final metrics
+		metrics := batchWriter.GetMetrics()
+		logger.Info("batch writer final metrics",
+			zap.Int64("traces_written", metrics.TracesWritten),
+			zap.Int64("spans_written", metrics.SpansWritten),
+			zap.Int64("scores_written", metrics.ScoresWritten),
+			zap.Int64("flush_count", metrics.FlushCount),
+			zap.Int64("error_count", metrics.ErrorCount),
+		)
 	}
 
 	logger.Info("server stopped")

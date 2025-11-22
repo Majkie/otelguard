@@ -3,11 +3,13 @@ import {
   LayoutDashboard,
   Activity,
   Users,
+  User,
   FileText,
   Shield,
   Settings,
   LogOut,
   Menu,
+  MessageSquare,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -18,7 +20,8 @@ import { useAuth } from '@/hooks/use-auth';
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Traces', href: '/traces', icon: Activity },
-  { name: 'Sessions', href: '/sessions', icon: Users },
+  { name: 'Sessions', href: '/sessions', icon: MessageSquare },
+  { name: 'Users', href: '/users', icon: Users },
   { name: 'Prompts', href: '/prompts', icon: FileText },
   { name: 'Guardrails', href: '/guardrails', icon: Shield },
   { name: 'Settings', href: '/settings', icon: Settings },
