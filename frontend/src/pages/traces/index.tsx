@@ -25,6 +25,7 @@ import {
   X,
   Download,
   Calendar,
+  GitCompare,
 } from 'lucide-react';
 
 type SortField = 'start_time' | 'latency_ms' | 'cost' | 'total_tokens' | 'name' | 'model';
@@ -129,11 +130,19 @@ export function TracesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Traces</h1>
-        <p className="text-muted-foreground">
-          View and analyze your LLM application traces
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Traces</h1>
+          <p className="text-muted-foreground">
+            View and analyze your LLM application traces
+          </p>
+        </div>
+        <Link to="/traces/compare">
+          <Button variant="outline">
+            <GitCompare className="h-4 w-4 mr-2" />
+            Compare
+          </Button>
+        </Link>
       </div>
 
       {/* Filters */}

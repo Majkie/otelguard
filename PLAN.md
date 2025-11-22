@@ -135,7 +135,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Build span waterfall/timeline visualization
 - [x] Create span detail panel (input/output viewer)
 - [x] Implement JSON viewer for structured data
-- [ ] Create diff viewer for comparing traces
+- [x] Create diff viewer for comparing traces
 - [x] Build trace search interface
 - [x] Implement trace export (JSON, CSV)
 

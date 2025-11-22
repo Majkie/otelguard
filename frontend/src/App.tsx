@@ -10,6 +10,7 @@ import { RegisterPage } from '@/pages/auth/register';
 import { DashboardPage } from '@/pages/dashboard';
 import { TracesPage } from '@/pages/traces';
 import { TraceDetailPage } from '@/pages/traces/detail';
+import { TraceComparePage } from '@/pages/traces/compare';
 import { PromptsPage } from '@/pages/prompts';
 import { GuardrailsPage } from '@/pages/guardrails';
 import { SettingsPage } from '@/pages/settings';
@@ -38,6 +39,7 @@ function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="traces" element={<TracesPage />} />
+          <Route path="traces/compare" element={<TraceComparePage />} />
           <Route path="traces/:id" element={<TraceDetailPage />} />
           <Route path="prompts" element={<PromptsPage />} />
           <Route path="guardrails" element={<GuardrailsPage />} />
