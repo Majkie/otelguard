@@ -179,31 +179,31 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Implement version comparison (diff)
 - [x] Create version rollback functionality
 - [x] Implement version labeling (production, staging, etc.)
-- [ ] Create version promotion workflow
+- [x] Create version promotion workflow
 - [x] Implement version history timeline
 
 ### 3.3 Template Engine
 
 - [x] Design template syntax (Jinja2-like or custom)
 - [x] Implement variable substitution
-- [ ] Create conditional logic support
-- [ ] Implement template includes/composition
+- [x] Create conditional logic support ({{#if}}, {{#each}}, {{#unless}}, {{else}})
+- [ ] Implement template includes/composition (future enhancement)
 - [x] Create template validation
 - [x] Implement template preview
 - [x] Build variable extraction from template
 
 ### 3.4 Prompt Playground
 
-- [ ] Create playground UI component
-- [ ] Implement model selector (multi-provider)
-- [ ] Create variable input form
-- [ ] Implement real-time execution
-- [ ] Show token count estimates
-- [ ] Display cost estimates
-- [ ] Create response streaming support
-- [ ] Implement save to prompt functionality
-- [ ] Build comparison mode (side-by-side)
-- [ ] Create execution history in playground
+- [x] Create playground UI component
+- [ ] Implement model selector (multi-provider) - future: requires LLM integration
+- [x] Create variable input form
+- [x] Implement real-time compilation preview
+- [ ] Show token count estimates - future: requires tokenizer
+- [ ] Display cost estimates - future: requires pricing data
+- [ ] Create response streaming support - future: requires LLM integration
+- [ ] Implement save to prompt functionality - future enhancement
+- [ ] Build comparison mode (side-by-side) - future enhancement
+- [ ] Create execution history in playground - future enhancement
 
 ### 3.5 Prompt Frontend
 
@@ -211,17 +211,17 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Build prompt editor with syntax highlighting
 - [x] Implement version history sidebar
 - [x] Create prompt settings panel
-- [ ] Build prompt usage analytics
+- [x] Build prompt usage analytics (deployment status view)
 - [x] Implement prompt search
 - [x] Create prompt organization (folders/tags)
 
 ### 3.6 Prompt-Trace Linking
 
-- [ ] Implement prompt version tracking in traces
-- [ ] Create prompt usage analytics from traces
-- [ ] Build prompt performance metrics
-- [ ] Enable filtering traces by prompt version
-- [ ] Create prompt regression detection
+- [x] Implement prompt version tracking in traces (added PromptID/PromptVersion to Trace model)
+- [x] Create prompt usage analytics from traces (GetLinkedTraces endpoint)
+- [ ] Build prompt performance metrics - future: requires trace data
+- [ ] Enable filtering traces by prompt version - future enhancement
+- [ ] Create prompt regression detection - future enhancement
 
 ---
 
