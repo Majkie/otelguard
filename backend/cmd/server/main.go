@@ -9,20 +9,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 
-	"github.com/otelguard/otelguard/internal/api"
 	grpcserver "github.com/otelguard/otelguard/internal/api/grpc"
-	"github.com/otelguard/otelguard/internal/api/handlers"
-	"github.com/otelguard/otelguard/internal/api/middleware"
 	"github.com/otelguard/otelguard/internal/config"
-	chrepo "github.com/otelguard/otelguard/internal/repository/clickhouse"
-	pgrepo "github.com/otelguard/otelguard/internal/repository/postgres"
-	"github.com/otelguard/otelguard/internal/service"
 	"github.com/otelguard/otelguard/pkg/validator"
 )
 
@@ -34,113 +24,48 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Initialize logger
-	logger := initLogger(cfg.IsDevelopment())
-	defer logger.Sync()
+	// Initialize application with Wire-generated dependency injection
+	app, err := InitializeApplication(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize application: %v\n", err)
+		os.Exit(1)
+	}
+	defer app.Cleanup()
+	defer app.Logger.Sync()
 
 	// Initialize request validator
 	validator.Init()
-	logger.Info("request validator initialized")
+	app.Logger.Info("request validator initialized")
 
-	logger.Info("starting OTelGuard server",
+	app.Logger.Info("starting OTelGuard server",
 		zap.String("environment", cfg.Server.Environment),
 		zap.Int("port", cfg.Server.Port),
 	)
 
-	// Initialize PostgreSQL
-	pgDB, err := initPostgres(cfg.Postgres)
-	if err != nil {
-		logger.Fatal("failed to connect to PostgreSQL", zap.Error(err))
-	}
-	defer pgDB.Close()
-	logger.Info("connected to PostgreSQL")
+	app.Logger.Info("connected to PostgreSQL")
+	app.Logger.Info("connected to ClickHouse")
 
-	// Initialize ClickHouse
-	chConn, err := initClickHouse(cfg.ClickHouse)
-	if err != nil {
-		logger.Fatal("failed to connect to ClickHouse", zap.Error(err))
-	}
-	defer chConn.Close()
-	logger.Info("connected to ClickHouse")
+	// Start background services (batch writer, etc.)
+	app.Start()
 
-	// Initialize repositories
-	userRepo := pgrepo.NewUserRepository(pgDB)
-	orgRepo := pgrepo.NewOrganizationRepository(pgDB)
-	projectRepo := pgrepo.NewProjectRepository(pgDB)
-	promptRepo := pgrepo.NewPromptRepository(pgDB)
-	guardrailRepo := pgrepo.NewGuardrailRepository(pgDB)
-	traceRepo := chrepo.NewTraceRepository(chConn)
-	guardrailEventRepo := chrepo.NewGuardrailEventRepository(chConn)
-
-	// Initialize batch writer for async ClickHouse writes
-	var batchWriter *chrepo.TraceBatchWriter
-	if cfg.ClickHouse.AsyncWrite {
-		batchWriterConfig := &chrepo.BatchWriterConfig{
-			BatchSize:     cfg.ClickHouse.BatchSize,
-			FlushInterval: cfg.ClickHouse.FlushInterval,
-			MaxRetries:    cfg.ClickHouse.MaxRetries,
-			RetryDelay:    cfg.ClickHouse.RetryDelay,
-		}
-		batchWriter = chrepo.NewTraceBatchWriter(chConn, batchWriterConfig, logger)
-		batchWriter.Start()
-		logger.Info("batch writer started",
-			zap.Int("batch_size", batchWriterConfig.BatchSize),
-			zap.Duration("flush_interval", batchWriterConfig.FlushInterval),
-		)
+	// Log batch writer status if enabled
+	if bw := app.GetBatchWriter(); bw != nil {
+		app.Logger.Info("batch writer started")
 	}
 
-	// Initialize sampler configuration
-	var samplerConfig *service.SamplerConfig
+	// Log sampler status if enabled
 	if cfg.Sampler.Enabled {
-		samplerConfig = &service.SamplerConfig{
-			Type:          service.SamplerType(cfg.Sampler.Type),
-			Rate:          cfg.Sampler.Rate,
-			MaxPerSecond:  cfg.Sampler.MaxPerSecond,
-			SampleErrors:  cfg.Sampler.SampleErrors,
-			SampleSlow:    cfg.Sampler.SampleSlow,
-			SlowThreshold: cfg.Sampler.SlowThreshold,
-		}
-		logger.Info("trace sampling enabled",
+		app.Logger.Info("trace sampling enabled",
 			zap.String("type", cfg.Sampler.Type),
 			zap.Float64("rate", cfg.Sampler.Rate),
 			zap.Int("max_per_sec", cfg.Sampler.MaxPerSecond),
 		)
 	}
 
-	// Initialize services
-	authService := service.NewAuthService(userRepo, logger, cfg.Auth.BcryptCost)
-	orgService := service.NewOrgService(orgRepo, projectRepo, userRepo, logger, cfg.Auth.BcryptCost)
-	traceService := service.NewTraceServiceFull(traceRepo, batchWriter, cfg.ClickHouse.AsyncWrite, samplerConfig, logger)
-	promptService := service.NewPromptService(promptRepo, logger)
-	guardrailService := service.NewGuardrailService(guardrailRepo, guardrailEventRepo, logger)
-
-	// API key validator (stub for now)
-	apiKeyValidator := func(keyHash string) (*middleware.APIKeyClaims, error) {
-		// TODO: Implement proper API key validation from database
-		// For now, accept any key for development
-		return &middleware.APIKeyClaims{
-			Scopes: []string{"*"},
-		}, nil
-	}
-
-	// Initialize handlers
-	h := &api.Handlers{
-		Health:    handlers.NewHealthHandler(pgDB, logger),
-		Auth:      handlers.NewAuthHandler(authService, &cfg.Auth, logger),
-		Org:       handlers.NewOrgHandler(orgService, logger),
-		Trace:     handlers.NewTraceHandler(traceService, logger),
-		OTLP:      handlers.NewOTLPHandler(traceService, logger),
-		Prompt:    handlers.NewPromptHandler(promptService, logger),
-		Guardrail: handlers.NewGuardrailHandler(guardrailService, logger),
-	}
-
-	// Setup router
-	router := api.SetupRouter(h, cfg, logger, apiKeyValidator)
-
 	// Create HTTP server
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      router,
+		Handler:      app.Router,
 		ReadTimeout:  cfg.Server.ReadTimeout,
 		WriteTimeout: cfg.Server.WriteTimeout,
 		IdleTimeout:  cfg.Server.IdleTimeout,
@@ -148,27 +73,24 @@ func main() {
 
 	// Start HTTP server in a goroutine
 	go func() {
-		logger.Info("HTTP server listening", zap.String("addr", srv.Addr))
+		app.Logger.Info("HTTP server listening", zap.String("addr", srv.Addr))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Fatal("HTTP server error", zap.Error(err))
+			app.Logger.Fatal("HTTP server error", zap.Error(err))
 		}
 	}()
 
 	// Start gRPC server if enabled
 	var grpcServer *grpcserver.Server
-	if cfg.GRPC.Enabled {
-		otlpTraceService := grpcserver.NewOTLPTraceService(traceService, logger)
-		grpcConfig := &grpcserver.ServerConfig{
-			Port:             cfg.GRPC.Port,
-			MaxRecvMsgSize:   cfg.GRPC.MaxRecvMsgSize,
-			MaxSendMsgSize:   cfg.GRPC.MaxSendMsgSize,
-			EnableReflection: cfg.GRPC.EnableReflection,
-		}
-		grpcServer = grpcserver.NewServer(grpcConfig, otlpTraceService, logger)
+	if app.GRPCComponents != nil {
+		grpcServer = grpcserver.NewServer(
+			app.GRPCComponents.Config,
+			app.GRPCComponents.OTLPService,
+			app.Logger,
+		)
 		if err := grpcServer.Start(); err != nil {
-			logger.Fatal("failed to start gRPC server", zap.Error(err))
+			app.Logger.Fatal("failed to start gRPC server", zap.Error(err))
 		}
-		logger.Info("gRPC OTLP receiver started", zap.Int("port", cfg.GRPC.Port))
+		app.Logger.Info("gRPC OTLP receiver started", zap.Int("port", cfg.GRPC.Port))
 	}
 
 	// Wait for interrupt signal
@@ -176,38 +98,38 @@ func main() {
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
-	logger.Info("shutting down server...")
+	app.Logger.Info("shutting down server...")
 
 	// Graceful shutdown with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	if err := srv.Shutdown(ctx); err != nil {
-		logger.Fatal("HTTP server forced shutdown", zap.Error(err))
+		app.Logger.Fatal("HTTP server forced shutdown", zap.Error(err))
 	}
 
 	// Stop gRPC server
 	if grpcServer != nil {
-		logger.Info("stopping gRPC server...")
+		app.Logger.Info("stopping gRPC server...")
 		grpcCtx, grpcCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		if err := grpcServer.Stop(grpcCtx); err != nil {
-			logger.Error("failed to stop gRPC server cleanly", zap.Error(err))
+			app.Logger.Error("failed to stop gRPC server cleanly", zap.Error(err))
 		}
 		grpcCancel()
 	}
 
 	// Stop batch writer and flush remaining data
-	if batchWriter != nil {
-		logger.Info("stopping batch writer...")
+	if batchWriter := app.GetBatchWriter(); batchWriter != nil {
+		app.Logger.Info("stopping batch writer...")
 		flushCtx, flushCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		if err := batchWriter.Stop(flushCtx); err != nil {
-			logger.Error("failed to stop batch writer cleanly", zap.Error(err))
+			app.Logger.Error("failed to stop batch writer cleanly", zap.Error(err))
 		}
 		flushCancel()
 
 		// Log final metrics
 		metrics := batchWriter.GetMetrics()
-		logger.Info("batch writer final metrics",
+		app.Logger.Info("batch writer final metrics",
 			zap.Int64("traces_written", metrics.TracesWritten),
 			zap.Int64("spans_written", metrics.SpansWritten),
 			zap.Int64("scores_written", metrics.ScoresWritten),
@@ -216,64 +138,5 @@ func main() {
 		)
 	}
 
-	logger.Info("server stopped")
-}
-
-func initLogger(isDev bool) *zap.Logger {
-	var config zap.Config
-	if isDev {
-		config = zap.NewDevelopmentConfig()
-		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	} else {
-		config = zap.NewProductionConfig()
-	}
-
-	logger, err := config.Build()
-	if err != nil {
-		panic(fmt.Sprintf("failed to initialize logger: %v", err))
-	}
-	return logger
-}
-
-func initPostgres(cfg config.PostgresConfig) (*sqlx.DB, error) {
-	db, err := sqlx.Connect("postgres", cfg.DSN())
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect: %w", err)
-	}
-
-	db.SetMaxOpenConns(cfg.MaxOpenConns)
-	db.SetMaxIdleConns(cfg.MaxIdleConns)
-	db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
-
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping: %w", err)
-	}
-
-	return db, nil
-}
-
-func initClickHouse(cfg config.ClickHouseConfig) (clickhouse.Conn, error) {
-	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{fmt.Sprintf("%s:%d", cfg.Host, cfg.Port)},
-		Auth: clickhouse.Auth{
-			Database: cfg.Database,
-			Username: cfg.User,
-			Password: cfg.Password,
-		},
-		DialTimeout: cfg.DialTimeout,
-		Settings: clickhouse.Settings{
-			"max_execution_time": 60,
-		},
-		MaxOpenConns: cfg.MaxOpenConn,
-		MaxIdleConns: cfg.MaxIdleConn,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to open connection: %w", err)
-	}
-
-	if err := conn.Ping(context.Background()); err != nil {
-		return nil, fmt.Errorf("failed to ping: %w", err)
-	}
-
-	return conn, nil
+	app.Logger.Info("server stopped")
 }
