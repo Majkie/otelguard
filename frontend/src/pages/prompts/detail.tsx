@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,29 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   ArrowLeft,
   Save,
   Copy,
@@ -17,26 +40,60 @@ import {
   History,
   Play,
   Settings,
+  MoreVertical,
+  GitCompare,
+  CopyPlus,
+  Check,
+  AlertCircle,
 } from 'lucide-react';
 import {
   usePrompt,
   useUpdatePrompt,
   usePromptVersions,
+  useCreateVersion,
+  useUpdateVersionLabels,
+  useDuplicatePrompt,
+  type PromptVersion,
 } from '@/api/prompts';
+
+// Available version labels
+const VERSION_LABELS = ['production', 'staging', 'development', 'archived'];
 
 export function PromptDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const { data: prompt, isLoading, error } = usePrompt(id || '');
-  const { data: versionsData } = usePromptVersions(id || '');
+  const { data: versionsData, refetch: refetchVersions } = usePromptVersions(id || '');
   const updatePrompt = useUpdatePrompt();
+  const createVersion = useCreateVersion();
+  const updateVersionLabels = useUpdateVersionLabels();
+  const duplicatePrompt = useDuplicatePrompt();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
   const [content, setContent] = useState('');
   const [isDirty, setIsDirty] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareV1, setCompareV1] = useState<number | null>(null);
+  const [compareV2, setCompareV2] = useState<number | null>(null);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
+  const [duplicateName, setDuplicateName] = useState('');
+  const [labelDialogOpen, setLabelDialogOpen] = useState(false);
+  const [editingVersion, setEditingVersion] = useState<PromptVersion | null>(null);
+  const [newLabels, setNewLabels] = useState<string[]>([]);
+  const [copied, setCopied] = useState(false);
+
+  // Load the latest version content when versions are loaded
+  useEffect(() => {
+    if (versionsData?.data?.length) {
+      const latestVersion = versionsData.data[0]; // Already sorted DESC
+      setContent(latestVersion.content);
+      setSelectedVersion(latestVersion.version);
+    }
+  }, [versionsData]);
 
   useEffect(() => {
     if (prompt) {
@@ -50,6 +107,7 @@ export function PromptDetailPage() {
     if (!id) return;
 
     try {
+      // Update prompt metadata
       await updatePrompt.mutateAsync({
         id,
         data: {
@@ -61,14 +119,80 @@ export function PromptDetailPage() {
             .filter(Boolean),
         },
       });
+
+      // Create a new version if content changed
+      if (content && content !== versionsData?.data?.[0]?.content) {
+        await createVersion.mutateAsync({
+          promptId: id,
+          data: {
+            content,
+          },
+        });
+        await refetchVersions();
+      }
+
       setIsDirty(false);
     } catch {
       // Error handled by mutation
     }
   };
 
-  const handleCopyContent = () => {
-    navigator.clipboard.writeText(content);
+  const handleCopyContent = async () => {
+    await navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleLoadVersion = (version: PromptVersion) => {
+    setContent(version.content);
+    setSelectedVersion(version.version);
+    setIsDirty(true);
+  };
+
+  const handleDuplicate = async () => {
+    if (!id || !duplicateName) return;
+
+    try {
+      const newPrompt = await duplicatePrompt.mutateAsync({
+        id,
+        name: duplicateName,
+      });
+      setDuplicateDialogOpen(false);
+      setDuplicateName('');
+      navigate(`/prompts/${newPrompt.id}`);
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleUpdateLabels = async () => {
+    if (!id || !editingVersion) return;
+
+    try {
+      await updateVersionLabels.mutateAsync({
+        promptId: id,
+        version: editingVersion.version,
+        data: { labels: newLabels },
+      });
+      setLabelDialogOpen(false);
+      setEditingVersion(null);
+      setNewLabels([]);
+      await refetchVersions();
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const openLabelDialog = (version: PromptVersion) => {
+    setEditingVersion(version);
+    setNewLabels(version.labels || []);
+    setLabelDialogOpen(true);
+  };
+
+  const toggleLabel = (label: string) => {
+    setNewLabels((prev) =>
+      prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]
+    );
   };
 
   if (isLoading) {
@@ -117,6 +241,8 @@ export function PromptDetailPage() {
     );
   }
 
+  const versions = versionsData?.data || [];
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -130,17 +256,64 @@ export function PromptDetailPage() {
             <p className="text-muted-foreground flex items-center gap-2 mt-1">
               <Clock className="h-3 w-3" />
               Last updated {format(new Date(prompt.updatedAt), 'MMM d, yyyy h:mm a')}
+              {selectedVersion && (
+                <Badge variant="outline" className="ml-2">
+                  v{selectedVersion}
+                </Badge>
+              )}
             </p>
           </div>
         </div>
         <div className="flex gap-2">
+          <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <CopyPlus className="h-4 w-4 mr-2" />
+                Duplicate
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Duplicate Prompt</DialogTitle>
+                <DialogDescription>
+                  Create a copy of this prompt with all its versions.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="duplicate-name">New Prompt Name</Label>
+                  <Input
+                    id="duplicate-name"
+                    value={duplicateName}
+                    onChange={(e) => setDuplicateName(e.target.value)}
+                    placeholder={`${prompt.name} (copy)`}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setDuplicateDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleDuplicate}
+                  disabled={!duplicateName || duplicatePrompt.isPending}
+                >
+                  {duplicatePrompt.isPending ? 'Duplicating...' : 'Duplicate'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Button
-            variant="outline"
             onClick={handleSave}
-            disabled={!isDirty || updatePrompt.isPending}
+            disabled={!isDirty || updatePrompt.isPending || createVersion.isPending}
           >
             <Save className="h-4 w-4 mr-2" />
-            {updatePrompt.isPending ? 'Saving...' : 'Save Changes'}
+            {updatePrompt.isPending || createVersion.isPending
+              ? 'Saving...'
+              : 'Save Changes'}
           </Button>
         </div>
       </div>
@@ -155,7 +328,11 @@ export function PromptDetailPage() {
               <TabsTrigger value="preview">Preview</TabsTrigger>
               <TabsTrigger value="versions">
                 <History className="h-3 w-3 mr-1" />
-                Versions ({versionsData?.data?.length || 0})
+                Versions ({versions.length})
+              </TabsTrigger>
+              <TabsTrigger value="compare" disabled={versions.length < 2}>
+                <GitCompare className="h-3 w-3 mr-1" />
+                Compare
               </TabsTrigger>
             </TabsList>
 
@@ -164,9 +341,22 @@ export function PromptDetailPage() {
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-lg">Prompt Template</CardTitle>
-                    <Button variant="ghost" size="sm" onClick={handleCopyContent}>
-                      <Copy className="h-4 w-4 mr-1" />
-                      Copy
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCopyContent}
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="h-4 w-4 mr-1 text-green-500" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-4 w-4 mr-1" />
+                          Copy
+                        </>
+                      )}
                     </Button>
                   </div>
                 </CardHeader>
@@ -214,7 +404,7 @@ Please help them with: {{user_query}}"
                   <CardTitle className="text-lg">Version History</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {!versionsData?.data?.length ? (
+                  {!versions.length ? (
                     <div className="text-center py-8 text-muted-foreground">
                       <History className="h-8 w-8 mx-auto mb-2 opacity-50" />
                       <p>No versions yet</p>
@@ -224,26 +414,158 @@ Please help them with: {{user_query}}"
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {versionsData.data.map((version) => (
+                      {versions.map((version) => (
                         <div
                           key={version.id}
-                          className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer"
+                          className={`flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 ${
+                            selectedVersion === version.version
+                              ? 'border-primary bg-primary/5'
+                              : ''
+                          }`}
                         >
-                          <div>
-                            <p className="font-medium">Version {version.version}</p>
+                          <div
+                            className="flex-1 cursor-pointer"
+                            onClick={() => handleLoadVersion(version)}
+                          >
+                            <p className="font-medium">
+                              Version {version.version}
+                              {selectedVersion === version.version && (
+                                <Badge variant="secondary" className="ml-2">
+                                  Current
+                                </Badge>
+                              )}
+                            </p>
                             <p className="text-sm text-muted-foreground">
-                              {format(new Date(version.createdAt), 'MMM d, yyyy h:mm a')}
+                              {format(
+                                new Date(version.createdAt),
+                                'MMM d, yyyy h:mm a'
+                              )}
                             </p>
                           </div>
-                          <div className="flex gap-1">
+                          <div className="flex items-center gap-2">
                             {version.labels?.map((label) => (
-                              <Badge key={label} variant="secondary">
+                              <Badge
+                                key={label}
+                                variant={
+                                  label === 'production'
+                                    ? 'default'
+                                    : label === 'staging'
+                                    ? 'secondary'
+                                    : 'outline'
+                                }
+                              >
                                 {label}
                               </Badge>
                             ))}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  onClick={() => handleLoadVersion(version)}
+                                >
+                                  Load this version
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => openLabelDialog(version)}
+                                >
+                                  <Tag className="h-4 w-4 mr-2" />
+                                  Manage labels
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(version.content);
+                                  }}
+                                >
+                                  <Copy className="h-4 w-4 mr-2" />
+                                  Copy content
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="compare">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Compare Versions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex gap-4 mb-4">
+                    <div className="flex-1">
+                      <Label>Version 1</Label>
+                      <Select
+                        value={compareV1?.toString() || ''}
+                        onValueChange={(v) => setCompareV1(parseInt(v, 10))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select version" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {versions.map((v) => (
+                            <SelectItem key={v.version} value={v.version.toString()}>
+                              Version {v.version}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex-1">
+                      <Label>Version 2</Label>
+                      <Select
+                        value={compareV2?.toString() || ''}
+                        onValueChange={(v) => setCompareV2(parseInt(v, 10))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select version" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {versions.map((v) => (
+                            <SelectItem key={v.version} value={v.version.toString()}>
+                              Version {v.version}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {compareV1 && compareV2 ? (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm font-medium mb-2">
+                          Version {compareV1}
+                        </p>
+                        <div className="bg-muted rounded-lg p-3 min-h-[300px]">
+                          <pre className="whitespace-pre-wrap font-mono text-xs">
+                            {versions.find((v) => v.version === compareV1)?.content}
+                          </pre>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium mb-2">
+                          Version {compareV2}
+                        </p>
+                        <div className="bg-muted rounded-lg p-3 min-h-[300px]">
+                          <pre className="whitespace-pre-wrap font-mono text-xs">
+                            {versions.find((v) => v.version === compareV2)?.content}
+                          </pre>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <GitCompare className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>Select two versions to compare</p>
                     </div>
                   )}
                 </CardContent>
@@ -333,7 +655,9 @@ Please help them with: {{user_query}}"
             <CardContent className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">ID</span>
-                <span className="font-mono text-xs">{prompt.id.slice(0, 8)}...</span>
+                <span className="font-mono text-xs">
+                  {prompt.id.slice(0, 8)}...
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Created</span>
@@ -341,12 +665,58 @@ Please help them with: {{user_query}}"
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Versions</span>
-                <span>{versionsData?.data?.length || 0}</span>
+                <span>{versions.length}</span>
               </div>
+              {versions.length > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Latest</span>
+                  <span>v{versions[0].version}</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
       </div>
+
+      {/* Label Management Dialog */}
+      <Dialog open={labelDialogOpen} onOpenChange={setLabelDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Manage Version Labels</DialogTitle>
+            <DialogDescription>
+              Add or remove labels from version {editingVersion?.version}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <div className="flex flex-wrap gap-2">
+              {VERSION_LABELS.map((label) => (
+                <Button
+                  key={label}
+                  variant={newLabels.includes(label) ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => toggleLabel(label)}
+                >
+                  {newLabels.includes(label) && (
+                    <Check className="h-3 w-3 mr-1" />
+                  )}
+                  {label}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLabelDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUpdateLabels}
+              disabled={updateVersionLabels.isPending}
+            >
+              {updateVersionLabels.isPending ? 'Saving...' : 'Save Labels'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
