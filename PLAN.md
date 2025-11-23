@@ -169,28 +169,28 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Create prompt detail retrieval
 - [x] Implement prompt update endpoint
 - [x] Create prompt deletion (soft delete)
-- [ ] Implement prompt duplication
-- [ ] Create prompt tagging system
+- [x] Implement prompt duplication
+- [x] Create prompt tagging system
 
 ### 3.2 Version Control
 
-- [ ] Implement prompt version creation
-- [ ] Create version listing for a prompt
-- [ ] Implement version comparison (diff)
-- [ ] Create version rollback functionality
-- [ ] Implement version labeling (production, staging, etc.)
+- [x] Implement prompt version creation
+- [x] Create version listing for a prompt
+- [x] Implement version comparison (diff)
+- [x] Create version rollback functionality
+- [x] Implement version labeling (production, staging, etc.)
 - [ ] Create version promotion workflow
-- [ ] Implement version history timeline
+- [x] Implement version history timeline
 
 ### 3.3 Template Engine
 
-- [ ] Design template syntax (Jinja2-like or custom)
-- [ ] Implement variable substitution
+- [x] Design template syntax (Jinja2-like or custom)
+- [x] Implement variable substitution
 - [ ] Create conditional logic support
 - [ ] Implement template includes/composition
-- [ ] Create template validation
-- [ ] Implement template preview
-- [ ] Build variable extraction from template
+- [x] Create template validation
+- [x] Implement template preview
+- [x] Build variable extraction from template
 
 ### 3.4 Prompt Playground
 
@@ -209,11 +209,11 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 - [x] Create prompts list page
 - [x] Build prompt editor with syntax highlighting
-- [ ] Implement version history sidebar
+- [x] Implement version history sidebar
 - [x] Create prompt settings panel
 - [ ] Build prompt usage analytics
 - [x] Implement prompt search
-- [ ] Create prompt organization (folders/tags)
+- [x] Create prompt organization (folders/tags)
 
 ### 3.6 Prompt-Trace Linking
 
