@@ -11,10 +11,6 @@ import (
 	"github.com/otelguard/otelguard/internal/wire"
 )
 
-import (
-	_ "github.com/lib/pq"
-)
-
 // Injectors from wire.go:
 
 // InitializeApplication creates a fully-wired Application instance.
