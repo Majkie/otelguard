@@ -1,0 +1,61 @@
+# Air - Live reload for Go apps
+# https://github.com/air-verse/air
+
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  # Command to build the binary
+  cmd = "go build -o ./tmp/main ./cmd/server"
+  # Binary file yields from `cmd`
+  bin = "./tmp/main"
+  # Watch these extensions
+  include_ext = ["go", "tpl", "tmpl", "html"]
+  # Exclude directories
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "node_modules"]
+  # Exclude files
+  exclude_file = []
+  # Exclude specific regex patterns
+  exclude_regex = ["_test.go", ".*_gen.go"]
+  # Exclude unchanged files
+  exclude_unchanged = false
+  # Follow symlink
+  follow_symlink = false
+  # Delay after a file change is detected
+  delay = 1000
+  # Stop running old binary before building new one
+  stop_on_error = false
+  # Send Interrupt signal before killing process
+  send_interrupt = true
+  # Delay after sending Interrupt signal
+  kill_delay = "2s"
+  # Rerun binary or not
+  rerun = false
+  # Delay after each execution
+  rerun_delay = 500
+  # Arguments passed to binary
+  args_bin = []
+
+[log]
+  # Show log time
+  time = false
+  # Only show main log (info and error)
+  main_only = false
+
+[color]
+  # Customize each part's color
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
+
+[misc]
+  # Delete tmp directory on exit
+  clean_on_exit = true
+
+[screen]
+  # Keep scroll position after each rebuild
+  clear_on_rebuild = false
+  # Keep scroll position after each execution
+  keep_scroll = true

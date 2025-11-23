@@ -160,11 +160,19 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				prompts.GET("/:id", h.Prompt.Get)
 				prompts.PUT("/:id", h.Prompt.Update)
 				prompts.DELETE("/:id", h.Prompt.Delete)
+				prompts.POST("/:id/duplicate", h.Prompt.Duplicate)
+				prompts.GET("/:id/compare", h.Prompt.CompareVersions)
+				prompts.POST("/extract-variables", h.Prompt.ExtractVariables)
 
 				// Versions
 				prompts.GET("/:id/versions", h.Prompt.ListVersions)
 				prompts.POST("/:id/versions", h.Prompt.CreateVersion)
 				prompts.GET("/:id/versions/:version", h.Prompt.GetVersion)
+				prompts.PUT("/:id/versions/:version/labels", h.Prompt.UpdateVersionLabels)
+				prompts.POST("/:id/versions/:version/promote", h.Prompt.PromoteVersion)
+				prompts.GET("/:id/versions/by-label/:label", h.Prompt.GetVersionByLabel)
+				prompts.GET("/:id/analytics", h.Prompt.GetAnalytics)
+				prompts.GET("/:id/traces", h.Prompt.GetLinkedTraces)
 			}
 
 			// Guardrails

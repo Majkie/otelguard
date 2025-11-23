@@ -32,6 +32,7 @@ import {
   ChevronRight,
   Tag,
   MoreHorizontal,
+  CopyPlus,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -43,6 +44,7 @@ import {
   usePrompts,
   useCreatePrompt,
   useDeletePrompt,
+  useDuplicatePrompt,
   type Prompt,
 } from '@/api/prompts';
 
@@ -51,10 +53,12 @@ export function PromptsPage() {
   const [page, setPage] = useState(0);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false);
   const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
   const [newPromptName, setNewPromptName] = useState('');
   const [newPromptDescription, setNewPromptDescription] = useState('');
   const [newPromptTags, setNewPromptTags] = useState('');
+  const [duplicateName, setDuplicateName] = useState('');
 
   const limit = 20;
   const { data, isLoading, error } = usePrompts({
@@ -63,6 +67,7 @@ export function PromptsPage() {
   });
   const createPrompt = useCreatePrompt();
   const deletePrompt = useDeletePrompt();
+  const duplicatePrompt = useDuplicatePrompt();
 
   const filteredPrompts = data?.data.filter(
     (prompt) =>
@@ -101,6 +106,28 @@ export function PromptsPage() {
     } catch {
       // Error handled by mutation
     }
+  };
+
+  const handleDuplicate = async () => {
+    if (!selectedPrompt || !duplicateName.trim()) return;
+
+    try {
+      await duplicatePrompt.mutateAsync({
+        id: selectedPrompt.id,
+        name: duplicateName,
+      });
+      setDuplicateDialogOpen(false);
+      setSelectedPrompt(null);
+      setDuplicateName('');
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const openDuplicateDialog = (prompt: Prompt) => {
+    setSelectedPrompt(prompt);
+    setDuplicateName(`${prompt.name} (copy)`);
+    setDuplicateDialogOpen(true);
   };
 
   const totalPages = Math.ceil((data?.total || 0) / limit);
@@ -226,6 +253,12 @@ export function PromptsPage() {
                               <Pencil className="h-4 w-4 mr-2" />
                               Edit
                             </Link>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => openDuplicateDialog(prompt)}
+                          >
+                            <CopyPlus className="h-4 w-4 mr-2" />
+                            Duplicate
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-destructive"
@@ -359,6 +392,42 @@ export function PromptsPage() {
               disabled={deletePrompt.isPending}
             >
               {deletePrompt.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Duplicate Dialog */}
+      <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Duplicate Prompt</DialogTitle>
+            <DialogDescription>
+              Create a copy of &quot;{selectedPrompt?.name}&quot; with all its versions.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="duplicate-name">New Prompt Name</Label>
+              <Input
+                id="duplicate-name"
+                value={duplicateName}
+                onChange={(e) => setDuplicateName(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDuplicateDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDuplicate}
+              disabled={!duplicateName.trim() || duplicatePrompt.isPending}
+            >
+              {duplicatePrompt.isPending ? 'Duplicating...' : 'Duplicate'}
             </Button>
           </DialogFooter>
         </DialogContent>

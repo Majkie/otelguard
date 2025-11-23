@@ -27,6 +27,9 @@ type Trace struct {
 	Tags             []string   `ch:"tags" json:"tags,omitempty"`
 	Status           string     `ch:"status" json:"status"`
 	ErrorMessage     *string    `ch:"error_message" json:"errorMessage,omitempty"`
+	// Prompt linking fields
+	PromptID      *uuid.UUID `ch:"prompt_id" json:"promptId,omitempty"`
+	PromptVersion *int       `ch:"prompt_version" json:"promptVersion,omitempty"`
 }
 
 // Span represents a single operation within a trace

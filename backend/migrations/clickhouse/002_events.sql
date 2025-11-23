@@ -7,23 +7,23 @@
 -- custom events, and other observability data
 -- ============================================
 CREATE TABLE IF NOT EXISTS events (
-    id UUID,
-    project_id UUID,
-    trace_id Nullable(UUID),
+                                      id UUID,
+                                      project_id UUID,
+                                      trace_id Nullable(UUID),
     span_id Nullable(UUID),
     session_id Nullable(String),
     user_id Nullable(String),
 
     -- Event identification
     name String,
-    type String,  -- 'log', 'exception', 'custom', 'user_action', 'system'
+    event_type String,  -- renamed from `type` to avoid reserved-word ambiguity: 'log','exception','custom','user_action','system'
     level String DEFAULT 'info',  -- 'debug', 'info', 'warn', 'error', 'fatal'
 
-    -- Event content
+-- Event content
     message String,
     data String DEFAULT '{}',  -- JSON object for additional structured data
 
-    -- Exception-specific fields (nullable for non-exception events)
+-- Exception-specific fields (nullable for non-exception events)
     exception_type Nullable(String),
     exception_message Nullable(String),
     exception_stacktrace Nullable(String),
@@ -35,26 +35,26 @@ CREATE TABLE IF NOT EXISTS events (
 
     -- Metadata
     tags Array(String) DEFAULT [],
-    attributes Map(String, String),
+    attributes Map(String, String) DEFAULT map(),
 
     -- Timestamps
     timestamp DateTime64(3),
     created_at DateTime64(3) DEFAULT now64(3),
 
     -- Indexes
-    INDEX idx_trace_id trace_id TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_span_id span_id TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_session_id session_id TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_user_id user_id TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_type type TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_level level TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_name name TYPE bloom_filter GRANULARITY 4,
-    INDEX idx_source source TYPE bloom_filter GRANULARITY 4
-)
-ENGINE = MergeTree()
-PARTITION BY toYYYYMM(timestamp)
-ORDER BY (project_id, timestamp, id)
-TTL timestamp + INTERVAL 90 DAY
+    INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_span_id span_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_event_type event_type TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_level level TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_name name TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_source source TYPE bloom_filter(0.01) GRANULARITY 4
+    )
+    ENGINE = MergeTree()
+    PARTITION BY toYYYYMM(timestamp)
+    ORDER BY (project_id, timestamp, id)
+    TTL toDateTime(timestamp) + INTERVAL 90 DAY DELETE
 SETTINGS index_granularity = 8192;
 
 -- ============================================
@@ -63,15 +63,16 @@ SETTINGS index_granularity = 8192;
 CREATE MATERIALIZED VIEW IF NOT EXISTS event_daily_stats
 ENGINE = SummingMergeTree()
 PARTITION BY toYYYYMM(date)
-ORDER BY (project_id, date, type, level)
-AS SELECT
+ORDER BY (project_id, date, event_type, level)
+AS
+SELECT
     project_id,
     toDate(timestamp) AS date,
-    type,
+    event_type,
     level,
     count() AS event_count
 FROM events
-GROUP BY project_id, date, type, level;
+GROUP BY project_id, date, event_type, level;
 
 -- ============================================
 -- Exception Summary Materialized View
@@ -79,12 +80,13 @@ GROUP BY project_id, date, type, level;
 CREATE MATERIALIZED VIEW IF NOT EXISTS exception_summary
 ENGINE = SummingMergeTree()
 PARTITION BY toYYYYMM(date)
-ORDER BY (project_id, date, exception_type)
-AS SELECT
+ORDER BY (project_id, date, assumeNotNull(exception_type))
+AS
+SELECT
     project_id,
     toDate(timestamp) AS date,
     exception_type,
     count() AS exception_count
 FROM events
-WHERE type = 'exception' AND exception_type IS NOT NULL
+WHERE event_type = 'exception' AND exception_type IS NOT NULL
 GROUP BY project_id, date, exception_type;

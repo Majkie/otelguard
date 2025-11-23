@@ -162,3 +162,48 @@ func (r *PromptRepository) ListVersions(ctx context.Context, promptID string) ([
 	err := r.db.SelectContext(ctx, &versions, query, promptID)
 	return versions, err
 }
+
+// UpdateVersionLabels updates the labels for a specific version
+func (r *PromptRepository) UpdateVersionLabels(ctx context.Context, promptID string, version int, labels []string) error {
+	query := `
+		UPDATE prompt_versions
+		SET labels = $3
+		WHERE prompt_id = $1 AND version = $2
+	`
+	result, err := r.db.ExecContext(ctx, query, promptID, version, pq.Array(labels))
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+// GetPromptWithLatestVersion retrieves a prompt along with its latest version content
+func (r *PromptRepository) GetPromptWithLatestVersion(ctx context.Context, id string) (*domain.Prompt, *domain.PromptVersion, error) {
+	prompt, err := r.GetByID(ctx, id)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	latestVersion, err := r.GetLatestVersion(ctx, id)
+	if err != nil {
+		return prompt, nil, nil
+	}
+
+	if latestVersion == 0 {
+		return prompt, nil, nil
+	}
+
+	version, err := r.GetVersion(ctx, id, latestVersion)
+	if err != nil {
+		return prompt, nil, nil
+	}
+
+	return prompt, version, nil
+}
