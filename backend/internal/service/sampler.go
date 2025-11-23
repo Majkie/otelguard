@@ -150,7 +150,7 @@ func (s *TraceSampler) ShouldSample(ctx context.Context, trace *domain.Trace) bo
 	}
 
 	// Always sample slow traces if configured
-	if s.config.SampleSlow && trace.LatencyMs >= s.config.SlowThreshold {
+	if s.config.SampleSlow && int(trace.LatencyMs) >= s.config.SlowThreshold {
 		s.sampled.Add(1)
 		return true
 	}

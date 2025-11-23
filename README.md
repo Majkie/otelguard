@@ -159,6 +159,7 @@ guardrails:
 | Component | Technology | Purpose |
 |-----------|------------|---------|
 | **Backend API** | Go + Gin | High-performance API server |
+| **Dependency Injection** | Google Wire | Compile-time DI with code generation |
 | **Frontend** | React + TypeScript + ShadCN | Modern, accessible UI |
 | **Data Tables** | TanStack Table | Powerful data grid with sorting, filtering |
 | **Data Fetching** | TanStack Query | Caching, synchronization, background updates |
@@ -205,6 +206,15 @@ go run cmd/server/main.go
 cd frontend
 npm install
 npm run dev
+```
+
+### Regenerate Wire Dependencies
+
+After modifying dependency providers in `backend/internal/wire/`, regenerate the Wire code:
+
+```bash
+cd backend
+go run github.com/google/wire/cmd/wire@latest ./cmd/server/...
 ```
 
 ### Instrument Your Application

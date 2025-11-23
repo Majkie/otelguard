@@ -11,11 +11,14 @@ otelguard/
 ├── backend/                 # Go backend
 │   ├── cmd/
 │   │   └── server/         # Main application entry point
-│   │       └── main.go
+│   │       ├── main.go
+│   │       ├── wire.go     # Wire injector definition
+│   │       └── wire_gen.go # Wire generated code
 │   ├── internal/           # Private application code
 │   │   ├── api/           # HTTP handlers and routes
 │   │   │   ├── handlers/  # Request handlers
 │   │   │   ├── middleware/# HTTP middleware
+│   │   │   ├── grpc/      # gRPC server and OTLP service
 │   │   │   └── routes.go  # Route definitions
 │   │   ├── config/        # Configuration management
 │   │   ├── domain/        # Business logic and entities
@@ -26,7 +29,13 @@ otelguard/
 │   │   ├── repository/    # Data access layer
 │   │   │   ├── postgres/  # PostgreSQL repositories
 │   │   │   └── clickhouse/# ClickHouse repositories
-│   │   └── service/       # Application services
+│   │   ├── service/       # Application services
+│   │   └── wire/          # Dependency injection providers
+│   │       ├── database.go   # Database connection providers
+│   │       ├── repository.go # Repository providers
+│   │       ├── service.go    # Service providers
+│   │       ├── handler.go    # Handler providers
+│   │       └── providers.go  # Main provider set & Application struct
 │   ├── pkg/               # Public libraries
 │   │   ├── otel/         # OpenTelemetry utilities
 │   │   └── validator/    # Validation utilities
@@ -481,96 +490,136 @@ func (ve ValidationErrors) Error() string {
 }
 ```
 
-### Dependency Injection
+### Dependency Injection with Wire
+
+We use [Google Wire](https://github.com/google/wire) for compile-time dependency injection. Wire generates code that wires up all dependencies, providing:
+
+- **Compile-time safety** - Dependency graph is validated at compile time
+- **No reflection** - Generated code is plain Go, easy to debug
+- **Clear organization** - Providers are organized by layer
+
+#### Wire Provider Structure
+
+```
+internal/wire/
+├── database.go    # PostgresDB, ClickHouseDB connection providers
+├── repository.go  # All repository providers (Postgres + ClickHouse)
+├── service.go     # Service providers with batch writer & sampler
+├── handler.go     # HTTP handler providers
+└── providers.go   # Main ProviderSet & Application struct
+```
+
+#### Adding a New Dependency
+
+1. Create the constructor in the appropriate layer:
 
 ```go
-// cmd/server/main.go
+// internal/service/my_service.go
+func NewMyService(repo *postgres.MyRepository, logger *zap.Logger) *MyService {
+    return &MyService{repo: repo, logger: logger}
+}
+```
+
+2. Add a provider function in `internal/wire/service.go`:
+
+```go
+func ProvideMyService(
+    repo *postgres.MyRepository,
+    logger *zap.Logger,
+) *MyService {
+    return service.NewMyService(repo, logger)
+}
+```
+
+3. Add the provider to the ServiceSet:
+
+```go
+var ServiceSet = wire.NewSet(
+    // ... existing providers
+    ProvideMyService,
+)
+```
+
+4. Regenerate Wire code:
+
+```bash
+cd backend
+go run github.com/google/wire/cmd/wire@latest ./cmd/server/...
+```
+
+#### Wire Injector (cmd/server/wire.go)
+
+```go
+//go:build wireinject
+// +build wireinject
+
 package main
 
 import (
-    "context"
-    "log"
-    "net/http"
-    "os"
-    "os/signal"
-    "syscall"
-    "time"
+    "github.com/google/wire"
+    "github.com/otelguard/otelguard/internal/config"
+    internalwire "github.com/otelguard/otelguard/internal/wire"
 )
 
+// InitializeApplication creates a fully-wired Application instance.
+func InitializeApplication(cfg *config.Config) (*internalwire.Application, error) {
+    wire.Build(internalwire.ProviderSet)
+    return nil, nil
+}
+```
+
+#### Main Entry Point (cmd/server/main.go)
+
+```go
 func main() {
     // Load configuration
     cfg, err := config.Load()
     if err != nil {
-        log.Fatal("failed to load config:", err)
+        fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
+        os.Exit(1)
     }
 
-    // Initialize logger
-    logger, err := initLogger(cfg.Server.Environment)
+    // Initialize application with Wire-generated DI
+    app, err := InitializeApplication(cfg)
     if err != nil {
-        log.Fatal("failed to init logger:", err)
+        fmt.Fprintf(os.Stderr, "Failed to initialize: %v\n", err)
+        os.Exit(1)
     }
+    defer app.Cleanup()
+    defer app.Logger.Sync()
 
-    // Initialize databases
-    pgDB, err := initPostgres(cfg.Postgres)
-    if err != nil {
-        logger.Fatal("failed to connect to postgres", zap.Error(err))
-    }
-    defer pgDB.Close()
+    // Start background services
+    app.Start()
 
-    chConn, err := initClickHouse(cfg.ClickHouse)
-    if err != nil {
-        logger.Fatal("failed to connect to clickhouse", zap.Error(err))
-    }
-    defer chConn.Close()
-
-    // Initialize repositories
-    promptRepo := postgres.NewPromptRepository(pgDB)
-    traceRepo := clickhouse.NewTraceRepository(chConn)
-
-    // Initialize services
-    promptService := service.NewPromptService(promptRepo, logger)
-    traceService := service.NewTraceService(traceRepo, logger)
-
-    // Initialize handlers
-    handlers := &api.Handlers{
-        Prompt: handlers.NewPromptHandler(promptService, logger),
-        Trace:  handlers.NewTraceHandler(traceService, logger),
-    }
-
-    // Setup router
-    router := api.SetupRouter(handlers, cfg)
-
-    // Create server
+    // Create and start HTTP server
     srv := &http.Server{
-        Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-        Handler:      router,
-        ReadTimeout:  time.Duration(cfg.Server.ReadTimeout) * time.Second,
-        WriteTimeout: time.Duration(cfg.Server.WriteTimeout) * time.Second,
+        Addr:    fmt.Sprintf(":%d", cfg.Server.Port),
+        Handler: app.Router,
     }
 
-    // Graceful shutdown
-    go func() {
-        logger.Info("starting server", zap.Int("port", cfg.Server.Port))
-        if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-            logger.Fatal("server error", zap.Error(err))
-        }
-    }()
-
-    quit := make(chan os.Signal, 1)
-    signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-    <-quit
-
-    logger.Info("shutting down server...")
-
-    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-    defer cancel()
-
-    if err := srv.Shutdown(ctx); err != nil {
-        logger.Fatal("server forced shutdown", zap.Error(err))
-    }
-
-    logger.Info("server stopped")
+    // ... graceful shutdown handling
 }
+```
+
+#### Application Struct
+
+The `wire.Application` struct holds all wired dependencies:
+
+```go
+type Application struct {
+    Config         *config.Config
+    Logger         *zap.Logger
+    PostgresDB     *sqlx.DB
+    ClickHouseConn clickhouse.Conn
+    Router         *gin.Engine
+    Handlers       *api.Handlers
+    TraceService   *service.TraceService
+    BatchWriter    *BatchWriterResult
+    GRPCComponents *GRPCComponents
+}
+
+func (a *Application) Start()   { /* start batch writer, etc */ }
+func (a *Application) Cleanup() { /* close DB connections */ }
 ```
 
 ---
