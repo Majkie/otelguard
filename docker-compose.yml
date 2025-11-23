@@ -57,16 +57,16 @@ services:
       dockerfile: Dockerfile.dev
     container_name: otelguard-backend
     environment:
-      OTELGUARD_PORT: 8080
-      OTELGUARD_ENV: development
-      OTELGUARD_POSTGRES_HOST: postgres
-      OTELGUARD_POSTGRES_PORT: 5432
-      OTELGUARD_POSTGRES_USER: otelguard
-      OTELGUARD_POSTGRES_PASSWORD: otelguard
-      OTELGUARD_POSTGRES_DB: otelguard
-      OTELGUARD_CLICKHOUSE_HOST: clickhouse
-      OTELGUARD_CLICKHOUSE_PORT: 9000
-      OTELGUARD_CLICKHOUSE_DB: otelguard
+      OTELGUARD_: 8080
+      ENV: development
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: otelguard
+      POSTGRES_PASSWORD: otelguard
+      POSTGRES_DB: otelguard
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 9000
+      CLICKHOUSE_DB: default
       JWT_SECRET: dev-secret-change-in-production
       API_KEY_SALT: dev-salt-change-in-production
     ports:
