@@ -1,4 +1,43 @@
-.idea
-.env
+# Dependencies
+node_modules/
+vendor/
 frontend/node_modules
+
+# Build outputs
+/backend/bin/
+/backend/tmp/
+/frontend/dist/
 frontend/dist
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files (keep .env.development as example)
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Test coverage
+coverage/
+*.cover
+*.out
+
+# Docker
+docker-compose.override.yml
+
+# Misc
+*.bak
+*.tmp

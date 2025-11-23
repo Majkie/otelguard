@@ -1,4 +1,4 @@
-.PHONY: help build run test lint lint-fix format clean docker-up docker-down migrate dev hooks hooks-install
+.PHONY: help build run test lint lint-fix format clean docker-up docker-down migrate dev dev-backend dev-frontend hooks hooks-install install-tools
 
 # Default target
 help:
@@ -7,15 +7,15 @@ help:
 	@echo "Usage: make [target]"
 	@echo ""
 	@echo "Development:"
-	@echo "  dev           Start development environment (Docker + hot reload)"
-	@echo "  docker-up     Start Docker services (PostgreSQL, ClickHouse)"
-	@echo "  docker-down   Stop Docker services"
-	@echo "  run-backend   Run backend server"
-	@echo "  run-frontend  Run frontend dev server"
+	@echo "  dev            Start full dev environment (databases + hot reload)"
+	@echo "  dev-backend    Start backend with hot reload (requires databases)"
+	@echo "  dev-frontend   Start frontend with hot reload"
+	@echo "  docker-up      Start Docker services (PostgreSQL, ClickHouse)"
+	@echo "  docker-down    Stop Docker services"
 	@echo ""
 	@echo "Build:"
-	@echo "  build         Build all services"
-	@echo "  build-backend Build Go backend"
+	@echo "  build          Build all services"
+	@echo "  build-backend  Build Go backend"
 	@echo "  build-frontend Build React frontend"
 	@echo ""
 	@echo "Database:"
@@ -26,42 +26,76 @@ help:
 	@echo "  seed           Seed database with sample data"
 	@echo ""
 	@echo "Testing & Quality:"
-	@echo "  test          Run all tests"
-	@echo "  test-backend  Run backend tests"
-	@echo "  test-frontend Run frontend tests"
-	@echo "  lint          Run linters"
-	@echo "  lint-fix      Fix auto-fixable lint issues"
-	@echo "  format        Format code"
+	@echo "  test           Run all tests"
+	@echo "  test-backend   Run backend tests"
+	@echo "  test-frontend  Run frontend tests"
+	@echo "  lint           Run linters"
+	@echo "  lint-fix       Fix auto-fixable lint issues"
+	@echo "  format         Format code"
 	@echo ""
 	@echo "Git Hooks:"
-	@echo "  hooks-install Install git hooks (lefthook)"
-	@echo "  hooks         Run pre-commit hooks manually"
+	@echo "  hooks-install  Install git hooks (lefthook)"
+	@echo "  hooks          Run pre-commit hooks manually"
 	@echo ""
 	@echo "Other:"
-	@echo "  clean         Clean build artifacts"
-	@echo "  install       Install all dependencies"
+	@echo "  clean          Clean build artifacts"
+	@echo "  install        Install all dependencies"
+	@echo "  install-tools  Install development tools (air, etc.)"
 
-# Development
-dev: docker-up
-	@echo "Starting development environment..."
-	@trap 'make docker-down' EXIT; \
-	(cd backend && go run cmd/server/main.go) & \
+# Development - Full stack with hot reload
+dev: docker-up install-tools
+	@echo ""
+	@echo "=========================================="
+	@echo "Starting OTelGuard Development Environment"
+	@echo "=========================================="
+	@echo ""
+	@echo "Services:"
+	@echo "  Backend API:    http://localhost:8080"
+	@echo "  Frontend:       http://localhost:3000"
+	@echo "  PostgreSQL:     localhost:5432"
+	@echo "  ClickHouse:     localhost:8123 (HTTP), localhost:9000 (Native)"
+	@echo ""
+	@echo "Hot reload enabled for both backend and frontend!"
+	@echo "Press Ctrl+C to stop all services."
+	@echo ""
+	@trap 'echo ""; echo "Stopping services..."; make docker-down' EXIT; \
+	(cd backend && export $$(cat .env.development 2>/dev/null | xargs) && air) & \
 	(cd frontend && npm run dev) & \
 	wait
 
+# Start only databases
 docker-up:
-	@echo "Starting Docker services..."
+	@echo "Starting Docker services (PostgreSQL, ClickHouse)..."
 	docker-compose up -d postgres clickhouse
 	@echo "Waiting for services to be healthy..."
 	@sleep 5
+	@echo ""
+	@echo "Database services started:"
+	@echo "  PostgreSQL: localhost:5432"
+	@echo "  ClickHouse: localhost:8123 (HTTP), localhost:9000 (Native)"
 
 docker-down:
 	@echo "Stopping Docker services..."
 	docker-compose down
 
+# Backend with hot reload
+dev-backend: install-tools
+	@echo "Starting backend with hot reload..."
+	@echo "Make sure databases are running (make docker-up)"
+	@echo ""
+	cd backend && export $$(cat .env.development 2>/dev/null | xargs) && air
+
+# Frontend with hot reload
+dev-frontend:
+	@echo "Starting frontend with hot reload..."
+	@echo "Frontend will be available at http://localhost:3000"
+	@echo ""
+	cd frontend && npm run dev
+
+# Run without hot reload (simple)
 run-backend:
 	@echo "Starting backend server..."
-	cd backend && go run cmd/server/main.go
+	cd backend && go run ./cmd/server
 
 run-frontend:
 	@echo "Starting frontend dev server..."
@@ -87,9 +121,9 @@ migrate-up:
 	@which migrate > /dev/null || go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 	migrate -path $(MIGRATIONS_PATH) -database "$(POSTGRES_URL)" up
 	@echo "Running ClickHouse migrations..."
-	docker exec -i otelguard-clickhouse clickhouse-client --database=otelguard < backend/migrations/clickhouse/001_traces.sql
-	docker exec -i otelguard-clickhouse clickhouse-client --database=otelguard < backend/migrations/clickhouse/002_events.sql
-	docker exec -i otelguard-clickhouse clickhouse-client --database=otelguard < backend/migrations/clickhouse/003_attributes.sql
+	docker exec -i otelguard-clickhouse clickhouse-client --database=otelguard < backend/migrations/clickhouse/001_traces.sql 2>/dev/null || true
+	docker exec -i otelguard-clickhouse clickhouse-client --database=otelguard < backend/migrations/clickhouse/002_events.sql 2>/dev/null || true
+	docker exec -i otelguard-clickhouse clickhouse-client --database=otelguard < backend/migrations/clickhouse/003_attributes.sql 2>/dev/null || true
 
 migrate-down:
 	@echo "Rolling back PostgreSQL migrations..."
@@ -149,7 +183,7 @@ lint-fix-frontend:
 	@echo "Fixing frontend lint issues..."
 	cd frontend && npm run lint:fix
 
-# Install
+# Install dependencies
 install: install-backend install-frontend
 
 install-backend:
@@ -159,6 +193,12 @@ install-backend:
 install-frontend:
 	@echo "Installing frontend dependencies..."
 	cd frontend && npm install
+
+# Install development tools
+install-tools:
+	@echo "Checking development tools..."
+	@which air > /dev/null 2>&1 || (echo "Installing Air for Go hot reload..." && go install github.com/air-verse/air@latest)
+	@echo "Development tools ready!"
 
 # Git Hooks
 hooks-install:
@@ -175,5 +215,15 @@ hooks:
 clean:
 	@echo "Cleaning build artifacts..."
 	rm -rf backend/bin
+	rm -rf backend/tmp
 	rm -rf frontend/dist
 	rm -rf frontend/node_modules/.cache
+
+# Production docker build
+docker-build:
+	@echo "Building production Docker images..."
+	docker-compose --profile prod build
+
+docker-prod:
+	@echo "Starting production environment..."
+	docker-compose --profile prod up -d

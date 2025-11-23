@@ -23,6 +23,7 @@ services:
       - otelguard
 
   # ClickHouse - Event storage
+  # Using ulimits and privileged to fix get_mempolicy error
   clickhouse:
     image: clickhouse/clickhouse-server:24-alpine
     container_name: otelguard-clickhouse
@@ -37,6 +38,17 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - ./backend/migrations/clickhouse:/docker-entrypoint-initdb.d:ro
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    # Fix for get_mempolicy: Operation not permitted
+    cap_add:
+      - SYS_NICE
+      - NET_ADMIN
+      - IPC_LOCK
+    security_opt:
+      - seccomp:unconfined
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
       interval: 10s
@@ -45,7 +57,7 @@ services:
     networks:
       - otelguard
 
-  # Backend API
+  # Backend API (production build)
   backend:
     build:
       context: ./backend
@@ -73,8 +85,10 @@ services:
         condition: service_healthy
     networks:
       - otelguard
+    profiles:
+      - prod
 
-  # Frontend
+  # Frontend (production build)
   frontend:
     build:
       context: ./frontend
@@ -88,6 +102,8 @@ services:
       - backend
     networks:
       - otelguard
+    profiles:
+      - prod
 
 volumes:
   postgres_data:
