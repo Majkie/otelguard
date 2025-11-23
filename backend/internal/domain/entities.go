@@ -112,6 +112,88 @@ type GuardrailRule struct {
 	CreatedAt    time.Time `db:"created_at" json:"createdAt"`
 }
 
+// PasswordResetToken represents a password reset token
+type PasswordResetToken struct {
+	ID        uuid.UUID    `db:"id" json:"id"`
+	UserID    uuid.UUID    `db:"user_id" json:"userId"`
+	TokenHash string       `db:"token_hash" json:"-"`
+	ExpiresAt time.Time    `db:"expires_at" json:"expiresAt"`
+	UsedAt    sql.NullTime `db:"used_at" json:"-"`
+	CreatedAt time.Time    `db:"created_at" json:"createdAt"`
+}
+
+// IsExpired returns true if the token has expired
+func (t *PasswordResetToken) IsExpired() bool {
+	return time.Now().After(t.ExpiresAt)
+}
+
+// IsUsed returns true if the token has been used
+func (t *PasswordResetToken) IsUsed() bool {
+	return t.UsedAt.Valid
+}
+
+// UserSession represents a user session
+type UserSession struct {
+	ID           uuid.UUID    `db:"id" json:"id"`
+	UserID       uuid.UUID    `db:"user_id" json:"userId"`
+	TokenHash    string       `db:"token_hash" json:"-"`
+	UserAgent    string       `db:"user_agent" json:"userAgent,omitempty"`
+	IPAddress    string       `db:"ip_address" json:"ipAddress,omitempty"`
+	LastActiveAt time.Time    `db:"last_active_at" json:"lastActiveAt"`
+	ExpiresAt    time.Time    `db:"expires_at" json:"expiresAt"`
+	RevokedAt    sql.NullTime `db:"revoked_at" json:"-"`
+	CreatedAt    time.Time    `db:"created_at" json:"createdAt"`
+}
+
+// IsExpired returns true if the session has expired
+func (s *UserSession) IsExpired() bool {
+	return time.Now().After(s.ExpiresAt)
+}
+
+// IsRevoked returns true if the session has been revoked
+func (s *UserSession) IsRevoked() bool {
+	return s.RevokedAt.Valid
+}
+
+// IsValid returns true if the session is valid (not expired and not revoked)
+func (s *UserSession) IsValid() bool {
+	return !s.IsExpired() && !s.IsRevoked()
+}
+
+// ProjectMember represents a user's membership in a project
+type ProjectMember struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	ProjectID uuid.UUID `db:"project_id" json:"projectId"`
+	UserID    uuid.UUID `db:"user_id" json:"userId"`
+	Role      string    `db:"role" json:"role"`
+	CreatedAt time.Time `db:"created_at" json:"createdAt"`
+	UpdatedAt time.Time `db:"updated_at" json:"updatedAt"`
+}
+
+// Invitation represents an invitation to join an organization or project
+type Invitation struct {
+	ID             uuid.UUID    `db:"id" json:"id"`
+	OrganizationID *uuid.UUID   `db:"organization_id" json:"organizationId,omitempty"`
+	ProjectID      *uuid.UUID   `db:"project_id" json:"projectId,omitempty"`
+	Email          string       `db:"email" json:"email"`
+	Role           string       `db:"role" json:"role"`
+	TokenHash      string       `db:"token_hash" json:"-"`
+	InvitedBy      uuid.UUID    `db:"invited_by" json:"invitedBy"`
+	AcceptedAt     sql.NullTime `db:"accepted_at" json:"acceptedAt,omitempty"`
+	ExpiresAt      time.Time    `db:"expires_at" json:"expiresAt"`
+	CreatedAt      time.Time    `db:"created_at" json:"createdAt"`
+}
+
+// IsExpired returns true if the invitation has expired
+func (i *Invitation) IsExpired() bool {
+	return time.Now().After(i.ExpiresAt)
+}
+
+// IsAccepted returns true if the invitation has been accepted
+func (i *Invitation) IsAccepted() bool {
+	return i.AcceptedAt.Valid
+}
+
 // Roles
 const (
 	RoleOwner  = "owner"
@@ -127,3 +209,69 @@ const (
 	ScopePromptRead = "prompt:read"
 	ScopeAll        = "*"
 )
+
+// Permission constants for RBAC
+type Permission string
+
+const (
+	PermissionOrgRead          Permission = "org:read"
+	PermissionOrgWrite         Permission = "org:write"
+	PermissionOrgDelete        Permission = "org:delete"
+	PermissionOrgManageMembers Permission = "org:manage_members"
+	PermissionProjectRead      Permission = "project:read"
+	PermissionProjectWrite     Permission = "project:write"
+	PermissionProjectDelete    Permission = "project:delete"
+	PermissionProjectManageAPI Permission = "project:manage_api_keys"
+	PermissionTraceRead        Permission = "trace:read"
+	PermissionTraceWrite       Permission = "trace:write"
+	PermissionPromptRead       Permission = "prompt:read"
+	PermissionPromptWrite      Permission = "prompt:write"
+	PermissionGuardrailRead    Permission = "guardrail:read"
+	PermissionGuardrailWrite   Permission = "guardrail:write"
+)
+
+// RolePermissions maps roles to their permissions
+var RolePermissions = map[string][]Permission{
+	RoleOwner: {
+		PermissionOrgRead, PermissionOrgWrite, PermissionOrgDelete, PermissionOrgManageMembers,
+		PermissionProjectRead, PermissionProjectWrite, PermissionProjectDelete, PermissionProjectManageAPI,
+		PermissionTraceRead, PermissionTraceWrite,
+		PermissionPromptRead, PermissionPromptWrite,
+		PermissionGuardrailRead, PermissionGuardrailWrite,
+	},
+	RoleAdmin: {
+		PermissionOrgRead, PermissionOrgWrite, PermissionOrgManageMembers,
+		PermissionProjectRead, PermissionProjectWrite, PermissionProjectManageAPI,
+		PermissionTraceRead, PermissionTraceWrite,
+		PermissionPromptRead, PermissionPromptWrite,
+		PermissionGuardrailRead, PermissionGuardrailWrite,
+	},
+	RoleMember: {
+		PermissionOrgRead,
+		PermissionProjectRead, PermissionProjectWrite,
+		PermissionTraceRead, PermissionTraceWrite,
+		PermissionPromptRead, PermissionPromptWrite,
+		PermissionGuardrailRead, PermissionGuardrailWrite,
+	},
+	RoleViewer: {
+		PermissionOrgRead,
+		PermissionProjectRead,
+		PermissionTraceRead,
+		PermissionPromptRead,
+		PermissionGuardrailRead,
+	},
+}
+
+// HasPermission checks if a role has a specific permission
+func HasPermission(role string, perm Permission) bool {
+	perms, ok := RolePermissions[role]
+	if !ok {
+		return false
+	}
+	for _, p := range perms {
+		if p == perm {
+			return true
+		}
+	}
+	return false
+}

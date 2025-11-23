@@ -65,6 +65,8 @@ func main() {
 
 	// Initialize repositories
 	userRepo := pgrepo.NewUserRepository(pgDB)
+	orgRepo := pgrepo.NewOrganizationRepository(pgDB)
+	projectRepo := pgrepo.NewProjectRepository(pgDB)
 	promptRepo := pgrepo.NewPromptRepository(pgDB)
 	guardrailRepo := pgrepo.NewGuardrailRepository(pgDB)
 	traceRepo := chrepo.NewTraceRepository(chConn)
@@ -107,6 +109,7 @@ func main() {
 
 	// Initialize services
 	authService := service.NewAuthService(userRepo, logger, cfg.Auth.BcryptCost)
+	orgService := service.NewOrgService(orgRepo, projectRepo, userRepo, logger, cfg.Auth.BcryptCost)
 	traceService := service.NewTraceServiceFull(traceRepo, batchWriter, cfg.ClickHouse.AsyncWrite, samplerConfig, logger)
 	promptService := service.NewPromptService(promptRepo, logger)
 	guardrailService := service.NewGuardrailService(guardrailRepo, guardrailEventRepo, logger)
@@ -124,6 +127,7 @@ func main() {
 	h := &api.Handlers{
 		Health:    handlers.NewHealthHandler(pgDB, logger),
 		Auth:      handlers.NewAuthHandler(authService, &cfg.Auth, logger),
+		Org:       handlers.NewOrgHandler(orgService, logger),
 		Trace:     handlers.NewTraceHandler(traceService, logger),
 		OTLP:      handlers.NewOTLPHandler(traceService, logger),
 		Prompt:    handlers.NewPromptHandler(promptService, logger),

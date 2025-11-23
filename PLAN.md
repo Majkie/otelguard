@@ -21,7 +21,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Set up Makefile for common tasks
 - [x] Configure ESLint, Prettier for frontend
 - [x] Configure golangci-lint for backend
-- [ ] Set up pre-commit hooks
+- [x] Set up pre-commit hooks
 
 ### 1.2 Database Schema Design
 
@@ -39,7 +39,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Design and create `guardrail_rules` table
 - [x] Design and create `annotation_queues` table
 - [x] Design and create `score_configs` table
-- [ ] Set up database migrations with golang-migrate
+- [x] Set up database migrations with golang-migrate
 - [x] Create seed data for development
 
 #### ClickHouse (Events)
@@ -76,12 +76,12 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Create API key authentication middleware
 - [x] Implement user registration endpoint
 - [x] Implement user login endpoint
-- [ ] Create password reset flow
-- [ ] Implement organization management
-- [ ] Create project-level permissions
-- [ ] Implement role-based access control (RBAC)
+- [x] Create password reset flow
+- [x] Implement organization management
+- [x] Create project-level permissions
+- [x] Implement role-based access control (RBAC)
 - [x] Create API key management endpoints
-- [ ] Implement session management
+- [x] Implement session management
 
 ### 1.5 Frontend Core
 
