@@ -534,17 +534,209 @@ func (h *PromptHandler) ExtractVariables(c *gin.Context) {
 }
 
 // extractTemplateVariables extracts variable names from template content
+// Supports {{variable}}, {{#if variable}}, {{#each variable}}, etc.
 func extractTemplateVariables(content string) []string {
-	re := regexp.MustCompile(`\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
-	matches := re.FindAllStringSubmatch(content, -1)
+	// Match simple variables: {{variable}}
+	simpleVarRe := regexp.MustCompile(`\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
+	// Match if conditions: {{#if variable}}
+	ifVarRe := regexp.MustCompile(`\{\{#if\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
+	// Match unless conditions: {{#unless variable}}
+	unlessVarRe := regexp.MustCompile(`\{\{#unless\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
+	// Match each loops: {{#each variable}}
+	eachVarRe := regexp.MustCompile(`\{\{#each\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
+	// Match with blocks: {{#with variable}}
+	withVarRe := regexp.MustCompile(`\{\{#with\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
 
 	seen := make(map[string]bool)
 	var variables []string
-	for _, match := range matches {
-		if len(match) > 1 && !seen[match[1]] {
-			seen[match[1]] = true
-			variables = append(variables, match[1])
+
+	addMatches := func(re *regexp.Regexp) {
+		matches := re.FindAllStringSubmatch(content, -1)
+		for _, match := range matches {
+			if len(match) > 1 && !seen[match[1]] {
+				seen[match[1]] = true
+				variables = append(variables, match[1])
+			}
 		}
 	}
+
+	addMatches(simpleVarRe)
+	addMatches(ifVarRe)
+	addMatches(unlessVarRe)
+	addMatches(eachVarRe)
+	addMatches(withVarRe)
+
 	return variables
+}
+
+// PromoteVersion promotes a version to a specific environment
+func (h *PromptHandler) PromoteVersion(c *gin.Context) {
+	promptID := c.Param("id")
+	versionStr := c.Param("version")
+
+	version, err := strconv.Atoi(versionStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "Invalid version number",
+		})
+		return
+	}
+
+	var req struct {
+		Target string `json:"target" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	if err := h.promptService.PromoteVersion(c.Request.Context(), promptID, version, req.Target); err != nil {
+		if err == domain.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "not_found",
+				"message": "Version not found",
+			})
+			return
+		}
+		h.logger.Error("failed to promote version", zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// Return the updated version
+	promptVersion, _ := h.promptService.GetVersion(c.Request.Context(), promptID, version)
+	c.JSON(http.StatusOK, promptVersion)
+}
+
+// GetVersionByLabel gets the version with a specific label
+func (h *PromptHandler) GetVersionByLabel(c *gin.Context) {
+	promptID := c.Param("id")
+	label := c.Param("label")
+
+	version, err := h.promptService.GetVersionByLabel(c.Request.Context(), promptID, label)
+	if err != nil {
+		if err == domain.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "not_found",
+				"message": fmt.Sprintf("No version found with label '%s'", label),
+			})
+			return
+		}
+		h.logger.Error("failed to get version by label", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve version",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, version)
+}
+
+// GetLinkedTraces returns traces that used this prompt
+func (h *PromptHandler) GetLinkedTraces(c *gin.Context) {
+	promptID := c.Param("id")
+
+	// Verify prompt exists
+	_, err := h.promptService.GetByID(c.Request.Context(), promptID)
+	if err != nil {
+		if err == domain.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "not_found",
+				"message": "Prompt not found",
+			})
+			return
+		}
+		h.logger.Error("failed to get prompt", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve prompt",
+		})
+		return
+	}
+
+	// For now, return a placeholder response
+	// In a full implementation, this would query ClickHouse for traces with this prompt_id
+	c.JSON(http.StatusOK, gin.H{
+		"promptId": promptID,
+		"traces":   []interface{}{},
+		"total":    0,
+		"message":  "Traces linked to this prompt will appear here when SDK sends prompt_id with traces",
+	})
+}
+
+// GetAnalytics returns usage analytics for a prompt
+func (h *PromptHandler) GetAnalytics(c *gin.Context) {
+	promptID := c.Param("id")
+
+	// Get prompt to verify it exists
+	prompt, err := h.promptService.GetByID(c.Request.Context(), promptID)
+	if err != nil {
+		if err == domain.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "not_found",
+				"message": "Prompt not found",
+			})
+			return
+		}
+		h.logger.Error("failed to get prompt", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve prompt",
+		})
+		return
+	}
+
+	// Get all versions
+	versions, err := h.promptService.ListVersions(c.Request.Context(), promptID)
+	if err != nil {
+		h.logger.Error("failed to list versions", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve versions",
+		})
+		return
+	}
+
+	// Build version stats
+	versionStats := make([]gin.H, len(versions))
+	var productionVersion, stagingVersion, developmentVersion *int
+	for i, v := range versions {
+		versionStats[i] = gin.H{
+			"version":   v.Version,
+			"labels":    v.Labels,
+			"createdAt": v.CreatedAt,
+		}
+		// Track which versions have environment labels
+		for _, label := range v.Labels {
+			switch label {
+			case "production":
+				productionVersion = &v.Version
+			case "staging":
+				stagingVersion = &v.Version
+			case "development":
+				developmentVersion = &v.Version
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"promptId":           promptID,
+		"promptName":         prompt.Name,
+		"totalVersions":      len(versions),
+		"latestVersion":      len(versions),
+		"productionVersion":  productionVersion,
+		"stagingVersion":     stagingVersion,
+		"developmentVersion": developmentVersion,
+		"versions":           versionStats,
+		"createdAt":          prompt.CreatedAt,
+		"updatedAt":          prompt.UpdatedAt,
+	})
 }

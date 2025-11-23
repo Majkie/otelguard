@@ -23,6 +23,10 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal,
 } from '@/components/ui/dropdown-menu';
 import {
   Select,
@@ -45,6 +49,8 @@ import {
   CopyPlus,
   Check,
   AlertCircle,
+  Rocket,
+  BarChart3,
 } from 'lucide-react';
 import {
   usePrompt,
@@ -53,8 +59,11 @@ import {
   useCreateVersion,
   useUpdateVersionLabels,
   useDuplicatePrompt,
+  usePromoteVersion,
+  usePromptAnalytics,
   type PromptVersion,
 } from '@/api/prompts';
+import { PromptPlayground } from '@/components/features/prompts/playground';
 
 // Available version labels
 const VERSION_LABELS = ['production', 'staging', 'development', 'archived'];
@@ -65,10 +74,12 @@ export function PromptDetailPage() {
 
   const { data: prompt, isLoading, error } = usePrompt(id || '');
   const { data: versionsData, refetch: refetchVersions } = usePromptVersions(id || '');
+  const { data: analytics } = usePromptAnalytics(id || '');
   const updatePrompt = useUpdatePrompt();
   const createVersion = useCreateVersion();
   const updateVersionLabels = useUpdateVersionLabels();
   const duplicatePrompt = useDuplicatePrompt();
+  const promoteVersion = usePromoteVersion();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -85,6 +96,7 @@ export function PromptDetailPage() {
   const [editingVersion, setEditingVersion] = useState<PromptVersion | null>(null);
   const [newLabels, setNewLabels] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
+  const [playgroundOpen, setPlaygroundOpen] = useState(false);
 
   // Load the latest version content when versions are loaded
   useEffect(() => {
@@ -193,6 +205,24 @@ export function PromptDetailPage() {
     setNewLabels((prev) =>
       prev.includes(label) ? prev.filter((l) => l !== label) : [...prev, label]
     );
+  };
+
+  const handlePromote = async (
+    version: number,
+    target: 'production' | 'staging' | 'development'
+  ) => {
+    if (!id) return;
+
+    try {
+      await promoteVersion.mutateAsync({
+        promptId: id,
+        version,
+        target,
+      });
+      await refetchVersions();
+    } catch {
+      // Error handled by mutation
+    }
   };
 
   if (isLoading) {
@@ -364,10 +394,14 @@ export function PromptDetailPage() {
                   <Textarea
                     placeholder="Enter your prompt template here...
 
-You can use variables like {{variable_name}} to create dynamic prompts.
+Variables: {{variable_name}}
+Conditionals: {{#if condition}}...{{else}}...{{/if}}
+Loops: {{#each items}}{{this}}{{/each}}
+Negation: {{#unless condition}}...{{/unless}}
 
 Example:
 You are a helpful assistant. The user's name is {{user_name}}.
+{{#if is_premium}}You have premium access.{{/if}}
 Please help them with: {{user_query}}"
                     value={content}
                     onChange={(e) => {
@@ -377,7 +411,7 @@ Please help them with: {{user_query}}"
                     className="min-h-[400px] font-mono text-sm"
                   />
                   <p className="text-xs text-muted-foreground mt-2">
-                    Use {`{{variable}}`} syntax for template variables
+                    Syntax: {`{{variable}}`} | {`{{#if var}}...{{/if}}`} | {`{{#each arr}}...{{/each}}`}
                   </p>
                 </CardContent>
               </Card>
@@ -446,13 +480,16 @@ Please help them with: {{user_query}}"
                             {version.labels?.map((label) => (
                               <Badge
                                 key={label}
-                                variant={
+                                className={
                                   label === 'production'
-                                    ? 'default'
+                                    ? 'bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/50'
                                     : label === 'staging'
-                                    ? 'secondary'
-                                    : 'outline'
+                                    ? 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/50'
+                                    : label === 'development'
+                                    ? 'bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/50'
+                                    : ''
                                 }
+                                variant="outline"
                               >
                                 {label}
                               </Badge>
@@ -475,6 +512,52 @@ Please help them with: {{user_query}}"
                                   <Tag className="h-4 w-4 mr-2" />
                                   Manage labels
                                 </DropdownMenuItem>
+                                <DropdownMenuSub>
+                                  <DropdownMenuSubTrigger>
+                                    <Rocket className="h-4 w-4 mr-2" />
+                                    Promote to...
+                                  </DropdownMenuSubTrigger>
+                                  <DropdownMenuPortal>
+                                    <DropdownMenuSubContent>
+                                      <DropdownMenuItem
+                                        onClick={() =>
+                                          handlePromote(version.version, 'production')
+                                        }
+                                        disabled={version.labels?.includes('production')}
+                                      >
+                                        <span className="h-2 w-2 rounded-full bg-green-500 mr-2" />
+                                        Production
+                                        {version.labels?.includes('production') && (
+                                          <Check className="h-3 w-3 ml-2 text-muted-foreground" />
+                                        )}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() =>
+                                          handlePromote(version.version, 'staging')
+                                        }
+                                        disabled={version.labels?.includes('staging')}
+                                      >
+                                        <span className="h-2 w-2 rounded-full bg-yellow-500 mr-2" />
+                                        Staging
+                                        {version.labels?.includes('staging') && (
+                                          <Check className="h-3 w-3 ml-2 text-muted-foreground" />
+                                        )}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        onClick={() =>
+                                          handlePromote(version.version, 'development')
+                                        }
+                                        disabled={version.labels?.includes('development')}
+                                      >
+                                        <span className="h-2 w-2 rounded-full bg-blue-500 mr-2" />
+                                        Development
+                                        {version.labels?.includes('development') && (
+                                          <Check className="h-3 w-3 ml-2 text-muted-foreground" />
+                                        )}
+                                      </DropdownMenuItem>
+                                    </DropdownMenuSubContent>
+                                  </DropdownMenuPortal>
+                                </DropdownMenuSub>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   onClick={() => {
@@ -635,42 +718,97 @@ Please help them with: {{user_query}}"
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-4">
-                Test your prompt with different variables and models.
+                Test your prompt with different variables and preview the
+                compiled output.
               </p>
-              <Button className="w-full" disabled>
+              <Button
+                className="w-full"
+                onClick={() => setPlaygroundOpen(true)}
+                disabled={!content}
+              >
                 <Play className="h-4 w-4 mr-2" />
                 Open Playground
               </Button>
-              <p className="text-xs text-muted-foreground mt-2 text-center">
-                Coming soon
-              </p>
             </CardContent>
           </Card>
 
           {/* Quick Info */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Info</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Info & Analytics
+              </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">ID</span>
-                <span className="font-mono text-xs">
-                  {prompt.id.slice(0, 8)}...
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Created</span>
-                <span>{format(new Date(prompt.createdAt), 'MMM d, yyyy')}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Versions</span>
-                <span>{versions.length}</span>
-              </div>
-              {versions.length > 0 && (
+            <CardContent className="space-y-4">
+              <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Latest</span>
-                  <span>v{versions[0].version}</span>
+                  <span className="text-muted-foreground">ID</span>
+                  <span className="font-mono text-xs">
+                    {prompt.id.slice(0, 8)}...
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Created</span>
+                  <span>{format(new Date(prompt.createdAt), 'MMM d, yyyy')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Versions</span>
+                  <span>{versions.length}</span>
+                </div>
+                {versions.length > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Latest</span>
+                    <span>v{versions[0].version}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Deployment Status */}
+              {analytics && (
+                <div className="border-t pt-4">
+                  <p className="text-sm font-medium mb-2">Deployment Status</p>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-green-500" />
+                        Production
+                      </span>
+                      {analytics.productionVersion ? (
+                        <Badge variant="outline" className="bg-green-500/10 text-green-700">
+                          v{analytics.productionVersion}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">Not deployed</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-yellow-500" />
+                        Staging
+                      </span>
+                      {analytics.stagingVersion ? (
+                        <Badge variant="outline" className="bg-yellow-500/10 text-yellow-700">
+                          v{analytics.stagingVersion}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">Not deployed</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-blue-500" />
+                        Development
+                      </span>
+                      {analytics.developmentVersion ? (
+                        <Badge variant="outline" className="bg-blue-500/10 text-blue-700">
+                          v{analytics.developmentVersion}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">Not deployed</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -717,6 +855,14 @@ Please help them with: {{user_query}}"
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Prompt Playground */}
+      <PromptPlayground
+        promptId={id || ''}
+        content={content}
+        open={playgroundOpen}
+        onOpenChange={setPlaygroundOpen}
+      />
     </div>
   );
 }

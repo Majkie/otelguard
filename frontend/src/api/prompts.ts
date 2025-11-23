@@ -256,3 +256,90 @@ export function useExtractVariables() {
       }),
   });
 }
+
+// Version promotion hook
+export function usePromoteVersion() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      promptId,
+      version,
+      target,
+    }: {
+      promptId: string;
+      version: number;
+      target: 'production' | 'staging' | 'development';
+    }) =>
+      api.post<PromptVersion>(
+        `/v1/prompts/${promptId}/versions/${version}/promote`,
+        { target }
+      ),
+    onSuccess: (_, { promptId }) => {
+      queryClient.invalidateQueries({ queryKey: promptKeys.versions(promptId) });
+    },
+  });
+}
+
+// Get version by label hook
+export function useVersionByLabel(promptId: string, label: string) {
+  return useQuery({
+    queryKey: [...promptKeys.versions(promptId), 'label', label],
+    queryFn: () =>
+      api.get<PromptVersion>(`/v1/prompts/${promptId}/versions/by-label/${label}`),
+    enabled: !!promptId && !!label,
+  });
+}
+
+// Prompt analytics types
+export interface PromptAnalytics {
+  promptId: string;
+  promptName: string;
+  totalVersions: number;
+  latestVersion: number;
+  productionVersion?: number;
+  stagingVersion?: number;
+  developmentVersion?: number;
+  versions: {
+    version: number;
+    labels?: string[];
+    createdAt: string;
+  }[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Prompt analytics hook
+export function usePromptAnalytics(promptId: string) {
+  return useQuery({
+    queryKey: [...promptKeys.detail(promptId), 'analytics'],
+    queryFn: () => api.get<PromptAnalytics>(`/v1/prompts/${promptId}/analytics`),
+    enabled: !!promptId,
+  });
+}
+
+// Linked traces types
+export interface LinkedTrace {
+  id: string;
+  name: string;
+  startTime: string;
+  latencyMs: number;
+  status: string;
+  promptVersion?: number;
+}
+
+export interface LinkedTracesResponse {
+  promptId: string;
+  traces: LinkedTrace[];
+  total: number;
+  message?: string;
+}
+
+// Get traces linked to a prompt
+export function useLinkedTraces(promptId: string) {
+  return useQuery({
+    queryKey: [...promptKeys.detail(promptId), 'traces'],
+    queryFn: () => api.get<LinkedTracesResponse>(`/v1/prompts/${promptId}/traces`),
+    enabled: !!promptId,
+  });
+}

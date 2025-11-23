@@ -258,30 +258,207 @@ func (s *PromptService) compileContent(content string, variables map[string]inte
 }
 
 // extractVariables extracts variable names from a template
-// Supports {{variable_name}} syntax
+// Supports {{variable_name}} syntax and {{#if variable}} and {{#each variable}} syntax
 func extractVariables(content string) []string {
-	re := regexp.MustCompile(`\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
-	matches := re.FindAllStringSubmatch(content, -1)
+	// Match simple variables: {{variable}}
+	simpleVarRe := regexp.MustCompile(`\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
+	// Match if conditions: {{#if variable}}
+	ifVarRe := regexp.MustCompile(`\{\{#if\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
+	// Match unless conditions: {{#unless variable}}
+	unlessVarRe := regexp.MustCompile(`\{\{#unless\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
+	// Match each loops: {{#each variable}}
+	eachVarRe := regexp.MustCompile(`\{\{#each\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
+	// Match with blocks: {{#with variable}}
+	withVarRe := regexp.MustCompile(`\{\{#with\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
 
 	// Use map to deduplicate
 	seen := make(map[string]bool)
 	var variables []string
-	for _, match := range matches {
-		if len(match) > 1 && !seen[match[1]] {
-			seen[match[1]] = true
-			variables = append(variables, match[1])
+
+	// Helper to add matches
+	addMatches := func(re *regexp.Regexp) {
+		matches := re.FindAllStringSubmatch(content, -1)
+		for _, match := range matches {
+			if len(match) > 1 && !seen[match[1]] {
+				seen[match[1]] = true
+				variables = append(variables, match[1])
+			}
 		}
 	}
+
+	addMatches(simpleVarRe)
+	addMatches(ifVarRe)
+	addMatches(unlessVarRe)
+	addMatches(eachVarRe)
+	addMatches(withVarRe)
+
 	return variables
 }
 
-// convertToGoTemplate converts Jinja2-style {{variable}} to Go template {{.variable}}
+// convertToGoTemplate converts Jinja2/Mustache-style templates to Go template syntax
+// Supports:
+//   - {{variable}} -> {{.variable}}
+//   - {{#if condition}}...{{/if}} -> {{if .condition}}...{{end}}
+//   - {{#unless condition}}...{{/unless}} -> {{if not .condition}}...{{end}}
+//   - {{#each array}}...{{/each}} -> {{range .array}}...{{end}}
+//   - {{#with object}}...{{/with}} -> {{with .object}}...{{end}}
+//   - {{else}} -> {{else}}
 func convertToGoTemplate(content string) string {
-	re := regexp.MustCompile(`\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
-	return re.ReplaceAllString(content, "{{.${1}}}")
+	// Order matters - process control structures first, then simple variables
+
+	// Convert {{#if variable}} to {{if .variable}}
+	content = regexp.MustCompile(`\{\{#if\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`).
+		ReplaceAllString(content, "{{if .${1}}}")
+
+	// Convert {{/if}} to {{end}}
+	content = regexp.MustCompile(`\{\{/if\s*\}\}`).
+		ReplaceAllString(content, "{{end}}")
+
+	// Convert {{#unless variable}} to {{if not .variable}}
+	content = regexp.MustCompile(`\{\{#unless\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`).
+		ReplaceAllString(content, "{{if not .${1}}}")
+
+	// Convert {{/unless}} to {{end}}
+	content = regexp.MustCompile(`\{\{/unless\s*\}\}`).
+		ReplaceAllString(content, "{{end}}")
+
+	// Convert {{#each array}} to {{range .array}}
+	content = regexp.MustCompile(`\{\{#each\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`).
+		ReplaceAllString(content, "{{range .${1}}}")
+
+	// Convert {{/each}} to {{end}}
+	content = regexp.MustCompile(`\{\{/each\s*\}\}`).
+		ReplaceAllString(content, "{{end}}")
+
+	// Convert {{#with object}} to {{with .object}}
+	content = regexp.MustCompile(`\{\{#with\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`).
+		ReplaceAllString(content, "{{with .${1}}}")
+
+	// Convert {{/with}} to {{end}}
+	content = regexp.MustCompile(`\{\{/with\s*\}\}`).
+		ReplaceAllString(content, "{{end}}")
+
+	// Convert {{else}} - this stays the same in Go templates
+	// No conversion needed for {{else}}
+
+	// Convert special loop variables {{this}} to {{.}}
+	content = regexp.MustCompile(`\{\{\s*this\s*\}\}`).
+		ReplaceAllString(content, "{{.}}")
+
+	// Convert {{@index}} to {{$index}} (loop index in range)
+	// Note: Go range provides index automatically when using: {{range $index, $element := .array}}
+	// For simplicity, we'll leave @index as a placeholder that users should adapt
+
+	// Finally, convert simple variables {{variable}} to {{.variable}}
+	// But avoid converting already-converted Go template syntax
+	simpleVarRe := regexp.MustCompile(`\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\}\}`)
+	content = simpleVarRe.ReplaceAllStringFunc(content, func(match string) string {
+		// Extract the variable name
+		submatch := simpleVarRe.FindStringSubmatch(match)
+		if len(submatch) > 1 {
+			varName := submatch[1]
+			// Don't convert Go template keywords
+			keywords := map[string]bool{
+				"if": true, "else": true, "end": true, "range": true,
+				"with": true, "define": true, "template": true, "block": true,
+				"not": true, "and": true, "or": true, "eq": true, "ne": true,
+				"lt": true, "le": true, "gt": true, "ge": true,
+			}
+			if keywords[varName] {
+				return match
+			}
+			return "{{." + varName + "}}"
+		}
+		return match
+	})
+
+	return content
 }
 
 // UpdateVersionLabels updates the labels for a specific version
 func (s *PromptService) UpdateVersionLabels(ctx context.Context, promptID string, version int, labels []string) error {
 	return s.promptRepo.UpdateVersionLabels(ctx, promptID, version, labels)
+}
+
+// PromoteVersion promotes a version to a new environment label
+// It removes the label from any other version and adds it to the target version
+func (s *PromptService) PromoteVersion(ctx context.Context, promptID string, version int, targetLabel string) error {
+	// Valid promotion labels
+	validLabels := map[string]bool{
+		"production":  true,
+		"staging":     true,
+		"development": true,
+	}
+
+	if !validLabels[targetLabel] {
+		return fmt.Errorf("invalid promotion target: %s", targetLabel)
+	}
+
+	// Get all versions to remove the label from others
+	versions, err := s.promptRepo.ListVersions(ctx, promptID)
+	if err != nil {
+		return err
+	}
+
+	// Remove the target label from all other versions
+	for _, v := range versions {
+		if v.Version != version && containsLabel(v.Labels, targetLabel) {
+			newLabels := removeLabel(v.Labels, targetLabel)
+			if err := s.promptRepo.UpdateVersionLabels(ctx, promptID, v.Version, newLabels); err != nil {
+				s.logger.Warn("failed to remove label from version",
+					zap.Int("version", v.Version),
+					zap.String("label", targetLabel),
+					zap.Error(err))
+			}
+		}
+	}
+
+	// Get the target version and add the label
+	targetVersion, err := s.promptRepo.GetVersion(ctx, promptID, version)
+	if err != nil {
+		return err
+	}
+
+	// Add the label if not already present
+	if !containsLabel(targetVersion.Labels, targetLabel) {
+		newLabels := append(targetVersion.Labels, targetLabel)
+		return s.promptRepo.UpdateVersionLabels(ctx, promptID, version, newLabels)
+	}
+
+	return nil
+}
+
+// GetVersionByLabel retrieves the version with a specific label (e.g., "production")
+func (s *PromptService) GetVersionByLabel(ctx context.Context, promptID string, label string) (*domain.PromptVersion, error) {
+	versions, err := s.promptRepo.ListVersions(ctx, promptID)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, v := range versions {
+		if containsLabel(v.Labels, label) {
+			return v, nil
+		}
+	}
+
+	return nil, domain.ErrNotFound
+}
+
+func containsLabel(labels []string, target string) bool {
+	for _, l := range labels {
+		if l == target {
+			return true
+		}
+	}
+	return false
+}
+
+func removeLabel(labels []string, target string) []string {
+	result := make([]string, 0, len(labels))
+	for _, l := range labels {
+		if l != target {
+			result = append(result, l)
+		}
+	}
+	return result
 }
