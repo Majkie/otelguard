@@ -128,6 +128,7 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 			sessionRoutes := dashboard.Group("/sessions")
 			{
 				sessionRoutes.GET("", h.Org.ListSessions)
+				sessionRoutes.GET("/:id", h.Trace.GetSession)
 				sessionRoutes.DELETE("/:sessionId", h.Org.RevokeSession)
 				sessionRoutes.DELETE("", h.Org.RevokeAllSessions)
 			}
@@ -139,13 +140,6 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				traces.GET("/:id", h.Trace.GetTrace)
 				traces.GET("/:id/spans", h.Trace.GetSpans)
 				traces.DELETE("/:id", h.Trace.DeleteTrace)
-			}
-
-			// Sessions
-			sessions := dashboard.Group("/sessions")
-			{
-				sessions.GET("", h.Trace.ListSessions)
-				sessions.GET("/:id", h.Trace.GetSession)
 			}
 
 			// Users (tracked users from traces)
