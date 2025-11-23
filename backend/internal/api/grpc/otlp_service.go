@@ -8,12 +8,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/otelguard/otelguard/internal/domain"
 	"github.com/otelguard/otelguard/internal/service"
-	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	collectortrace "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	v1 "go.opentelemetry.io/proto/otlp/common/v1"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
+	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // OTLPTraceService implements the OTLP gRPC trace collector service

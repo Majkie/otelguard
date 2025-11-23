@@ -3,7 +3,7 @@ package wire
 import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/wire"
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 	chrepo "github.com/otelguard/otelguard/internal/repository/clickhouse"
 	pgrepo "github.com/otelguard/otelguard/internal/repository/postgres"
 )
@@ -24,27 +24,27 @@ var RepositorySet = wire.NewSet(
 // PostgreSQL Repositories
 
 // ProvideUserRepository creates a new UserRepository.
-func ProvideUserRepository(db *sqlx.DB) *pgrepo.UserRepository {
+func ProvideUserRepository(db *pgxpool.Pool) *pgrepo.UserRepository {
 	return pgrepo.NewUserRepository(db)
 }
 
 // ProvideOrganizationRepository creates a new OrganizationRepository.
-func ProvideOrganizationRepository(db *sqlx.DB) *pgrepo.OrganizationRepository {
+func ProvideOrganizationRepository(db *pgxpool.Pool) *pgrepo.OrganizationRepository {
 	return pgrepo.NewOrganizationRepository(db)
 }
 
 // ProvideProjectRepository creates a new ProjectRepository.
-func ProvideProjectRepository(db *sqlx.DB) *pgrepo.ProjectRepository {
+func ProvideProjectRepository(db *pgxpool.Pool) *pgrepo.ProjectRepository {
 	return pgrepo.NewProjectRepository(db)
 }
 
 // ProvidePromptRepository creates a new PromptRepository.
-func ProvidePromptRepository(db *sqlx.DB) *pgrepo.PromptRepository {
+func ProvidePromptRepository(db *pgxpool.Pool) *pgrepo.PromptRepository {
 	return pgrepo.NewPromptRepository(db)
 }
 
 // ProvideGuardrailRepository creates a new GuardrailRepository.
-func ProvideGuardrailRepository(db *sqlx.DB) *pgrepo.GuardrailRepository {
+func ProvideGuardrailRepository(db *pgxpool.Pool) *pgrepo.GuardrailRepository {
 	return pgrepo.NewGuardrailRepository(db)
 }
 

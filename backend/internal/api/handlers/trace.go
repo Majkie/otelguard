@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/otelguard/otelguard/internal/api/middleware"
 	"github.com/otelguard/otelguard/internal/domain"
+	"github.com/otelguard/otelguard/internal/repository/clickhouse"
 	"github.com/otelguard/otelguard/internal/service"
 	"github.com/otelguard/otelguard/pkg/validator"
 	"go.uber.org/zap"
@@ -73,6 +74,8 @@ type IngestTraceRequest struct {
 	Tags             []string `json:"tags" binding:"max=50,dive,max=50"`
 	Status           string   `json:"status" binding:"omitempty,status"`
 	ErrorMessage     string   `json:"errorMessage,omitempty" binding:"max=5000"`
+	PromptID         string   `json:"promptId,omitempty" binding:"omitempty,uuid"`
+	PromptVersion    *int     `json:"promptVersion,omitempty"`
 }
 
 // IngestTraceResponse represents the trace ingestion response
@@ -164,6 +167,13 @@ func (h *TraceHandler) IngestTrace(c *gin.Context) {
 	if req.ErrorMessage != "" {
 		trace.ErrorMessage = &req.ErrorMessage
 	}
+	if req.PromptID != "" {
+		promptUUID, _ := uuid.Parse(req.PromptID)
+		trace.PromptID = &promptUUID
+	}
+	if req.PromptVersion != nil {
+		trace.PromptVersion = req.PromptVersion
+	}
 	if trace.Status == "" {
 		trace.Status = domain.StatusSuccess
 	}
@@ -236,6 +246,13 @@ func (h *TraceHandler) IngestBatch(c *gin.Context) {
 		}
 		if r.UserID != "" {
 			trace.UserID = &r.UserID
+		}
+		if r.PromptID != "" {
+			promptUUID, _ := uuid.Parse(r.PromptID)
+			trace.PromptID = &promptUUID
+		}
+		if r.PromptVersion != nil {
+			trace.PromptVersion = r.PromptVersion
 		}
 		traces = append(traces, trace)
 	}
@@ -399,8 +416,420 @@ func (h *TraceHandler) SubmitScore(c *gin.Context) {
 	})
 }
 
+// ListScores returns paginated scores with filtering
+func (h *TraceHandler) ListScores(c *gin.Context) {
+	projectIDStr := c.Query("projectId")
+	if projectIDStr == "" {
+		h.logger.Warn("projectId not found in query parameters")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "projectId is required",
+		})
+		return
+	}
+
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		h.logger.Error("invalid projectId format", zap.String("projectId", projectIDStr), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid projectId format",
+		})
+		return
+	}
+
+	filter := &clickhouse.ScoreFilter{
+		ProjectID: projectID,
+	}
+
+	// Optional filters
+	if traceIDStr := c.Query("traceId"); traceIDStr != "" {
+		if traceID, err := uuid.Parse(traceIDStr); err == nil {
+			filter.TraceID = &traceID
+		}
+	}
+
+	if spanIDStr := c.Query("spanId"); spanIDStr != "" {
+		if spanID, err := uuid.Parse(spanIDStr); err == nil {
+			filter.SpanID = &spanID
+		}
+	}
+
+	if name := c.Query("name"); name != "" {
+		filter.Name = &name
+	}
+
+	if source := c.Query("source"); source != "" {
+		filter.Source = &source
+	}
+
+	if dataType := c.Query("dataType"); dataType != "" {
+		filter.DataType = &dataType
+	}
+
+	if startTimeStr := c.Query("startTime"); startTimeStr != "" {
+		if startTime, err := time.Parse(time.RFC3339, startTimeStr); err == nil {
+			filter.StartTime = &startTime
+		}
+	}
+
+	if endTimeStr := c.Query("endTime"); endTimeStr != "" {
+		if endTime, err := time.Parse(time.RFC3339, endTimeStr); err == nil {
+			filter.EndTime = &endTime
+		}
+	}
+
+	// Pagination
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	if limit > 1000 {
+		limit = 1000
+	}
+	if limit < 1 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	filter.Limit = limit
+	filter.Offset = offset
+
+	scores, total, err := h.traceService.GetScores(c.Request.Context(), filter)
+	if err != nil {
+		h.logger.Error("failed to get scores", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve scores",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"scores": scores,
+		"pagination": gin.H{
+			"total":  total,
+			"limit":  limit,
+			"offset": offset,
+		},
+	})
+}
+
+// GetScoreByID retrieves a single score by ID
+func (h *TraceHandler) GetScoreByID(c *gin.Context) {
+	projectIDStr := c.Query("projectId")
+	scoreIDStr := c.Param("scoreId")
+
+	if projectIDStr == "" {
+		h.logger.Warn("projectId not found in query parameters")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "projectId is required",
+		})
+		return
+	}
+
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		h.logger.Error("invalid projectId format", zap.String("projectId", projectIDStr), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid projectId format",
+		})
+		return
+	}
+
+	scoreID, err := uuid.Parse(scoreIDStr)
+	if err != nil {
+		h.logger.Error("invalid scoreId format", zap.String("scoreId", scoreIDStr), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid scoreId format",
+		})
+		return
+	}
+
+	score, err := h.traceService.GetScoreByID(c.Request.Context(), projectID, scoreID)
+	if err != nil {
+		h.logger.Error("failed to get score", zap.String("scoreId", scoreID.String()), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve score",
+		})
+		return
+	}
+
+	if score == nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "not_found",
+			"message": "Score not found",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, score)
+}
+
+// GetScoreAggregations retrieves aggregated statistics for scores
+func (h *TraceHandler) GetScoreAggregations(c *gin.Context) {
+	projectIDStr := c.Query("projectId")
+	if projectIDStr == "" {
+		h.logger.Warn("projectId not found in query parameters")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "projectId is required",
+		})
+		return
+	}
+
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		h.logger.Error("invalid projectId format", zap.String("projectId", projectIDStr), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid projectId format",
+		})
+		return
+	}
+
+	filter := &clickhouse.ScoreFilter{
+		ProjectID: projectID,
+	}
+
+	// Optional filters (same as ListScores)
+	if traceIDStr := c.Query("traceId"); traceIDStr != "" {
+		if traceID, err := uuid.Parse(traceIDStr); err == nil {
+			filter.TraceID = &traceID
+		}
+	}
+
+	if spanIDStr := c.Query("spanId"); spanIDStr != "" {
+		if spanID, err := uuid.Parse(spanIDStr); err == nil {
+			filter.SpanID = &spanID
+		}
+	}
+
+	if name := c.Query("name"); name != "" {
+		filter.Name = &name
+	}
+
+	if source := c.Query("source"); source != "" {
+		filter.Source = &source
+	}
+
+	if startTimeStr := c.Query("startTime"); startTimeStr != "" {
+		if startTime, err := time.Parse(time.RFC3339, startTimeStr); err == nil {
+			filter.StartTime = &startTime
+		}
+	}
+
+	if endTimeStr := c.Query("endTime"); endTimeStr != "" {
+		if endTime, err := time.Parse(time.RFC3339, endTimeStr); err == nil {
+			filter.EndTime = &endTime
+		}
+	}
+
+	aggregations, err := h.traceService.GetScoreAggregations(c.Request.Context(), filter)
+	if err != nil {
+		h.logger.Error("failed to get score aggregations", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve score aggregations",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"aggregations": aggregations,
+	})
+}
+
+// GetScoreTrends retrieves score trends over time
+func (h *TraceHandler) GetScoreTrends(c *gin.Context) {
+	projectIDStr := c.Query("projectId")
+	if projectIDStr == "" {
+		h.logger.Warn("projectId not found in query parameters")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "projectId is required",
+		})
+		return
+	}
+
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		h.logger.Error("invalid projectId format", zap.String("projectId", projectIDStr), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid projectId format",
+		})
+		return
+	}
+
+	filter := &clickhouse.ScoreFilter{
+		ProjectID: projectID,
+	}
+
+	// Optional filters
+	if traceIDStr := c.Query("traceId"); traceIDStr != "" {
+		if traceID, err := uuid.Parse(traceIDStr); err == nil {
+			filter.TraceID = &traceID
+		}
+	}
+
+	if spanIDStr := c.Query("spanId"); spanIDStr != "" {
+		if spanID, err := uuid.Parse(spanIDStr); err == nil {
+			filter.SpanID = &spanID
+		}
+	}
+
+	if name := c.Query("name"); name != "" {
+		filter.Name = &name
+	}
+
+	if source := c.Query("source"); source != "" {
+		filter.Source = &source
+	}
+
+	if startTimeStr := c.Query("startTime"); startTimeStr != "" {
+		if startTime, err := time.Parse(time.RFC3339, startTimeStr); err == nil {
+			filter.StartTime = &startTime
+		}
+	}
+
+	if endTimeStr := c.Query("endTime"); endTimeStr != "" {
+		if endTime, err := time.Parse(time.RFC3339, endTimeStr); err == nil {
+			filter.EndTime = &endTime
+		}
+	}
+
+	groupBy := c.DefaultQuery("groupBy", "day")
+	if groupBy != "hour" && groupBy != "day" && groupBy != "week" && groupBy != "month" {
+		groupBy = "day"
+	}
+
+	trends, err := h.traceService.GetScoreTrends(c.Request.Context(), filter, groupBy)
+	if err != nil {
+		h.logger.Error("failed to get score trends", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve score trends",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"trends":  trends,
+		"groupBy": groupBy,
+	})
+}
+
+// GetScoreComparisons retrieves score comparisons across dimensions
+func (h *TraceHandler) GetScoreComparisons(c *gin.Context) {
+	projectIDStr := c.Query("projectId")
+	if projectIDStr == "" {
+		h.logger.Warn("projectId not found in query parameters")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "projectId is required",
+		})
+		return
+	}
+
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		h.logger.Error("invalid projectId format", zap.String("projectId", projectIDStr), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid projectId format",
+		})
+		return
+	}
+
+	dimension := c.Query("dimension")
+	if dimension == "" {
+		h.logger.Warn("dimension not found in query parameters")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "dimension is required (model, user, session, prompt)",
+		})
+		return
+	}
+
+	if dimension != "model" && dimension != "user" && dimension != "session" && dimension != "prompt" {
+		h.logger.Error("invalid dimension", zap.String("dimension", dimension))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "dimension must be one of: model, user, session, prompt",
+		})
+		return
+	}
+
+	filter := &clickhouse.ScoreFilter{
+		ProjectID: projectID,
+	}
+
+	// Optional filters
+	if name := c.Query("name"); name != "" {
+		filter.Name = &name
+	}
+
+	if source := c.Query("source"); source != "" {
+		filter.Source = &source
+	}
+
+	if startTimeStr := c.Query("startTime"); startTimeStr != "" {
+		if startTime, err := time.Parse(time.RFC3339, startTimeStr); err == nil {
+			filter.StartTime = &startTime
+		}
+	}
+
+	if endTimeStr := c.Query("endTime"); endTimeStr != "" {
+		if endTime, err := time.Parse(time.RFC3339, endTimeStr); err == nil {
+			filter.EndTime = &endTime
+		}
+	}
+
+	comparisons, err := h.traceService.GetScoreComparisons(c.Request.Context(), filter, dimension)
+	if err != nil {
+		h.logger.Error("failed to get score comparisons", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve score comparisons",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"comparisons": comparisons,
+		"dimension":   dimension,
+	})
+}
+
 // ListTraces returns paginated traces
 func (h *TraceHandler) ListTraces(c *gin.Context) {
+	// Basic filters
+	projectID := c.Query("projectId")
+	if projectID == "" {
+		h.logger.Warn("projectId not found in query parameters")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "projectId is required",
+		})
+		return
+	}
+
+	// Validate UUID format
+	if _, err := uuid.Parse(projectID); err != nil {
+		h.logger.Error("invalid projectId format", zap.String("projectId", projectID), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid projectId format",
+		})
+		return
+	}
+
 	// Pagination
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
@@ -411,9 +840,6 @@ func (h *TraceHandler) ListTraces(c *gin.Context) {
 	if limit < 1 {
 		limit = 50
 	}
-
-	// Basic filters
-	projectID := c.Query("projectId")
 	sessionID := c.Query("sessionId")
 	userID := c.Query("userId")
 	model := c.Query("model")
@@ -444,29 +870,39 @@ func (h *TraceHandler) ListTraces(c *gin.Context) {
 	sortBy := c.DefaultQuery("sortBy", "start_time")
 	sortOrder := c.DefaultQuery("sortOrder", "DESC")
 
+	// Prompt filtering
+	promptID := c.Query("promptId")
+	promptVersion := c.Query("promptVersion")
+
 	opts := &service.ListTracesOptions{
-		ProjectID:  projectID,
-		SessionID:  sessionID,
-		UserID:     userID,
-		Model:      model,
-		Name:       name,
-		Status:     status,
-		Tags:       tags,
-		StartTime:  startTime,
-		EndTime:    endTime,
-		MinLatency: minLatency,
-		MaxLatency: maxLatency,
-		MinCost:    minCost,
-		MaxCost:    maxCost,
-		SortBy:     sortBy,
-		SortOrder:  sortOrder,
-		Limit:      limit,
-		Offset:     offset,
+		ProjectID:     projectID,
+		SessionID:     sessionID,
+		UserID:        userID,
+		Model:         model,
+		Name:          name,
+		Status:        status,
+		Tags:          tags,
+		StartTime:     startTime,
+		EndTime:       endTime,
+		MinLatency:    minLatency,
+		MaxLatency:    maxLatency,
+		MinCost:       minCost,
+		MaxCost:       maxCost,
+		PromptID:      promptID,
+		PromptVersion: promptVersion,
+		SortBy:        sortBy,
+		SortOrder:     sortOrder,
+		Limit:         limit,
+		Offset:        offset,
 	}
 
 	traces, total, err := h.traceService.ListTraces(c.Request.Context(), opts)
 	if err != nil {
-		h.logger.Error("failed to list traces", zap.Error(err))
+		h.logger.Error("failed to list traces",
+			zap.String("projectId", projectID),
+			zap.Int("limit", limit),
+			zap.Int("offset", offset),
+			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "internal_error",
 			"message": "Failed to retrieve traces",

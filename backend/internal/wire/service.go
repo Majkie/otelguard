@@ -20,6 +20,9 @@ var ServiceSet = wire.NewSet(
 	ProvideGuardrailService,
 	ProvideBatchWriter,
 	ProvideSamplerConfig,
+	ProvideTokenizerService,
+	ProvidePricingService,
+	ProvideLLMService,
 )
 
 // ProvideAuthService creates a new AuthService.
@@ -135,4 +138,23 @@ func ProvideGuardrailService(
 	logger *zap.Logger,
 ) *service.GuardrailService {
 	return service.NewGuardrailService(guardrailRepo, guardrailEventRepo, logger)
+}
+
+// ProvideTokenizerService creates a new TokenizerService.
+func ProvideTokenizerService() *service.TokenizerService {
+	return service.NewTokenizerService()
+}
+
+// ProvidePricingService creates a new PricingService.
+func ProvidePricingService() *service.PricingService {
+	return service.NewPricingService()
+}
+
+// ProvideLLMService creates a new LLMService.
+func ProvideLLMService(
+	logger *zap.Logger,
+	tokenizer *service.TokenizerService,
+	pricing *service.PricingService,
+) *service.LLMServiceImpl {
+	return service.NewLLMService(logger, tokenizer, pricing)
 }

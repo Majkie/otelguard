@@ -46,10 +46,10 @@ type ProjectResponse struct {
 
 // MemberResponse represents a member in API responses
 type MemberResponse struct {
-	ID        string       `json:"id"`
-	UserID    string       `json:"userId"`
-	Role      string       `json:"role"`
-	CreatedAt string       `json:"createdAt"`
+	ID        string        `json:"id"`
+	UserID    string        `json:"userId"`
+	Role      string        `json:"role"`
+	CreatedAt string        `json:"createdAt"`
 	User      *UserResponse `json:"user,omitempty"`
 }
 

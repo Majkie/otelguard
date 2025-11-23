@@ -2,7 +2,7 @@ package wire
 
 import (
 	"github.com/google/wire"
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 
 	"github.com/otelguard/otelguard/internal/api"
@@ -20,21 +20,23 @@ var HandlerSet = wire.NewSet(
 	ProvideOTLPHandler,
 	ProvidePromptHandler,
 	ProvideGuardrailHandler,
+	ProvideLLMHandler,
 	ProvideHandlers,
 )
 
 // ProvideHealthHandler creates a new HealthHandler.
-func ProvideHealthHandler(db *sqlx.DB, logger *zap.Logger) *handlers.HealthHandler {
+func ProvideHealthHandler(db *pgxpool.Pool, logger *zap.Logger) *handlers.HealthHandler {
 	return handlers.NewHealthHandler(db, logger)
 }
 
 // ProvideAuthHandler creates a new AuthHandler.
 func ProvideAuthHandler(
 	authService *service.AuthService,
+	orgService *service.OrgService,
 	cfg *config.Config,
 	logger *zap.Logger,
 ) *handlers.AuthHandler {
-	return handlers.NewAuthHandler(authService, &cfg.Auth, logger)
+	return handlers.NewAuthHandler(authService, orgService, &cfg.Auth, logger)
 }
 
 // ProvideOrgHandler creates a new OrgHandler.
@@ -64,9 +66,10 @@ func ProvideOTLPHandler(
 // ProvidePromptHandler creates a new PromptHandler.
 func ProvidePromptHandler(
 	promptService *service.PromptService,
+	traceService *service.TraceService,
 	logger *zap.Logger,
 ) *handlers.PromptHandler {
-	return handlers.NewPromptHandler(promptService, logger)
+	return handlers.NewPromptHandler(promptService, traceService, logger)
 }
 
 // ProvideGuardrailHandler creates a new GuardrailHandler.
@@ -75,6 +78,16 @@ func ProvideGuardrailHandler(
 	logger *zap.Logger,
 ) *handlers.GuardrailHandler {
 	return handlers.NewGuardrailHandler(guardrailService, logger)
+}
+
+// ProvideLLMHandler creates a new LLMHandler.
+func ProvideLLMHandler(
+	llmService *service.LLMServiceImpl,
+	tokenizer *service.TokenizerService,
+	pricing *service.PricingService,
+	logger *zap.Logger,
+) *handlers.LLMHandler {
+	return handlers.NewLLMHandler(llmService, tokenizer, pricing, logger)
 }
 
 // ProvideHandlers creates the Handlers struct containing all handlers.
@@ -86,6 +99,7 @@ func ProvideHandlers(
 	otlp *handlers.OTLPHandler,
 	prompt *handlers.PromptHandler,
 	guardrail *handlers.GuardrailHandler,
+	llm *handlers.LLMHandler,
 ) *api.Handlers {
 	return &api.Handlers{
 		Health:    health,
@@ -95,5 +109,6 @@ func ProvideHandlers(
 		OTLP:      otlp,
 		Prompt:    prompt,
 		Guardrail: guardrail,
+		LLM:       llm,
 	}
 }

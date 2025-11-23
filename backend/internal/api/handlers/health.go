@@ -1,21 +1,23 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
 
 // HealthHandler handles health check endpoints
 type HealthHandler struct {
-	db     *sqlx.DB
+	db     *pgxpool.Pool
 	logger *zap.Logger
 }
 
 // NewHealthHandler creates a new health handler
-func NewHealthHandler(db *sqlx.DB, logger *zap.Logger) *HealthHandler {
+func NewHealthHandler(db *pgxpool.Pool, logger *zap.Logger) *HealthHandler {
 	return &HealthHandler{
 		db:     db,
 		logger: logger,
@@ -24,9 +26,9 @@ func NewHealthHandler(db *sqlx.DB, logger *zap.Logger) *HealthHandler {
 
 // HealthResponse represents the health check response
 type HealthResponse struct {
-	Status    string            `json:"status"`
-	Version   string            `json:"version"`
-	Services  map[string]string `json:"services,omitempty"`
+	Status   string            `json:"status"`
+	Version  string            `json:"version"`
+	Services map[string]string `json:"services,omitempty"`
 }
 
 // Health handles the health check endpoint
@@ -55,7 +57,9 @@ func (h *HealthHandler) Ready(c *gin.Context) {
 
 	// Check PostgreSQL connection
 	if h.db != nil {
-		if err := h.db.Ping(); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := h.db.Ping(ctx); err != nil {
 			h.logger.Error("postgres health check failed", zap.Error(err))
 			services["postgres"] = "unhealthy"
 			allHealthy = false

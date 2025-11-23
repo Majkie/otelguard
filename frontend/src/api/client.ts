@@ -4,6 +4,16 @@ interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
 
+// Helper function to get cookie value
+function getCookie(name: string): string | undefined {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) {
+    return parts.pop()?.split(';').shift();
+  }
+  return undefined;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -43,19 +53,36 @@ class ApiClient {
       }
     }
 
-    const token = localStorage.getItem('token');
+    // Get CSRF token from cookie for state-changing operations
+    let headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...fetchOptions.headers,
+    };
+
+    // Add CSRF token for non-safe methods
+    if (fetchOptions.method && !['GET', 'HEAD', 'OPTIONS'].includes(fetchOptions.method)) {
+      const csrfToken = getCookie('csrf_token');
+      if (csrfToken) {
+        headers['X-CSRF-Token'] = csrfToken;
+      }
+    }
 
     const response = await fetch(url, {
       ...fetchOptions,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-        ...fetchOptions.headers,
-      },
+      headers,
+      // Cookies will be sent automatically for same-origin requests
+      credentials: 'include',
     });
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
+
+      // Handle authentication errors
+      if (response.status === 401) {
+        // For now, just throw the error - the auth context will handle logout
+        // In the future, we could attempt automatic token refresh here
+      }
+
       throw new ApiError(
         response.status,
         error.message || 'Request failed',

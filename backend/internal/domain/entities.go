@@ -9,24 +9,24 @@ import (
 
 // Organization represents a top-level organization
 type Organization struct {
-	ID        uuid.UUID      `db:"id" json:"id"`
-	Name      string         `db:"name" json:"name"`
-	Slug      string         `db:"slug" json:"slug"`
-	CreatedAt time.Time      `db:"created_at" json:"createdAt"`
-	UpdatedAt time.Time      `db:"updated_at" json:"updatedAt"`
-	DeletedAt sql.NullTime   `db:"deleted_at" json:"-"`
+	ID        uuid.UUID    `db:"id" json:"id"`
+	Name      string       `db:"name" json:"name"`
+	Slug      string       `db:"slug" json:"slug"`
+	CreatedAt time.Time    `db:"created_at" json:"createdAt"`
+	UpdatedAt time.Time    `db:"updated_at" json:"updatedAt"`
+	DeletedAt sql.NullTime `db:"deleted_at" json:"-"`
 }
 
 // Project represents a project within an organization
 type Project struct {
-	ID             uuid.UUID      `db:"id" json:"id"`
-	OrganizationID uuid.UUID      `db:"organization_id" json:"organizationId"`
-	Name           string         `db:"name" json:"name"`
-	Slug           string         `db:"slug" json:"slug"`
-	Settings       []byte         `db:"settings" json:"settings,omitempty"`
-	CreatedAt      time.Time      `db:"created_at" json:"createdAt"`
-	UpdatedAt      time.Time      `db:"updated_at" json:"updatedAt"`
-	DeletedAt      sql.NullTime   `db:"deleted_at" json:"-"`
+	ID             uuid.UUID    `db:"id" json:"id"`
+	OrganizationID uuid.UUID    `db:"organization_id" json:"organizationId"`
+	Name           string       `db:"name" json:"name"`
+	Slug           string       `db:"slug" json:"slug"`
+	Settings       []byte       `db:"settings" json:"settings,omitempty"`
+	CreatedAt      time.Time    `db:"created_at" json:"createdAt"`
+	UpdatedAt      time.Time    `db:"updated_at" json:"updatedAt"`
+	DeletedAt      sql.NullTime `db:"deleted_at" json:"-"`
 }
 
 // User represents a user in the system
@@ -89,15 +89,15 @@ type PromptVersion struct {
 
 // GuardrailPolicy represents a guardrail policy
 type GuardrailPolicy struct {
-	ID          uuid.UUID  `db:"id" json:"id"`
-	ProjectID   uuid.UUID  `db:"project_id" json:"projectId"`
-	Name        string     `db:"name" json:"name"`
-	Description string     `db:"description" json:"description,omitempty"`
-	Enabled     bool       `db:"enabled" json:"enabled"`
-	Priority    int        `db:"priority" json:"priority"`
-	Triggers    []byte     `db:"triggers" json:"triggers"`
-	CreatedAt   time.Time  `db:"created_at" json:"createdAt"`
-	UpdatedAt   time.Time  `db:"updated_at" json:"updatedAt"`
+	ID          uuid.UUID `db:"id" json:"id"`
+	ProjectID   uuid.UUID `db:"project_id" json:"projectId"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description,omitempty"`
+	Enabled     bool      `db:"enabled" json:"enabled"`
+	Priority    int       `db:"priority" json:"priority"`
+	Triggers    []byte    `db:"triggers" json:"triggers"`
+	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updatedAt"`
 }
 
 // GuardrailRule represents a rule within a guardrail policy
@@ -274,4 +274,68 @@ func HasPermission(role string, perm Permission) bool {
 		}
 	}
 	return false
+}
+
+// LLM Provider Types
+const (
+	ProviderOpenAI    = "openai"
+	ProviderAnthropic = "anthropic"
+	ProviderGoogle    = "google"
+	ProviderOllama    = "ollama"
+)
+
+// LLMModel represents an LLM model configuration
+type LLMModel struct {
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Provider     string   `json:"provider"`
+	ModelID      string   `json:"modelId"`
+	ContextSize  int      `json:"contextSize"`
+	Pricing      Pricing  `json:"pricing"`
+	Capabilities []string `json:"capabilities"`
+}
+
+// Pricing represents cost information for a model
+type Pricing struct {
+	InputTokens  float64 `json:"inputTokens"`  // Cost per 1K input tokens
+	OutputTokens float64 `json:"outputTokens"` // Cost per 1K output tokens
+	Currency     string  `json:"currency"`
+}
+
+// LLMRequest represents a request to execute an LLM
+type LLMRequest struct {
+	Provider    string                 `json:"provider"`
+	Model       string                 `json:"model"`
+	Prompt      string                 `json:"prompt"`
+	MaxTokens   int                    `json:"maxTokens,omitempty"`
+	Temperature float64                `json:"temperature,omitempty"`
+	Parameters  map[string]interface{} `json:"parameters,omitempty"`
+}
+
+// LLMResponse represents a response from an LLM
+type LLMResponse struct {
+	Text         string     `json:"text"`
+	Usage        TokenUsage `json:"usage"`
+	FinishReason string     `json:"finishReason,omitempty"`
+}
+
+// TokenUsage represents token usage information
+type TokenUsage struct {
+	PromptTokens     int `json:"promptTokens"`
+	CompletionTokens int `json:"completionTokens"`
+	TotalTokens      int `json:"totalTokens"`
+}
+
+// PlaygroundExecution represents a playground execution record
+type PlaygroundExecution struct {
+	ID            uuid.UUID     `json:"id"`
+	ProjectID     uuid.UUID     `json:"projectId"`
+	UserID        *uuid.UUID    `json:"userId,omitempty"`
+	PromptID      *uuid.UUID    `json:"promptId,omitempty"`
+	Request       LLMRequest    `json:"request"`
+	Response      *LLMResponse  `json:"response,omitempty"`
+	Error         string        `json:"error,omitempty"`
+	ExecutionTime time.Duration `json:"executionTime"`
+	Cost          float64       `json:"cost"`
+	CreatedAt     time.Time     `json:"createdAt"`
 }

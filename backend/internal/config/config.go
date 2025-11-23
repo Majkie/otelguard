@@ -59,7 +59,7 @@ func (c PostgresConfig) MigrationDSN() string {
 type ClickHouseConfig struct {
 	Host        string        `envconfig:"CLICKHOUSE_HOST" default:"localhost"`
 	Port        int           `envconfig:"CLICKHOUSE_PORT" default:"9000"`
-	Database    string        `envconfig:"CLICKHOUSE_DB" default:"otelguard"`
+	Database    string        `envconfig:"CLICKHOUSE_DB" default:"default"`
 	User        string        `envconfig:"CLICKHOUSE_USER" default:"default"`
 	Password    string        `envconfig:"CLICKHOUSE_PASSWORD" default:""`
 	DialTimeout time.Duration `envconfig:"CLICKHOUSE_DIAL_TIMEOUT" default:"5s"`
@@ -86,12 +86,12 @@ type AuthConfig struct {
 // SamplerConfig holds trace sampling configuration
 type SamplerConfig struct {
 	Enabled       bool    `envconfig:"SAMPLER_ENABLED" default:"false"`
-	Type          string  `envconfig:"SAMPLER_TYPE" default:"always"`       // always, random, rate_limit, consistent, priority
-	Rate          float64 `envconfig:"SAMPLER_RATE" default:"1.0"`          // 0.0 to 1.0 for random/consistent
-	MaxPerSecond  int     `envconfig:"SAMPLER_MAX_PER_SEC" default:"100"`   // For rate_limit sampling
-	SampleErrors  bool    `envconfig:"SAMPLER_ERRORS" default:"true"`       // Always sample errors
-	SampleSlow    bool    `envconfig:"SAMPLER_SLOW" default:"true"`         // Always sample slow traces
-	SlowThreshold int     `envconfig:"SAMPLER_SLOW_MS" default:"5000"`      // Threshold for slow in ms
+	Type          string  `envconfig:"SAMPLER_TYPE" default:"always"`     // always, random, rate_limit, consistent, priority
+	Rate          float64 `envconfig:"SAMPLER_RATE" default:"1.0"`        // 0.0 to 1.0 for random/consistent
+	MaxPerSecond  int     `envconfig:"SAMPLER_MAX_PER_SEC" default:"100"` // For rate_limit sampling
+	SampleErrors  bool    `envconfig:"SAMPLER_ERRORS" default:"true"`     // Always sample errors
+	SampleSlow    bool    `envconfig:"SAMPLER_SLOW" default:"true"`       // Always sample slow traces
+	SlowThreshold int     `envconfig:"SAMPLER_SLOW_MS" default:"5000"`    // Threshold for slow in ms
 }
 
 // GRPCConfig holds gRPC server configuration

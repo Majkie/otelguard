@@ -38,12 +38,12 @@ type EvaluateRequest struct {
 
 // EvaluateResponse represents the evaluation response
 type EvaluateResponse struct {
-	Passed       bool               `json:"passed"`
-	Violations   []ViolationResult  `json:"violations,omitempty"`
-	Remediated   bool               `json:"remediated"`
-	Output       string             `json:"output,omitempty"`
-	LatencyMs    int64              `json:"latencyMs"`
-	EvaluationID string             `json:"evaluationId"`
+	Passed       bool              `json:"passed"`
+	Violations   []ViolationResult `json:"violations,omitempty"`
+	Remediated   bool              `json:"remediated"`
+	Output       string            `json:"output,omitempty"`
+	LatencyMs    int64             `json:"latencyMs"`
+	EvaluationID string            `json:"evaluationId"`
 }
 
 // ViolationResult represents a single rule violation
@@ -84,9 +84,14 @@ func (h *GuardrailHandler) Evaluate(c *gin.Context) {
 
 // List returns all guardrail policies
 func (h *GuardrailHandler) List(c *gin.Context) {
-	projectID := c.GetString("project_id")
+	projectID := c.Query("projectId")
 	if projectID == "" {
-		projectID = "default"
+		h.logger.Warn("projectId not found in query parameters")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "projectId is required",
+		})
+		return
 	}
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
@@ -134,14 +139,24 @@ func (h *GuardrailHandler) Create(c *gin.Context) {
 		return
 	}
 
-	projectID := c.GetString("project_id")
+	projectID := c.Query("projectId")
 	if projectID == "" {
-		projectID = "default"
+		h.logger.Warn("projectId not found in query parameters")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "projectId is required",
+		})
+		return
 	}
 
 	projectUUID, err := uuid.Parse(projectID)
 	if err != nil {
-		projectUUID = uuid.New()
+		h.logger.Error("invalid projectId format", zap.String("projectId", projectID), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid projectId format",
+		})
+		return
 	}
 
 	triggersJSON, _ := json.Marshal(req.Triggers)

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"os"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -21,6 +22,7 @@ type Handlers struct {
 	OTLP      *handlers.OTLPHandler
 	Prompt    *handlers.PromptHandler
 	Guardrail *handlers.GuardrailHandler
+	LLM       *handlers.LLMHandler
 }
 
 // SetupRouter configures the Gin router with all routes and middleware
@@ -38,12 +40,18 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 	r.Use(middleware.Logger(logger))
 	r.Use(middleware.ErrorHandler())
 
-	// CORS configuration
+	// CORS configuration for cookie-based authentication
+	corsOrigins := []string{"http://localhost:3000", "http://localhost:5173"}
+	if cfg.IsProduction() {
+		// In production, restrict to specific domains
+		corsOrigins = []string{os.Getenv("CORS_ALLOWED_ORIGINS")}
+	}
+
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:5173"},
+		AllowOrigins:     corsOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-API-Key", "X-Request-ID"},
-		ExposeHeaders:    []string{"Content-Length", "X-Request-ID"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-API-Key", "X-Request-ID", "X-CSRF-Token"},
+		ExposeHeaders:    []string{"Content-Length", "X-Request-ID", "X-CSRF-Token"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
@@ -61,6 +69,7 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 			auth.POST("/register", h.Auth.Register)
 			auth.POST("/login", h.Auth.Login)
 			auth.POST("/refresh", h.Auth.RefreshToken)
+			auth.POST("/logout", h.Auth.Logout)
 			auth.POST("/password-reset/request", h.Org.RequestPasswordReset)
 			auth.POST("/password-reset/confirm", h.Org.ResetPassword)
 		}
@@ -87,9 +96,10 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 			sdk.POST("/guardrails/evaluate", middleware.RequireScope("guardrail:evaluate"), h.Guardrail.Evaluate)
 		}
 
-		// Dashboard routes - JWT authentication
+		// Dashboard routes - JWT authentication with auto-refresh
 		dashboard := v1.Group("")
-		dashboard.Use(middleware.JWTAuth(cfg.Auth.JWTSecret))
+		dashboard.Use(middleware.AutoRefreshAuth(cfg.Auth.JWTSecret, 15*time.Minute)) // Refresh when < 15 minutes left
+		dashboard.Use(middleware.CSRFProtection())                                    // CSRF protection for state-changing operations
 		{
 			// User profile
 			dashboard.GET("/me", h.Auth.Me)
@@ -142,6 +152,13 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				traces.DELETE("/:id", h.Trace.DeleteTrace)
 			}
 
+			// Scores (dashboard view)
+			scores := dashboard.Group("/scores")
+			{
+				scores.GET("", h.Trace.ListScores)
+				scores.GET("/:scoreId", h.Trace.GetScoreByID)
+			}
+
 			// Users (tracked users from traces)
 			users := dashboard.Group("/users")
 			{
@@ -173,22 +190,36 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				prompts.GET("/:id/versions/by-label/:label", h.Prompt.GetVersionByLabel)
 				prompts.GET("/:id/analytics", h.Prompt.GetAnalytics)
 				prompts.GET("/:id/traces", h.Prompt.GetLinkedTraces)
+				prompts.GET("/:id/performance", h.Prompt.GetPerformanceMetrics)
+				prompts.GET("/:id/regressions", h.Prompt.DetectRegressions)
 			}
 
 			// Guardrails
 			guardrails := dashboard.Group("/guardrails")
 			{
-				guardrails.GET("", h.Guardrail.List)
-				guardrails.POST("", h.Guardrail.Create)
-				guardrails.GET("/:id", h.Guardrail.Get)
-				guardrails.PUT("/:id", h.Guardrail.Update)
-				guardrails.DELETE("/:id", h.Guardrail.Delete)
+				// Policies
+				guardrails.GET("/policies", h.Guardrail.List)
+				guardrails.POST("/policies", h.Guardrail.Create)
+				guardrails.GET("/policies/:id", h.Guardrail.Get)
+				guardrails.PUT("/policies/:id", h.Guardrail.Update)
+				guardrails.DELETE("/policies/:id", h.Guardrail.Delete)
 
 				// Rules
-				guardrails.GET("/:id/rules", h.Guardrail.ListRules)
-				guardrails.POST("/:id/rules", h.Guardrail.AddRule)
-				guardrails.PUT("/:id/rules/:ruleId", h.Guardrail.UpdateRule)
-				guardrails.DELETE("/:id/rules/:ruleId", h.Guardrail.DeleteRule)
+				guardrails.GET("/policies/:id/rules", h.Guardrail.ListRules)
+				guardrails.POST("/policies/:id/rules", h.Guardrail.AddRule)
+				guardrails.PUT("/policies/:id/rules/:ruleId", h.Guardrail.UpdateRule)
+				guardrails.DELETE("/policies/:id/rules/:ruleId", h.Guardrail.DeleteRule)
+			}
+
+			// LLM
+			llm := dashboard.Group("/llm")
+			{
+				llm.GET("/models", h.LLM.ListModels)
+				llm.POST("/execute", h.LLM.ExecutePrompt)
+				llm.POST("/stream", h.LLM.StreamPrompt)
+				llm.GET("/count-tokens", h.LLM.CountTokens)
+				llm.POST("/estimate-cost", h.LLM.EstimateCost)
+				llm.GET("/cost-breakdown", h.LLM.GetCostBreakdown)
 			}
 
 			// Analytics
@@ -198,6 +229,11 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				analytics.GET("/costs", h.Trace.GetCostAnalytics)
 				analytics.GET("/usage", h.Trace.GetUsageAnalytics)
 				analytics.GET("/ingestion", h.Trace.GetIngestionStats)
+
+				// Score analytics
+				analytics.GET("/scores/aggregations", h.Trace.GetScoreAggregations)
+				analytics.GET("/scores/trends", h.Trace.GetScoreTrends)
+				analytics.GET("/scores/comparisons", h.Trace.GetScoreComparisons)
 			}
 		}
 	}

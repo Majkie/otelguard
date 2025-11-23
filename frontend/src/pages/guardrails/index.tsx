@@ -44,9 +44,9 @@ import {
 } from 'lucide-react';
 import {
   useGuardrailPolicies,
-  useCreatePolicy,
-  useUpdatePolicy,
-  useDeletePolicy,
+  useCreateGuardrailPolicy,
+  useUpdateGuardrailPolicy,
+  useDeleteGuardrailPolicy,
   type GuardrailPolicy,
 } from '@/api/guardrails';
 
@@ -66,9 +66,9 @@ export function GuardrailsPage() {
     limit,
     offset: page * limit,
   });
-  const createPolicy = useCreatePolicy();
-  const updatePolicy = useUpdatePolicy();
-  const deletePolicy = useDeletePolicy();
+  const createPolicy = useCreateGuardrailPolicy();
+  const updatePolicy = useUpdateGuardrailPolicy();
+  const deletePolicy = useDeleteGuardrailPolicy();
 
   const filteredPolicies = data?.data.filter(
     (policy) =>

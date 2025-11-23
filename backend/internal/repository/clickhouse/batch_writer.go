@@ -46,12 +46,12 @@ type TraceBatchWriter struct {
 	wg     sync.WaitGroup
 
 	// Metrics
-	tracesWritten  int64
-	spansWritten   int64
-	scoresWritten  int64
-	flushCount     int64
-	errorCount     int64
-	metricsMu      sync.RWMutex
+	tracesWritten int64
+	spansWritten  int64
+	scoresWritten int64
+	flushCount    int64
+	errorCount    int64
+	metricsMu     sync.RWMutex
 }
 
 // NewTraceBatchWriter creates a new batch writer

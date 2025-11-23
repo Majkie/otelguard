@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/otelguard/otelguard/internal/domain"
 	"github.com/otelguard/otelguard/internal/repository/clickhouse"
 	"go.uber.org/zap"
@@ -87,23 +88,25 @@ func (s *TraceService) GetSamplerStats() *SamplerStats {
 
 // ListTracesOptions contains options for listing traces
 type ListTracesOptions struct {
-	ProjectID  string
-	SessionID  string
-	UserID     string
-	Model      string
-	Name       string   // Search by name
-	Status     string   // Filter by status
-	Tags       []string // Filter by tags
-	StartTime  string   // ISO8601 timestamp
-	EndTime    string   // ISO8601 timestamp
-	MinLatency int      // Minimum latency in ms
-	MaxLatency int      // Maximum latency in ms
-	MinCost    float64  // Minimum cost
-	MaxCost    float64  // Maximum cost
-	SortBy     string   // Field to sort by
-	SortOrder  string   // ASC or DESC
-	Limit      int
-	Offset     int
+	ProjectID     string
+	SessionID     string
+	UserID        string
+	Model         string
+	Name          string   // Search by name
+	Status        string   // Filter by status
+	Tags          []string // Filter by tags
+	StartTime     string   // ISO8601 timestamp
+	EndTime       string   // ISO8601 timestamp
+	MinLatency    int      // Minimum latency in ms
+	MaxLatency    int      // Maximum latency in ms
+	MinCost       float64  // Minimum cost
+	MaxCost       float64  // Maximum cost
+	PromptID      string   // Filter by prompt ID
+	PromptVersion string   // Filter by prompt version
+	SortBy        string   // Field to sort by
+	SortOrder     string   // ASC or DESC
+	Limit         int
+	Offset        int
 }
 
 // IngestTrace ingests a single trace
@@ -167,6 +170,31 @@ func (s *TraceService) SubmitScore(ctx context.Context, score *domain.Score) err
 	return s.traceRepo.InsertScore(ctx, score)
 }
 
+// GetScores retrieves scores with filtering
+func (s *TraceService) GetScores(ctx context.Context, filter *clickhouse.ScoreFilter) ([]*domain.Score, int, error) {
+	return s.traceRepo.GetScores(ctx, filter)
+}
+
+// GetScoreByID retrieves a single score by ID
+func (s *TraceService) GetScoreByID(ctx context.Context, projectID, scoreID uuid.UUID) (*domain.Score, error) {
+	return s.traceRepo.GetScoreByID(ctx, projectID, scoreID)
+}
+
+// GetScoreAggregations retrieves aggregated statistics for scores
+func (s *TraceService) GetScoreAggregations(ctx context.Context, filter *clickhouse.ScoreFilter) ([]*clickhouse.ScoreAggregation, error) {
+	return s.traceRepo.GetScoreAggregations(ctx, filter)
+}
+
+// GetScoreTrends retrieves score trends over time
+func (s *TraceService) GetScoreTrends(ctx context.Context, filter *clickhouse.ScoreFilter, groupBy string) ([]*clickhouse.ScoreTrend, error) {
+	return s.traceRepo.GetScoreTrends(ctx, filter, groupBy)
+}
+
+// GetScoreComparisons retrieves score comparisons across dimensions
+func (s *TraceService) GetScoreComparisons(ctx context.Context, filter *clickhouse.ScoreFilter, dimension string) ([]*clickhouse.ScoreComparison, error) {
+	return s.traceRepo.GetScoreComparisons(ctx, filter, dimension)
+}
+
 // GetBatchWriterMetrics returns metrics from the batch writer
 func (s *TraceService) GetBatchWriterMetrics() *clickhouse.BatchWriterMetrics {
 	if s.batchWriter == nil {
@@ -178,24 +206,177 @@ func (s *TraceService) GetBatchWriterMetrics() *clickhouse.BatchWriterMetrics {
 // ListTraces returns paginated traces
 func (s *TraceService) ListTraces(ctx context.Context, opts *ListTracesOptions) ([]*domain.Trace, int, error) {
 	return s.traceRepo.Query(ctx, &clickhouse.QueryOptions{
-		ProjectID:  opts.ProjectID,
-		SessionID:  opts.SessionID,
-		UserID:     opts.UserID,
-		Model:      opts.Model,
-		Name:       opts.Name,
-		Status:     opts.Status,
-		Tags:       opts.Tags,
-		StartTime:  opts.StartTime,
-		EndTime:    opts.EndTime,
-		MinLatency: opts.MinLatency,
-		MaxLatency: opts.MaxLatency,
-		MinCost:    opts.MinCost,
-		MaxCost:    opts.MaxCost,
-		SortBy:     opts.SortBy,
-		SortOrder:  opts.SortOrder,
-		Limit:      opts.Limit,
-		Offset:     opts.Offset,
+		ProjectID:     opts.ProjectID,
+		SessionID:     opts.SessionID,
+		UserID:        opts.UserID,
+		Model:         opts.Model,
+		Name:          opts.Name,
+		Status:        opts.Status,
+		Tags:          opts.Tags,
+		StartTime:     opts.StartTime,
+		EndTime:       opts.EndTime,
+		MinLatency:    opts.MinLatency,
+		MaxLatency:    opts.MaxLatency,
+		MinCost:       opts.MinCost,
+		MaxCost:       opts.MaxCost,
+		PromptID:      opts.PromptID,
+		PromptVersion: opts.PromptVersion,
+		SortBy:        opts.SortBy,
+		SortOrder:     opts.SortOrder,
+		Limit:         opts.Limit,
+		Offset:        opts.Offset,
 	})
+}
+
+// GetPromptPerformanceMetrics returns performance metrics for prompts
+func (s *TraceService) GetPromptPerformanceMetrics(ctx context.Context, projectID, promptID, startTime, endTime string) ([]*clickhouse.PromptPerformanceMetrics, error) {
+	return s.traceRepo.GetPromptPerformanceMetrics(ctx, projectID, promptID, startTime, endTime)
+}
+
+// PromptRegressionResult represents the result of regression detection
+type PromptRegressionResult struct {
+	PromptID          string   `json:"promptId"`
+	CurrentVersion    int      `json:"currentVersion"`
+	PreviousVersion   int      `json:"previousVersion"`
+	LatencyChange     float64  `json:"latencyChange"`               // Percentage change in average latency
+	CostChange        float64  `json:"costChange"`                  // Percentage change in average cost
+	TokenChange       float64  `json:"tokenChange"`                 // Percentage change in average tokens
+	ErrorRateChange   float64  `json:"errorRateChange"`             // Change in error rate (percentage points)
+	IsRegression      bool     `json:"isRegression"`                // True if any metric regressed significantly
+	RegressionReasons []string `json:"regressionReasons,omitempty"` // Reasons for regression
+}
+
+// DetectPromptRegressions detects performance regressions between prompt versions
+func (s *TraceService) DetectPromptRegressions(ctx context.Context, projectID, promptID string) ([]*PromptRegressionResult, error) {
+	// Get performance metrics for all versions of this prompt
+	metrics, err := s.traceRepo.GetPromptPerformanceMetrics(ctx, projectID, promptID, "", "")
+	if err != nil {
+		return nil, err
+	}
+
+	// Group metrics by version
+	versionMetrics := make(map[int][]*clickhouse.PromptPerformanceMetrics)
+	for _, m := range metrics {
+		versionMetrics[m.PromptVersion] = append(versionMetrics[m.PromptVersion], m)
+	}
+
+	// Find all versions, sorted
+	var versions []int
+	for v := range versionMetrics {
+		versions = append(versions, v)
+	}
+
+	// Sort versions in descending order (newest first)
+	for i := 0; i < len(versions)-1; i++ {
+		for j := i + 1; j < len(versions); j++ {
+			if versions[i] < versions[j] {
+				versions[i], versions[j] = versions[j], versions[i]
+			}
+		}
+	}
+
+	var results []*PromptRegressionResult
+
+	// Compare each version with the next newer version
+	for i := 0; i < len(versions)-1; i++ {
+		currentVersion := versions[i]
+		previousVersion := versions[i+1]
+
+		currentMetrics := versionMetrics[currentVersion]
+		previousMetrics := versionMetrics[previousVersion]
+
+		// Aggregate metrics across all models for each version
+		currentAgg := s.aggregateMetrics(currentMetrics)
+		previousAgg := s.aggregateMetrics(previousMetrics)
+
+		result := &PromptRegressionResult{
+			PromptID:        promptID,
+			CurrentVersion:  currentVersion,
+			PreviousVersion: previousVersion,
+		}
+
+		// Calculate percentage changes
+		if previousAgg.avgLatency > 0 {
+			result.LatencyChange = ((currentAgg.avgLatency - previousAgg.avgLatency) / previousAgg.avgLatency) * 100
+		}
+		if previousAgg.avgCost > 0 {
+			result.CostChange = ((currentAgg.avgCost - previousAgg.avgCost) / previousAgg.avgCost) * 100
+		}
+		if previousAgg.avgTokens > 0 {
+			result.TokenChange = ((currentAgg.avgTokens - previousAgg.avgTokens) / previousAgg.avgTokens) * 100
+		}
+
+		currentErrorRate := float64(currentAgg.errorCount) / float64(currentAgg.traceCount) * 100
+		previousErrorRate := float64(previousAgg.errorCount) / float64(previousAgg.traceCount) * 100
+		result.ErrorRateChange = currentErrorRate - previousErrorRate
+
+		// Check for regressions (significant increases in latency, cost, tokens, or error rate)
+		var reasons []string
+		if result.LatencyChange > 10 { // 10% increase in latency
+			reasons = append(reasons, "latency")
+		}
+		if result.CostChange > 15 { // 15% increase in cost
+			reasons = append(reasons, "cost")
+		}
+		if result.TokenChange > 20 { // 20% increase in token usage
+			reasons = append(reasons, "token_usage")
+		}
+		if result.ErrorRateChange > 5 { // 5 percentage point increase in error rate
+			reasons = append(reasons, "error_rate")
+		}
+
+		result.IsRegression = len(reasons) > 0
+		result.RegressionReasons = reasons
+
+		results = append(results, result)
+	}
+
+	return results, nil
+}
+
+// aggregatedMetrics represents aggregated metrics for a version
+type aggregatedMetrics struct {
+	traceCount   uint64
+	totalLatency uint64
+	avgLatency   float64
+	totalTokens  uint64
+	avgTokens    float64
+	totalCost    float64
+	avgCost      float64
+	errorCount   uint64
+}
+
+// aggregateMetrics aggregates metrics across multiple records (e.g., different models/dates)
+func (s *TraceService) aggregateMetrics(metrics []*clickhouse.PromptPerformanceMetrics) *aggregatedMetrics {
+	if len(metrics) == 0 {
+		return &aggregatedMetrics{}
+	}
+
+	var totalTraceCount, totalLatency, totalTokens, totalErrorCount uint64
+	var totalCost float64
+
+	for _, m := range metrics {
+		totalTraceCount += m.TraceCount
+		totalLatency += m.TotalLatency
+		totalTokens += m.TotalTokens
+		totalCost += m.TotalCost
+		totalErrorCount += m.ErrorCount
+	}
+
+	avgLatency := float64(totalLatency) / float64(totalTraceCount)
+	avgTokens := float64(totalTokens) / float64(totalTraceCount)
+	avgCost := totalCost / float64(totalTraceCount)
+
+	return &aggregatedMetrics{
+		traceCount:   totalTraceCount,
+		totalLatency: totalLatency,
+		avgLatency:   avgLatency,
+		totalTokens:  totalTokens,
+		avgTokens:    avgTokens,
+		totalCost:    totalCost,
+		avgCost:      avgCost,
+		errorCount:   totalErrorCount,
+	}
 }
 
 // GetTrace retrieves a single trace by ID

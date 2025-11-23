@@ -26,21 +26,21 @@ func NewUserSegmentationService(traceRepo *clickhouse.TraceRepository, logger *z
 type SegmentationType string
 
 const (
-	SegmentByUsage    SegmentationType = "usage"     // By trace count
-	SegmentByCost     SegmentationType = "cost"      // By total cost
-	SegmentByActivity SegmentationType = "activity"  // By last activity
-	SegmentByQuality  SegmentationType = "quality"   // By success rate
-	SegmentByTokens   SegmentationType = "tokens"    // By token consumption
+	SegmentByUsage    SegmentationType = "usage"    // By trace count
+	SegmentByCost     SegmentationType = "cost"     // By total cost
+	SegmentByActivity SegmentationType = "activity" // By last activity
+	SegmentByQuality  SegmentationType = "quality"  // By success rate
+	SegmentByTokens   SegmentationType = "tokens"   // By token consumption
 )
 
 // UserSegment represents a segment of users
 type UserSegment struct {
-	Name        string              `json:"name"`
-	Description string              `json:"description"`
-	Criteria    string              `json:"criteria"`
-	UserCount   int                 `json:"userCount"`
-	Users       []*clickhouse.User  `json:"users,omitempty"`
-	Metrics     *SegmentMetrics     `json:"metrics"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Criteria    string             `json:"criteria"`
+	UserCount   int                `json:"userCount"`
+	Users       []*clickhouse.User `json:"users,omitempty"`
+	Metrics     *SegmentMetrics    `json:"metrics"`
 }
 
 // SegmentMetrics contains aggregate metrics for a segment

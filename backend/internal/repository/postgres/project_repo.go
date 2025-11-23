@@ -2,19 +2,21 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/georgysavva/scany/v2/pgxscan"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/otelguard/otelguard/internal/domain"
 )
 
 // ProjectRepository handles project data access
 type ProjectRepository struct {
-	db *sqlx.DB
+	db *pgxpool.Pool
 }
 
 // NewProjectRepository creates a new project repository
-func NewProjectRepository(db *sqlx.DB) *ProjectRepository {
+func NewProjectRepository(db *pgxpool.Pool) *ProjectRepository {
 	return &ProjectRepository{db: db}
 }
 
@@ -24,7 +26,7 @@ func (r *ProjectRepository) Create(ctx context.Context, project *domain.Project)
 		INSERT INTO projects (id, organization_id, name, slug, settings, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.db.Exec(ctx, query,
 		project.ID,
 		project.OrganizationID,
 		project.Name,
@@ -44,11 +46,14 @@ func (r *ProjectRepository) GetByID(ctx context.Context, id string) (*domain.Pro
 		FROM projects
 		WHERE id = $1 AND deleted_at IS NULL
 	`
-	err := r.db.GetContext(ctx, &project, query, id)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
+	err := pgxscan.Get(ctx, r.db, &project, query, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
 	}
-	return &project, err
+	return &project, nil
 }
 
 // GetBySlug retrieves a project by organization ID and slug
@@ -59,11 +64,14 @@ func (r *ProjectRepository) GetBySlug(ctx context.Context, orgID, slug string) (
 		FROM projects
 		WHERE organization_id = $1 AND slug = $2 AND deleted_at IS NULL
 	`
-	err := r.db.GetContext(ctx, &project, query, orgID, slug)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
+	err := pgxscan.Get(ctx, r.db, &project, query, orgID, slug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
 	}
-	return &project, err
+	return &project, nil
 }
 
 // Update updates a project
@@ -73,7 +81,7 @@ func (r *ProjectRepository) Update(ctx context.Context, project *domain.Project)
 		SET name = $2, slug = $3, settings = $4, updated_at = $5
 		WHERE id = $1 AND deleted_at IS NULL
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.db.Exec(ctx, query,
 		project.ID,
 		project.Name,
 		project.Slug,
@@ -86,7 +94,7 @@ func (r *ProjectRepository) Update(ctx context.Context, project *domain.Project)
 // Delete soft-deletes a project
 func (r *ProjectRepository) Delete(ctx context.Context, id string) error {
 	query := `UPDATE projects SET deleted_at = NOW() WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+	_, err := r.db.Exec(ctx, query, id)
 	return err
 }
 
@@ -94,7 +102,7 @@ func (r *ProjectRepository) Delete(ctx context.Context, id string) error {
 func (r *ProjectRepository) ListByOrganizationID(ctx context.Context, orgID string, limit, offset int) ([]*domain.Project, int, error) {
 	var total int
 	countQuery := `SELECT COUNT(*) FROM projects WHERE organization_id = $1 AND deleted_at IS NULL`
-	if err := r.db.GetContext(ctx, &total, countQuery, orgID); err != nil {
+	if err := pgxscan.Get(ctx, r.db, &total, countQuery, orgID); err != nil {
 		return nil, 0, err
 	}
 
@@ -106,7 +114,7 @@ func (r *ProjectRepository) ListByOrganizationID(ctx context.Context, orgID stri
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
 	`
-	if err := r.db.SelectContext(ctx, &projects, query, orgID, limit, offset); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &projects, query, orgID, limit, offset); err != nil {
 		return nil, 0, err
 	}
 
@@ -123,7 +131,7 @@ func (r *ProjectRepository) ListByUserID(ctx context.Context, userID string, lim
 		LEFT JOIN project_members pm ON p.id = pm.project_id
 		WHERE (om.user_id = $1 OR pm.user_id = $1) AND p.deleted_at IS NULL
 	`
-	if err := r.db.GetContext(ctx, &total, countQuery, userID); err != nil {
+	if err := pgxscan.Get(ctx, r.db, &total, countQuery, userID); err != nil {
 		return nil, 0, err
 	}
 
@@ -137,7 +145,7 @@ func (r *ProjectRepository) ListByUserID(ctx context.Context, userID string, lim
 		ORDER BY p.created_at DESC
 		LIMIT $2 OFFSET $3
 	`
-	if err := r.db.SelectContext(ctx, &projects, query, userID, limit, offset); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &projects, query, userID, limit, offset); err != nil {
 		return nil, 0, err
 	}
 
@@ -150,7 +158,7 @@ func (r *ProjectRepository) AddMember(ctx context.Context, member *domain.Projec
 		INSERT INTO project_members (id, project_id, user_id, role, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.db.Exec(ctx, query,
 		member.ID,
 		member.ProjectID,
 		member.UserID,
@@ -164,7 +172,7 @@ func (r *ProjectRepository) AddMember(ctx context.Context, member *domain.Projec
 // RemoveMember removes a user from a project
 func (r *ProjectRepository) RemoveMember(ctx context.Context, projectID, userID string) error {
 	query := `DELETE FROM project_members WHERE project_id = $1 AND user_id = $2`
-	_, err := r.db.ExecContext(ctx, query, projectID, userID)
+	_, err := r.db.Exec(ctx, query, projectID, userID)
 	return err
 }
 
@@ -176,18 +184,21 @@ func (r *ProjectRepository) GetMember(ctx context.Context, projectID, userID str
 		FROM project_members
 		WHERE project_id = $1 AND user_id = $2
 	`
-	err := r.db.GetContext(ctx, &member, query, projectID, userID)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
+	err := pgxscan.Get(ctx, r.db, &member, query, projectID, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
 	}
-	return &member, err
+	return &member, nil
 }
 
 // ListMembers lists all members of a project
 func (r *ProjectRepository) ListMembers(ctx context.Context, projectID string, limit, offset int) ([]*domain.ProjectMember, int, error) {
 	var total int
 	countQuery := `SELECT COUNT(*) FROM project_members WHERE project_id = $1`
-	if err := r.db.GetContext(ctx, &total, countQuery, projectID); err != nil {
+	if err := pgxscan.Get(ctx, r.db, &total, countQuery, projectID); err != nil {
 		return nil, 0, err
 	}
 
@@ -199,7 +210,7 @@ func (r *ProjectRepository) ListMembers(ctx context.Context, projectID string, l
 		ORDER BY created_at ASC
 		LIMIT $2 OFFSET $3
 	`
-	if err := r.db.SelectContext(ctx, &members, query, projectID, limit, offset); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &members, query, projectID, limit, offset); err != nil {
 		return nil, 0, err
 	}
 
@@ -211,11 +222,11 @@ func (r *ProjectRepository) GetUserRole(ctx context.Context, projectID, userID s
 	// First check project-specific role
 	var role string
 	projectQuery := `SELECT role FROM project_members WHERE project_id = $1 AND user_id = $2`
-	err := r.db.GetContext(ctx, &role, projectQuery, projectID, userID)
+	err := pgxscan.Get(ctx, r.db, &role, projectQuery, projectID, userID)
 	if err == nil {
 		return role, nil
 	}
-	if err != sql.ErrNoRows {
+	if !errors.Is(err, pgx.ErrNoRows) {
 		return "", err
 	}
 
@@ -226,9 +237,12 @@ func (r *ProjectRepository) GetUserRole(ctx context.Context, projectID, userID s
 		INNER JOIN projects p ON p.organization_id = om.organization_id
 		WHERE p.id = $1 AND om.user_id = $2
 	`
-	err = r.db.GetContext(ctx, &role, orgQuery, projectID, userID)
-	if err == sql.ErrNoRows {
-		return "", domain.ErrNotFound
+	err = pgxscan.Get(ctx, r.db, &role, orgQuery, projectID, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", domain.ErrNotFound
+		}
+		return "", err
 	}
-	return role, err
+	return role, nil
 }

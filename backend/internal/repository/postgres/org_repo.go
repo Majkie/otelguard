@@ -2,21 +2,23 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 	"time"
 
+	"github.com/georgysavva/scany/v2/pgxscan"
 	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/otelguard/otelguard/internal/domain"
 )
 
 // OrganizationRepository handles organization data access
 type OrganizationRepository struct {
-	db *sqlx.DB
+	db *pgxpool.Pool
 }
 
 // NewOrganizationRepository creates a new organization repository
-func NewOrganizationRepository(db *sqlx.DB) *OrganizationRepository {
+func NewOrganizationRepository(db *pgxpool.Pool) *OrganizationRepository {
 	return &OrganizationRepository{db: db}
 }
 
@@ -26,7 +28,7 @@ func (r *OrganizationRepository) Create(ctx context.Context, org *domain.Organiz
 		INSERT INTO organizations (id, name, slug, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.db.Exec(ctx, query,
 		org.ID,
 		org.Name,
 		org.Slug,
@@ -44,11 +46,14 @@ func (r *OrganizationRepository) GetByID(ctx context.Context, id string) (*domai
 		FROM organizations
 		WHERE id = $1 AND deleted_at IS NULL
 	`
-	err := r.db.GetContext(ctx, &org, query, id)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
+	err := pgxscan.Get(ctx, r.db, &org, query, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
 	}
-	return &org, err
+	return &org, nil
 }
 
 // GetBySlug retrieves an organization by slug
@@ -59,11 +64,14 @@ func (r *OrganizationRepository) GetBySlug(ctx context.Context, slug string) (*d
 		FROM organizations
 		WHERE slug = $1 AND deleted_at IS NULL
 	`
-	err := r.db.GetContext(ctx, &org, query, slug)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
+	err := pgxscan.Get(ctx, r.db, &org, query, slug)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
 	}
-	return &org, err
+	return &org, nil
 }
 
 // Update updates an organization
@@ -73,7 +81,7 @@ func (r *OrganizationRepository) Update(ctx context.Context, org *domain.Organiz
 		SET name = $2, slug = $3, updated_at = $4
 		WHERE id = $1 AND deleted_at IS NULL
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.db.Exec(ctx, query,
 		org.ID,
 		org.Name,
 		org.Slug,
@@ -85,7 +93,7 @@ func (r *OrganizationRepository) Update(ctx context.Context, org *domain.Organiz
 // Delete soft-deletes an organization
 func (r *OrganizationRepository) Delete(ctx context.Context, id string) error {
 	query := `UPDATE organizations SET deleted_at = NOW() WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+	_, err := r.db.Exec(ctx, query, id)
 	return err
 }
 
@@ -98,7 +106,7 @@ func (r *OrganizationRepository) ListByUserID(ctx context.Context, userID string
 		INNER JOIN organization_members om ON o.id = om.organization_id
 		WHERE om.user_id = $1 AND o.deleted_at IS NULL
 	`
-	if err := r.db.GetContext(ctx, &total, countQuery, userID); err != nil {
+	if err := pgxscan.Get(ctx, r.db, &total, countQuery, userID); err != nil {
 		return nil, 0, err
 	}
 
@@ -111,7 +119,7 @@ func (r *OrganizationRepository) ListByUserID(ctx context.Context, userID string
 		ORDER BY o.created_at DESC
 		LIMIT $2 OFFSET $3
 	`
-	if err := r.db.SelectContext(ctx, &orgs, query, userID, limit, offset); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &orgs, query, userID, limit, offset); err != nil {
 		return nil, 0, err
 	}
 
@@ -124,7 +132,7 @@ func (r *OrganizationRepository) AddMember(ctx context.Context, member *domain.O
 		INSERT INTO organization_members (id, organization_id, user_id, role, created_at)
 		VALUES ($1, $2, $3, $4, $5)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.db.Exec(ctx, query,
 		member.ID,
 		member.OrganizationID,
 		member.UserID,
@@ -137,7 +145,7 @@ func (r *OrganizationRepository) AddMember(ctx context.Context, member *domain.O
 // RemoveMember removes a user from an organization
 func (r *OrganizationRepository) RemoveMember(ctx context.Context, orgID, userID string) error {
 	query := `DELETE FROM organization_members WHERE organization_id = $1 AND user_id = $2`
-	_, err := r.db.ExecContext(ctx, query, orgID, userID)
+	_, err := r.db.Exec(ctx, query, orgID, userID)
 	return err
 }
 
@@ -149,11 +157,14 @@ func (r *OrganizationRepository) GetMember(ctx context.Context, orgID, userID st
 		FROM organization_members
 		WHERE organization_id = $1 AND user_id = $2
 	`
-	err := r.db.GetContext(ctx, &member, query, orgID, userID)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
+	err := pgxscan.Get(ctx, r.db, &member, query, orgID, userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
 	}
-	return &member, err
+	return &member, nil
 }
 
 // UpdateMemberRole updates a member's role
@@ -163,7 +174,7 @@ func (r *OrganizationRepository) UpdateMemberRole(ctx context.Context, orgID, us
 		SET role = $3
 		WHERE organization_id = $1 AND user_id = $2
 	`
-	_, err := r.db.ExecContext(ctx, query, orgID, userID, role)
+	_, err := r.db.Exec(ctx, query, orgID, userID, role)
 	return err
 }
 
@@ -171,7 +182,7 @@ func (r *OrganizationRepository) UpdateMemberRole(ctx context.Context, orgID, us
 func (r *OrganizationRepository) ListMembers(ctx context.Context, orgID string, limit, offset int) ([]*domain.OrganizationMember, int, error) {
 	var total int
 	countQuery := `SELECT COUNT(*) FROM organization_members WHERE organization_id = $1`
-	if err := r.db.GetContext(ctx, &total, countQuery, orgID); err != nil {
+	if err := pgxscan.Get(ctx, r.db, &total, countQuery, orgID); err != nil {
 		return nil, 0, err
 	}
 
@@ -183,7 +194,7 @@ func (r *OrganizationRepository) ListMembers(ctx context.Context, orgID string, 
 		ORDER BY created_at ASC
 		LIMIT $2 OFFSET $3
 	`
-	if err := r.db.SelectContext(ctx, &members, query, orgID, limit, offset); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &members, query, orgID, limit, offset); err != nil {
 		return nil, 0, err
 	}
 
@@ -196,7 +207,7 @@ func (r *OrganizationRepository) CreatePasswordResetToken(ctx context.Context, t
 		INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
 		VALUES ($1, $2, $3, $4, $5)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.db.Exec(ctx, query,
 		token.ID,
 		token.UserID,
 		token.TokenHash,
@@ -214,24 +225,27 @@ func (r *OrganizationRepository) GetPasswordResetToken(ctx context.Context, toke
 		FROM password_reset_tokens
 		WHERE token_hash = $1
 	`
-	err := r.db.GetContext(ctx, &token, query, tokenHash)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
+	err := pgxscan.Get(ctx, r.db, &token, query, tokenHash)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
 	}
-	return &token, err
+	return &token, nil
 }
 
 // MarkPasswordResetTokenUsed marks a token as used
 func (r *OrganizationRepository) MarkPasswordResetTokenUsed(ctx context.Context, id uuid.UUID) error {
 	query := `UPDATE password_reset_tokens SET used_at = $2 WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id, time.Now())
+	_, err := r.db.Exec(ctx, query, id, time.Now())
 	return err
 }
 
 // InvalidatePasswordResetTokens invalidates all reset tokens for a user
 func (r *OrganizationRepository) InvalidatePasswordResetTokens(ctx context.Context, userID uuid.UUID) error {
 	query := `UPDATE password_reset_tokens SET used_at = $2 WHERE user_id = $1 AND used_at IS NULL`
-	_, err := r.db.ExecContext(ctx, query, userID, time.Now())
+	_, err := r.db.Exec(ctx, query, userID, time.Now())
 	return err
 }
 
@@ -241,7 +255,7 @@ func (r *OrganizationRepository) CreateSession(ctx context.Context, session *dom
 		INSERT INTO user_sessions (id, user_id, token_hash, user_agent, ip_address, last_active_at, expires_at, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.db.Exec(ctx, query,
 		session.ID,
 		session.UserID,
 		session.TokenHash,
@@ -262,31 +276,34 @@ func (r *OrganizationRepository) GetSession(ctx context.Context, tokenHash strin
 		FROM user_sessions
 		WHERE token_hash = $1
 	`
-	err := r.db.GetContext(ctx, &session, query, tokenHash)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
+	err := pgxscan.Get(ctx, r.db, &session, query, tokenHash)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
 	}
-	return &session, err
+	return &session, nil
 }
 
 // UpdateSessionActivity updates the last active time of a session
 func (r *OrganizationRepository) UpdateSessionActivity(ctx context.Context, id uuid.UUID) error {
 	query := `UPDATE user_sessions SET last_active_at = $2 WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id, time.Now())
+	_, err := r.db.Exec(ctx, query, id, time.Now())
 	return err
 }
 
 // RevokeSession revokes a session
 func (r *OrganizationRepository) RevokeSession(ctx context.Context, id uuid.UUID) error {
 	query := `UPDATE user_sessions SET revoked_at = $2 WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id, time.Now())
+	_, err := r.db.Exec(ctx, query, id, time.Now())
 	return err
 }
 
 // RevokeAllUserSessions revokes all sessions for a user
 func (r *OrganizationRepository) RevokeAllUserSessions(ctx context.Context, userID uuid.UUID) error {
 	query := `UPDATE user_sessions SET revoked_at = $2 WHERE user_id = $1 AND revoked_at IS NULL`
-	_, err := r.db.ExecContext(ctx, query, userID, time.Now())
+	_, err := r.db.Exec(ctx, query, userID, time.Now())
 	return err
 }
 
@@ -297,7 +314,7 @@ func (r *OrganizationRepository) ListUserSessions(ctx context.Context, userID st
 		SELECT COUNT(*) FROM user_sessions
 		WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > NOW()
 	`
-	if err := r.db.GetContext(ctx, &total, countQuery, userID); err != nil {
+	if err := pgxscan.Get(ctx, r.db, &total, countQuery, userID); err != nil {
 		return nil, 0, err
 	}
 
@@ -309,7 +326,7 @@ func (r *OrganizationRepository) ListUserSessions(ctx context.Context, userID st
 		ORDER BY last_active_at DESC
 		LIMIT $2 OFFSET $3
 	`
-	if err := r.db.SelectContext(ctx, &sessions, query, userID, limit, offset); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &sessions, query, userID, limit, offset); err != nil {
 		return nil, 0, err
 	}
 

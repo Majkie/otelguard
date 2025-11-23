@@ -2,10 +2,11 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 
-	"github.com/jmoiron/sqlx"
-	"github.com/lib/pq"
+	"github.com/georgysavva/scany/v2/pgxscan"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/otelguard/otelguard/internal/domain"
 )
 
@@ -17,11 +18,11 @@ type ListOptions struct {
 
 // PromptRepository handles prompt data access
 type PromptRepository struct {
-	db *sqlx.DB
+	db *pgxpool.Pool
 }
 
 // NewPromptRepository creates a new prompt repository
-func NewPromptRepository(db *sqlx.DB) *PromptRepository {
+func NewPromptRepository(db *pgxpool.Pool) *PromptRepository {
 	return &PromptRepository{db: db}
 }
 
@@ -31,12 +32,12 @@ func (r *PromptRepository) Create(ctx context.Context, prompt *domain.Prompt) er
 		INSERT INTO prompts (id, project_id, name, description, tags, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.db.Exec(ctx, query,
 		prompt.ID,
 		prompt.ProjectID,
 		prompt.Name,
 		prompt.Description,
-		pq.Array(prompt.Tags),
+		prompt.Tags,
 		prompt.CreatedAt,
 		prompt.UpdatedAt,
 	)
@@ -51,11 +52,14 @@ func (r *PromptRepository) GetByID(ctx context.Context, id string) (*domain.Prom
 		FROM prompts
 		WHERE id = $1 AND deleted_at IS NULL
 	`
-	err := r.db.GetContext(ctx, &prompt, query, id)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
+	err := pgxscan.Get(ctx, r.db, &prompt, query, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
 	}
-	return &prompt, err
+	return &prompt, nil
 }
 
 // List returns prompts for a project with pagination
@@ -63,9 +67,26 @@ func (r *PromptRepository) List(ctx context.Context, projectID string, opts *Lis
 	var prompts []*domain.Prompt
 	var total int
 
+	// Use default values if opts is nil
+	limit := 50
+	offset := 0
+	if opts != nil {
+		if opts.Limit > 0 {
+			limit = opts.Limit
+		}
+		if opts.Offset > 0 {
+			offset = opts.Offset
+		}
+	}
+
+	// Ensure reasonable limits
+	if limit > 100 {
+		limit = 100
+	}
+
 	// Count query
 	countQuery := `SELECT COUNT(*) FROM prompts WHERE project_id = $1 AND deleted_at IS NULL`
-	if err := r.db.GetContext(ctx, &total, countQuery, projectID); err != nil {
+	if err := pgxscan.Get(ctx, r.db, &total, countQuery, projectID); err != nil {
 		return nil, 0, err
 	}
 
@@ -77,7 +98,7 @@ func (r *PromptRepository) List(ctx context.Context, projectID string, opts *Lis
 		ORDER BY created_at DESC
 		LIMIT $2 OFFSET $3
 	`
-	if err := r.db.SelectContext(ctx, &prompts, listQuery, projectID, opts.Limit, opts.Offset); err != nil {
+	if err := pgxscan.Select(ctx, r.db, &prompts, listQuery, projectID, limit, offset); err != nil {
 		return nil, 0, err
 	}
 
@@ -91,11 +112,11 @@ func (r *PromptRepository) Update(ctx context.Context, prompt *domain.Prompt) er
 		SET name = $2, description = $3, tags = $4, updated_at = $5
 		WHERE id = $1 AND deleted_at IS NULL
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.db.Exec(ctx, query,
 		prompt.ID,
 		prompt.Name,
 		prompt.Description,
-		pq.Array(prompt.Tags),
+		prompt.Tags,
 		prompt.UpdatedAt,
 	)
 	return err
@@ -104,7 +125,7 @@ func (r *PromptRepository) Update(ctx context.Context, prompt *domain.Prompt) er
 // Delete soft-deletes a prompt
 func (r *PromptRepository) Delete(ctx context.Context, id string) error {
 	query := `UPDATE prompts SET deleted_at = NOW() WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+	_, err := r.db.Exec(ctx, query, id)
 	return err
 }
 
@@ -114,13 +135,13 @@ func (r *PromptRepository) CreateVersion(ctx context.Context, version *domain.Pr
 		INSERT INTO prompt_versions (id, prompt_id, version, content, config, labels, created_by, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.db.Exec(ctx, query,
 		version.ID,
 		version.PromptID,
 		version.Version,
 		version.Content,
 		version.Config,
-		pq.Array(version.Labels),
+		version.Labels,
 		version.CreatedBy,
 		version.CreatedAt,
 	)
@@ -131,7 +152,7 @@ func (r *PromptRepository) CreateVersion(ctx context.Context, version *domain.Pr
 func (r *PromptRepository) GetLatestVersion(ctx context.Context, promptID string) (int, error) {
 	var version int
 	query := `SELECT COALESCE(MAX(version), 0) FROM prompt_versions WHERE prompt_id = $1`
-	err := r.db.GetContext(ctx, &version, query, promptID)
+	err := pgxscan.Get(ctx, r.db, &version, query, promptID)
 	return version, err
 }
 
@@ -143,11 +164,14 @@ func (r *PromptRepository) GetVersion(ctx context.Context, promptID string, vers
 		FROM prompt_versions
 		WHERE prompt_id = $1 AND version = $2
 	`
-	err := r.db.GetContext(ctx, &pv, query, promptID, version)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
+	err := pgxscan.Get(ctx, r.db, &pv, query, promptID, version)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
 	}
-	return &pv, err
+	return &pv, nil
 }
 
 // ListVersions returns all versions of a prompt
@@ -159,7 +183,7 @@ func (r *PromptRepository) ListVersions(ctx context.Context, promptID string) ([
 		WHERE prompt_id = $1
 		ORDER BY version DESC
 	`
-	err := r.db.SelectContext(ctx, &versions, query, promptID)
+	err := pgxscan.Select(ctx, r.db, &versions, query, promptID)
 	return versions, err
 }
 
@@ -170,15 +194,11 @@ func (r *PromptRepository) UpdateVersionLabels(ctx context.Context, promptID str
 		SET labels = $3
 		WHERE prompt_id = $1 AND version = $2
 	`
-	result, err := r.db.ExecContext(ctx, query, promptID, version, pq.Array(labels))
+	result, err := r.db.Exec(ctx, query, promptID, version, labels)
 	if err != nil {
 		return err
 	}
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rowsAffected == 0 {
+	if result.RowsAffected() == 0 {
 		return domain.ErrNotFound
 	}
 	return nil

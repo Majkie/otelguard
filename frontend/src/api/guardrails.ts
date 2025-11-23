@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
+import { useProjectContext } from '@/contexts/project-context';
 
 // Types
 export interface GuardrailPolicy {
@@ -17,17 +18,19 @@ export interface GuardrailPolicy {
 export interface GuardrailRule {
   id: string;
   policyId: string;
+  name: string;
   type: string;
-  config?: Record<string, unknown>;
-  action: string;
-  actionConfig?: Record<string, unknown>;
-  orderIndex: number;
+  config: Record<string, unknown>;
+  enabled: boolean;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface ListPoliciesParams {
   limit?: number;
   offset?: number;
+  projectId?: string;
+  enabled?: boolean;
 }
 
 export interface ListPoliciesResponse {
@@ -40,9 +43,9 @@ export interface ListPoliciesResponse {
 export interface CreatePolicyRequest {
   name: string;
   description?: string;
-  enabled?: boolean;
   priority?: number;
   triggers?: Record<string, unknown>;
+  projectId?: string;
 }
 
 export interface UpdatePolicyRequest {
@@ -53,52 +56,36 @@ export interface UpdatePolicyRequest {
   triggers?: Record<string, unknown>;
 }
 
-export interface EvaluateRequest {
-  input: string;
-  output?: string;
-  context?: Record<string, unknown>;
-  traceId?: string;
-  policyId?: string;
-}
-
-export interface EvaluateResponse {
-  passed: boolean;
-  violations: {
-    ruleId: string;
-    ruleType: string;
-    message: string;
-    action: string;
-    actionTaken: boolean;
-  }[];
-  remediated: boolean;
-  output?: string;
-  latencyMs: number;
-  evaluationId: string;
-}
-
 // Query keys factory
 export const guardrailKeys = {
   all: ['guardrails'] as const,
-  lists: () => [...guardrailKeys.all, 'list'] as const,
-  list: (params: ListPoliciesParams) => [...guardrailKeys.lists(), params] as const,
-  details: () => [...guardrailKeys.all, 'detail'] as const,
-  detail: (id: string) => [...guardrailKeys.details(), id] as const,
-  rules: (id: string) => [...guardrailKeys.detail(id), 'rules'] as const,
+  policies: () => [...guardrailKeys.all, 'policies'] as const,
+  policyLists: () => [...guardrailKeys.policies(), 'list'] as const,
+  policyList: (params: ListPoliciesParams) => [...guardrailKeys.policyLists(), params] as const,
+  policyDetails: () => [...guardrailKeys.policies(), 'detail'] as const,
+  policyDetail: (id: string) => [...guardrailKeys.policyDetails(), id] as const,
+  rules: (policyId: string) => [...guardrailKeys.policyDetail(policyId), 'rules'] as const,
 };
 
-// Hooks
-export function useGuardrailPolicies(params: ListPoliciesParams = {}) {
+// Hooks with project context
+export function useGuardrailPolicies(params: Omit<ListPoliciesParams, 'projectId'> = {}) {
+  const { selectedProject } = useProjectContext();
+  const projectId = selectedProject?.id;
+
   return useQuery({
-    queryKey: guardrailKeys.list(params),
+    queryKey: guardrailKeys.policyList({ ...params, projectId }),
     queryFn: () =>
-      api.get<ListPoliciesResponse>('/v1/guardrails', { params }),
+      api.get<ListPoliciesResponse>('/v1/guardrails/policies', {
+        params: { ...params, projectId }
+      }),
+    enabled: !!projectId,
   });
 }
 
 export function useGuardrailPolicy(id: string) {
   return useQuery({
-    queryKey: guardrailKeys.detail(id),
-    queryFn: () => api.get<GuardrailPolicy>(`/v1/guardrails/${id}`),
+    queryKey: guardrailKeys.policyDetail(id),
+    queryFn: () => api.get<GuardrailPolicy>(`/v1/guardrails/policies/${id}`),
     enabled: !!id,
   });
 }
@@ -107,52 +94,50 @@ export function useGuardrailRules(policyId: string) {
   return useQuery({
     queryKey: guardrailKeys.rules(policyId),
     queryFn: () =>
-      api.get<{ data: GuardrailRule[]; total: number }>(
-        `/v1/guardrails/${policyId}/rules`
-      ),
+      api.get<{ data: GuardrailRule[] }>(`/v1/guardrails/policies/${policyId}/rules`),
     enabled: !!policyId,
   });
 }
 
-export function useCreatePolicy() {
+export function useCreateGuardrailPolicy() {
   const queryClient = useQueryClient();
+  const { selectedProject } = useProjectContext();
 
   return useMutation({
-    mutationFn: (data: CreatePolicyRequest) =>
-      api.post<GuardrailPolicy>('/v1/guardrails', data),
+    mutationFn: (data: Omit<CreatePolicyRequest, 'projectId'>) => {
+      const projectId = selectedProject?.id;
+      if (!projectId) {
+        throw new Error('No project selected');
+      }
+      return api.post<GuardrailPolicy>('/v1/guardrails/policies', { ...data, projectId });
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: guardrailKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: guardrailKeys.policyLists() });
     },
   });
 }
 
-export function useUpdatePolicy() {
+export function useUpdateGuardrailPolicy() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdatePolicyRequest }) =>
-      api.put<GuardrailPolicy>(`/v1/guardrails/${id}`, data),
+      api.put<GuardrailPolicy>(`/v1/guardrails/policies/${id}`, data),
     onSuccess: (_, { id }) => {
-      queryClient.invalidateQueries({ queryKey: guardrailKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: guardrailKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: guardrailKeys.policyLists() });
+      queryClient.invalidateQueries({ queryKey: guardrailKeys.policyDetail(id) });
     },
   });
 }
 
-export function useDeletePolicy() {
+export function useDeleteGuardrailPolicy() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: string) => api.delete(`/v1/guardrails/${id}`),
+    mutationFn: (id: string) => api.delete(`/v1/guardrails/policies/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: guardrailKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: guardrailKeys.policyLists() });
     },
   });
 }
 
-export function useEvaluateGuardrail() {
-  return useMutation({
-    mutationFn: (data: EvaluateRequest) =>
-      api.post<EvaluateResponse>('/v1/guardrails/evaluate', data),
-  });
-}

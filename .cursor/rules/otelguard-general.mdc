@@ -1,0 +1,129 @@
+---
+alwaysApply: true
+---
+
+# cursor-rules.md — OTelGuard Project Rules for Cursor AI
+# Paste this file at the root of the repo (or in .cursor/rules/) 
+# Cursor will automatically apply these rules when editing any file.
+
+project: OTelGuard
+language: Go (backend), TypeScript/React (frontend), SQL (PostgreSQL + ClickHouse)
+strictness: high
+
+### GLOBAL RULES
+- Always respect the exact project structure shown below.
+- Never use default exports in TypeScript — use named exports only.
+- Never use `any` — use `unknown` or proper types when the type is truly dynamic.
+- All new Go dependencies must be added via `go.mod` and wired with Google Wire.
+- All errors in Go must be handled explicitly (never ignore with `_` unless in `main` for fatal cases).
+- Use context.Context for cancellation/timeout in every service/repository call.
+- Always add Swagger/OpenAPI comments to new Gin handlers (see existing pattern).
+
+### PROJECT STRUCTURE (never deviate)
+otelguard/
+├── backend/
+│   ├── cmd/server/main.go              # entry point
+│   ├── internal/
+│   │   ├── api/
+│   │   │   ├── handlers/               # one file per domain
+│   │   │   ├── middleware/
+│   │   │   ├── grpc/
+│   │   │   └── routes.go
+│   │   ├── config/                     # envconfig-based config
+│   │   ├── domain/                     # pure business entities + errors
+│   │   ├── repository/
+│   │   │   ├── postgres/
+│   │   │   └── clickhouse/
+│   │   ├── service/                    # business logic
+│   │   └── wire/                       # DI providers only
+│   ├── pkg/                            # public reusable packages
+│   └── migrations/
+├── frontend/
+│   ├── src/
+│   │   ├── api/                        # TanStack Query hooks + client.ts
+│   │   ├── components/ui/             # ShadCN components
+│   │   ├── components/features/       # domain-specific components
+│   │   ├── hooks/                      # custom hooks (debounce, localStorage, etc.)
+│   │   ├── lib/query-client.ts
+│   │   ├── stores/
+│   │   └── types/
+├── sdk/
+├── deploy/
+└── docs/
+
+### GO-SPECIFIC RULES
+- Formatting: gofmt + goimports (Cursor already runs these)
+- Dependency injection: exclusively Google Wire
+  - Every new struct gets a `NewXxx()` constructor.
+  - Add a ProvideXxx function in the correct internal/wire/*.go file.
+  - Add the provider to the appropriate wire.Set (RepositorySet, ServiceSet, etc.).
+  - Run `go run github.com/google/wire/cmd/wire ./...` after changes.
+- Configuration: use github.com/kelseyhightower/envconfig with prefix "OTELGUARD_"
+- Logging: zap.Logger injected everywhere (never use fmt or log)
+- Error handling: domain/errors.go style sentinel errors + ValidationErrors slice
+- Gin middleware order (do not change):
+  Recovery → RequestID → Logger → CORS → AuthMiddleware (on protected routes)
+- CORS: only allow http://localhost:3000 in dev, configure via env in prod
+- Handler pattern:
+  - Bind → validate → extract project_id from context → call service → respond
+  - Always return structured ErrorResponse on error
+- Repository pattern:
+  - Postgres: sqlx + context
+  - ClickHouse: official driver v2, batch inserts, PrepareBatch + Append
+- Database IDs: UUID v7 via PostgreSQL native uuidv7() — never use gen.RandomUUID()
+
+### FRONTEND (TypeScript/React) RULES
+- State management: TanStack Query only (no Redux/Zustand)
+- Query keys: use the object factory pattern (traceKeys.list(params), etc.)
+- API client: src/api/client.ts — always use the shared `api` instance
+- Table: always use @tanstack/react-table v8 with ShadCN <Table> components
+- Styling: Tailwind + ShadCN/ui only
+- Component tests: Testing Library + MSW when needed
+- Hooks:
+  - useDebounce, useLocalStorage must be used for search/filter inputs
+  - Never put API calls directly in components — always in a hook under src/api/
+- Route files: src/pages/ only (no nested routes in components)
+
+### DATABASE RULES
+- Primary keys: UUID v7 (PostgreSQL 18+ native uuidv7())
+- Timestamps: created_at / updated_at with triggers
+- Soft deletes: deleted_at column + WHERE deleted_at IS NULL
+- ClickHouse:
+  - Engine: MergeTree
+  - Partition: toYYYYMM(date column)
+  - Order by: (project_id, time, id)
+  - TTL: 90 days
+  - Use bloom_filter indexes for high-cardinality filters (session_id, user_id, model)
+
+### TESTING RULES
+- Go: testify/mock + table-driven tests when possible
+- React: Testing Library, co-located __tests__ folders
+- Never mock the HTTP layer in backend tests — mock repositories/services
+
+### SECURITY (always check before merging)
+- All inputs validated (bind + manual if needed)
+- Parameterized/prepared queries everywhere
+- Rate limiting middleware present
+- Passwords stored with bcrypt/argon2
+- JWT/auth middleware sets project_id in context
+- CORS restricted
+- Secrets only from environment variables
+
+### PERFORMANCE RULES
+- Batch ClickHouse inserts
+- Use connection pooling (pgxpool + ClickHouse driver)
+- TanStack Query caching + staleTime = 1 min minimum
+- Virtualize long lists (>500 rows)
+- Debounce all search/filter inputs (300ms)
+
+### WHEN ADDING NEW FEATURES
+1. Add domain entities first
+2. Add PostgreSQL migration (uuidv7)
+3. Add repository interface + impl
+4. Wire it in internal/wire/
+5. Add service + tests
+6. Add handler + routes + Swagger tags
+7. Add frontend query hook + page/component
+8. Add tests everywhere
+
+You are now fully aligned with the OTelGuard architecture — happy coding!

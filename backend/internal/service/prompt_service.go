@@ -182,10 +182,10 @@ func (s *PromptService) Duplicate(ctx context.Context, promptID string, newName 
 
 // CompileResult contains the result of compiling a prompt template
 type CompileResult struct {
-	Compiled  string            `json:"compiled"`
-	Variables []string          `json:"variables"`
-	Missing   []string          `json:"missing,omitempty"`
-	Errors    []string          `json:"errors,omitempty"`
+	Compiled  string   `json:"compiled"`
+	Variables []string `json:"variables"`
+	Missing   []string `json:"missing,omitempty"`
+	Errors    []string `json:"errors,omitempty"`
 }
 
 // CompileTemplate compiles a prompt template with the given variables

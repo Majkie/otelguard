@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useUsers, type ListUsersParams } from '@/api/users';
+import { useUsers } from '@/api/users';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -26,8 +26,15 @@ import {
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
+type UsersPageParams = {
+  limit?: number;
+  offset?: number;
+  startTime?: string;
+  endTime?: string;
+};
+
 export function UsersPage() {
-  const [params, setParams] = useState<ListUsersParams>({
+  const [params, setParams] = useState<UsersPageParams>({
     limit: 20,
     offset: 0,
   });

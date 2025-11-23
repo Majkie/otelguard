@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { useTraces, type ListTracesParams } from '@/api/traces';
+import { useTraces } from '@/api/traces';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -30,8 +30,27 @@ import {
 
 type SortField = 'start_time' | 'latency_ms' | 'cost' | 'total_tokens' | 'name' | 'model';
 
+type TracesPageParams = {
+  limit?: number;
+  offset?: number;
+  sessionId?: string;
+  userId?: string;
+  model?: string;
+  name?: string;
+  status?: 'success' | 'error' | 'pending';
+  tags?: string;
+  startTime?: string;
+  endTime?: string;
+  minLatency?: number;
+  maxLatency?: number;
+  minCost?: number;
+  maxCost?: number;
+  sortBy?: 'start_time' | 'latency_ms' | 'cost' | 'total_tokens' | 'name' | 'model';
+  sortOrder?: 'ASC' | 'DESC';
+};
+
 export function TracesPage() {
-  const [params, setParams] = useState<ListTracesParams>({
+  const [params, setParams] = useState<TracesPageParams>({
     limit: 20,
     offset: 0,
     sortBy: 'start_time',

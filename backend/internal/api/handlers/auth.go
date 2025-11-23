@@ -16,14 +16,16 @@ import (
 // AuthHandler handles authentication endpoints
 type AuthHandler struct {
 	authService *service.AuthService
+	orgService  *service.OrgService
 	cfg         *config.AuthConfig
 	logger      *zap.Logger
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(authService *service.AuthService, cfg *config.AuthConfig, logger *zap.Logger) *AuthHandler {
+func NewAuthHandler(authService *service.AuthService, orgService *service.OrgService, cfg *config.AuthConfig, logger *zap.Logger) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
+		orgService:  orgService,
 		cfg:         cfg,
 		logger:      logger,
 	}
@@ -44,10 +46,9 @@ type LoginRequest struct {
 
 // AuthResponse represents the authentication response
 type AuthResponse struct {
-	Token        string `json:"token"`
-	RefreshToken string `json:"refreshToken"`
-	ExpiresAt    int64  `json:"expiresAt"`
-	User         *UserResponse `json:"user"`
+	ExpiresAt int64         `json:"expiresAt"`
+	User      *UserResponse `json:"user"`
+	CSRFToken string        `json:"csrfToken,omitempty"`
 }
 
 // UserResponse represents a user in API responses
@@ -80,8 +81,8 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	// Generate tokens
-	token, refreshToken, expiresAt, err := h.generateTokens(user.ID.String(), "", user.Email, "member")
+	// Generate tokens and set cookies
+	expiresAt, err := h.setAuthCookies(c, user.ID.String(), "", user.Email, "member")
 	if err != nil {
 		h.logger.Error("token generation failed", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -91,16 +92,18 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
+	// Get CSRF token for response
+	csrfToken, _ := c.Cookie("csrf_token")
+
 	c.JSON(http.StatusCreated, AuthResponse{
-		Token:        token,
-		RefreshToken: refreshToken,
-		ExpiresAt:    expiresAt,
+		ExpiresAt: expiresAt,
 		User: &UserResponse{
 			ID:        user.ID.String(),
 			Email:     user.Email,
 			Name:      user.Name,
 			CreatedAt: user.CreatedAt.Format(time.RFC3339),
 		},
+		CSRFToken: csrfToken,
 	})
 }
 
@@ -129,8 +132,20 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	orgID := ""
 	role := "member"
 
-	// Generate tokens
-	token, refreshToken, expiresAt, err := h.generateTokens(user.ID.String(), orgID, user.Email, role)
+	// Get user's organizations
+	orgs, _, err := h.orgService.ListUserOrganizations(c.Request.Context(), user.ID.String(), 1, 0)
+	if err != nil {
+		h.logger.Warn("failed to get user organizations", zap.Error(err))
+	} else if len(orgs) > 0 {
+		orgID = orgs[0].ID.String()
+		// Get the user's role in this organization
+		if userRole, err := h.orgService.GetUserOrgRole(c.Request.Context(), orgID, user.ID.String()); err == nil {
+			role = userRole
+		}
+	}
+
+	// Generate tokens and set cookies
+	expiresAt, err := h.setAuthCookies(c, user.ID.String(), orgID, user.Email, role)
 	if err != nil {
 		h.logger.Error("token generation failed", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -140,10 +155,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// Get CSRF token for response
+	csrfToken, _ := c.Cookie("csrf_token")
+
 	c.JSON(http.StatusOK, AuthResponse{
-		Token:        token,
-		RefreshToken: refreshToken,
-		ExpiresAt:    expiresAt,
+		ExpiresAt: expiresAt,
 		User: &UserResponse{
 			ID:        user.ID.String(),
 			Email:     user.Email,
@@ -151,28 +167,30 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			AvatarURL: user.AvatarURL,
 			CreatedAt: user.CreatedAt.Format(time.RFC3339),
 		},
+		CSRFToken: csrfToken,
 	})
 }
 
 // RefreshToken handles token refresh
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
-	var req struct {
-		RefreshToken string `json:"refreshToken" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "invalid_request",
-			"message": err.Error(),
+	// Get refresh token from cookie
+	refreshToken, err := c.Cookie("refresh_token")
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"error":   "invalid_token",
+			"message": "No refresh token provided",
 		})
 		return
 	}
 
 	// Validate refresh token
-	token, err := jwt.ParseWithClaims(req.RefreshToken, &middleware.Claims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(refreshToken, &middleware.Claims{}, func(token *jwt.Token) (interface{}, error) {
 		return []byte(h.cfg.JWTSecret), nil
 	})
 
 	if err != nil || !token.Valid {
+		// Clear invalid cookies
+		h.clearAuthCookies(c)
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error":   "invalid_token",
 			"message": "Invalid or expired refresh token",
@@ -182,6 +200,8 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 
 	claims, ok := token.Claims.(*middleware.Claims)
 	if !ok {
+		// Clear invalid cookies
+		h.clearAuthCookies(c)
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error":   "invalid_token",
 			"message": "Invalid token claims",
@@ -189,8 +209,8 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Generate new tokens
-	newToken, newRefreshToken, expiresAt, err := h.generateTokens(claims.UserID, claims.OrganizationID, claims.Email, claims.Role)
+	// Generate new tokens and set cookies
+	expiresAt, err := h.setAuthCookies(c, claims.UserID, claims.OrganizationID, claims.Email, claims.Role)
 	if err != nil {
 		h.logger.Error("token refresh failed", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -201,9 +221,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"token":        newToken,
-		"refreshToken": newRefreshToken,
-		"expiresAt":    expiresAt,
+		"expiresAt": expiresAt,
 	})
 }
 
@@ -366,7 +384,149 @@ func (h *AuthHandler) RevokeAPIKey(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "API key revoked"})
 }
 
-// generateTokens creates JWT access and refresh tokens
+// Logout handles user logout by clearing cookies
+func (h *AuthHandler) Logout(c *gin.Context) {
+	h.clearAuthCookies(c)
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Logged out successfully",
+	})
+}
+
+// setAuthCookies generates tokens and sets them as secure HTTP-only cookies
+func (h *AuthHandler) setAuthCookies(c *gin.Context, userID, orgID, email, role string) (int64, error) {
+	now := time.Now()
+	expiresAt := now.Add(h.cfg.JWTExpiration)
+
+	// Access token
+	claims := &middleware.Claims{
+		UserID:         userID,
+		OrganizationID: orgID,
+		Email:          email,
+		Role:           role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			Issuer:    "otelguard",
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	tokenString, err := token.SignedString([]byte(h.cfg.JWTSecret))
+	if err != nil {
+		return 0, err
+	}
+
+	// Refresh token (longer expiry)
+	refreshClaims := &middleware.Claims{
+		UserID:         userID,
+		OrganizationID: orgID,
+		Email:          email,
+		Role:           role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(now.Add(h.cfg.RefreshTokenExpiry)),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			Issuer:    "otelguard",
+		},
+	}
+
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
+	refreshTokenString, err := refreshToken.SignedString([]byte(h.cfg.JWTSecret))
+	if err != nil {
+		return 0, err
+	}
+
+	// Generate CSRF token
+	csrfToken, err := middleware.GenerateCSRFToken()
+	if err != nil {
+		return 0, err
+	}
+
+	// Set secure cookies with proper attributes
+	isSecure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+
+	// Access token cookie (short-lived, HTTP-only)
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "access_token",
+		Value:    tokenString,
+		MaxAge:   int(h.cfg.JWTExpiration.Seconds()),
+		Path:     "/",
+		Domain:   "",
+		Secure:   isSecure,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	// Refresh token cookie (long-lived, HTTP-only)
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    refreshTokenString,
+		MaxAge:   int(h.cfg.RefreshTokenExpiry.Seconds()),
+		Path:     "/",
+		Domain:   "",
+		Secure:   isSecure,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	// CSRF token cookie (same lifetime as session, readable by JS)
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "csrf_token",
+		Value:    csrfToken,
+		MaxAge:   int(h.cfg.JWTExpiration.Seconds()),
+		Path:     "/",
+		Domain:   "",
+		Secure:   isSecure,
+		HttpOnly: false, // Allow JS to read for CSRF protection
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	return expiresAt.Unix(), nil
+}
+
+// clearAuthCookies removes authentication cookies
+func (h *AuthHandler) clearAuthCookies(c *gin.Context) {
+	isSecure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+
+	// Clear access token cookie
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "access_token",
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/",
+		Domain:   "",
+		Secure:   isSecure,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	// Clear refresh token cookie
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/",
+		Domain:   "",
+		Secure:   isSecure,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	// Clear CSRF token cookie
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "csrf_token",
+		Value:    "",
+		MaxAge:   -1,
+		Path:     "/",
+		Domain:   "",
+		Secure:   isSecure,
+		HttpOnly: false,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+// generateTokens creates JWT access and refresh tokens (deprecated - use setAuthCookies instead)
 func (h *AuthHandler) generateTokens(userID, orgID, email, role string) (string, string, int64, error) {
 	now := time.Now()
 	expiresAt := now.Add(h.cfg.JWTExpiration)

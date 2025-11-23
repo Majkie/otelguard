@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from './client';
+import { useProjectContext } from '@/contexts/project-context';
 import type { Trace } from './traces';
 import type { Session } from './sessions';
 
@@ -35,40 +36,7 @@ export interface ListUsersResponse {
   offset: number;
 }
 
-export interface UserDetailResponse {
-  user: User;
-  traces: {
-    data: Trace[];
-    total: number;
-    limit: number;
-    offset: number;
-  };
-  sessions: {
-    data: Session[];
-    total: number;
-    limit: number;
-    offset: number;
-  };
-}
-
-export interface SearchTracesParams {
-  q: string;
-  limit?: number;
-  offset?: number;
-  projectId?: string;
-  startTime?: string;
-  endTime?: string;
-}
-
-export interface SearchTracesResponse {
-  data: Trace[];
-  total: number;
-  limit: number;
-  offset: number;
-  query: string;
-}
-
-// Query keys
+// Query keys factory
 export const userKeys = {
   all: ['users'] as const,
   lists: () => [...userKeys.all, 'list'] as const,
@@ -78,14 +46,21 @@ export const userKeys = {
 };
 
 export const searchKeys = {
-  traces: (params: SearchTracesParams) => ['search', 'traces', params] as const,
+  traces: (params: { q: string; limit?: number; offset?: number; projectId?: string; startTime?: string; endTime?: string }) => ['search', 'traces', params] as const,
 };
 
-// Hooks
-export function useUsers(params: ListUsersParams = {}) {
+// Hooks with project context
+export function useUsers(params: Omit<ListUsersParams, 'projectId'> = {}) {
+  const { selectedProject } = useProjectContext();
+  const projectId = selectedProject?.id;
+
   return useQuery({
-    queryKey: userKeys.list(params),
-    queryFn: () => api.get<ListUsersResponse>('/v1/users', { params }),
+    queryKey: userKeys.list({ ...params, projectId }),
+    queryFn: () =>
+      api.get<ListUsersResponse>('/v1/users', {
+        params: { ...params, projectId }
+      }),
+    enabled: !!projectId,
   });
 }
 
@@ -99,17 +74,40 @@ export function useUser(
   return useQuery({
     queryKey: userKeys.detail(id),
     queryFn: () =>
-      api.get<UserDetailResponse>(`/v1/users/${encodeURIComponent(id)}`, {
+      api.get<{
+        user: User;
+        traces: {
+          data: Trace[];
+          total: number;
+          limit: number;
+          offset: number;
+        };
+        sessions: {
+          data: Session[];
+          total: number;
+          limit: number;
+          offset: number;
+        };
+      }>(`/v1/users/${encodeURIComponent(id)}`, {
         params: { traceLimit, traceOffset, sessionLimit, sessionOffset },
       }),
     enabled: !!id,
   });
 }
 
-export function useSearchTraces(params: SearchTracesParams) {
+export function useSearchTraces(params: { q: string; limit?: number; offset?: number; startTime?: string; endTime?: string }) {
+  const { selectedProject } = useProjectContext();
+  const projectId = selectedProject?.id;
+
   return useQuery({
-    queryKey: searchKeys.traces(params),
-    queryFn: () => api.get<SearchTracesResponse>('/v1/search/traces', { params }),
-    enabled: !!params.q && params.q.length > 0,
+    queryKey: searchKeys.traces({ ...params, projectId }),
+    queryFn: () => api.get<{
+      data: Trace[];
+      total: number;
+      limit: number;
+      offset: number;
+      query: string;
+    }>('/v1/search/traces', { params: { ...params, projectId } }),
+    enabled: !!params.q && params.q.length > 0 && !!projectId,
   });
 }

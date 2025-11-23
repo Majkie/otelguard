@@ -14,16 +14,16 @@ import (
 
 // AuthService handles authentication business logic
 type AuthService struct {
-	userRepo *postgres.UserRepository
-	logger   *zap.Logger
+	userRepo   *postgres.UserRepository
+	logger     *zap.Logger
 	bcryptCost int
 }
 
 // NewAuthService creates a new auth service
 func NewAuthService(userRepo *postgres.UserRepository, logger *zap.Logger, bcryptCost int) *AuthService {
 	return &AuthService{
-		userRepo: userRepo,
-		logger:   logger,
+		userRepo:   userRepo,
+		logger:     logger,
 		bcryptCost: bcryptCost,
 	}
 }

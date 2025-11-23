@@ -41,3 +41,5 @@ docker-compose.override.yml
 # Misc
 *.bak
 *.tmp
+
+backend/server

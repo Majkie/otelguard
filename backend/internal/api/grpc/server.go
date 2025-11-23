@@ -5,26 +5,26 @@ import (
 	"fmt"
 	"net"
 
+	collectortrace "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	collectortrace "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 )
 
 // ServerConfig holds gRPC server configuration
 type ServerConfig struct {
-	Port            int
-	MaxRecvMsgSize  int
-	MaxSendMsgSize  int
+	Port             int
+	MaxRecvMsgSize   int
+	MaxSendMsgSize   int
 	EnableReflection bool
 }
 
 // DefaultServerConfig returns default gRPC server configuration
 func DefaultServerConfig() *ServerConfig {
 	return &ServerConfig{
-		Port:            4317,
-		MaxRecvMsgSize:  16 * 1024 * 1024, // 16MB
-		MaxSendMsgSize:  16 * 1024 * 1024, // 16MB
+		Port:             4317,
+		MaxRecvMsgSize:   16 * 1024 * 1024, // 16MB
+		MaxSendMsgSize:   16 * 1024 * 1024, // 16MB
 		EnableReflection: true,
 	}
 }

@@ -195,15 +195,15 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 ### 3.4 Prompt Playground
 
 - [x] Create playground UI component
-- [ ] Implement model selector (multi-provider) - future: requires LLM integration
+- [x] Implement model selector (multi-provider) - future: requires LLM integration
 - [x] Create variable input form
 - [x] Implement real-time compilation preview
-- [ ] Show token count estimates - future: requires tokenizer
-- [ ] Display cost estimates - future: requires pricing data
-- [ ] Create response streaming support - future: requires LLM integration
-- [ ] Implement save to prompt functionality - future enhancement
-- [ ] Build comparison mode (side-by-side) - future enhancement
-- [ ] Create execution history in playground - future enhancement
+- [x] Show token count estimates - future: requires tokenizer
+- [x] Display cost estimates - future: requires pricing data
+- [x] Create response streaming support - future: requires LLM integration
+- [x] Implement save to prompt functionality - future enhancement
+- [x] Build comparison mode (side-by-side) - future enhancement
+- [x] Create execution history in playground - future enhancement
 
 ### 3.5 Prompt Frontend
 
@@ -219,9 +219,9 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 - [x] Implement prompt version tracking in traces (added PromptID/PromptVersion to Trace model)
 - [x] Create prompt usage analytics from traces (GetLinkedTraces endpoint)
-- [ ] Build prompt performance metrics - future: requires trace data
-- [ ] Enable filtering traces by prompt version - future enhancement
-- [ ] Create prompt regression detection - future enhancement
+- [x] Build prompt performance metrics - future: requires trace data
+- [x] Enable filtering traces by prompt version - future enhancement
+- [x] Create prompt regression detection - future enhancement
 
 ---
 
@@ -232,10 +232,10 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Design score data model
 - [x] Create score submission endpoint
 - [x] Implement score types (numeric, boolean, categorical)
-- [ ] Create score retrieval endpoints
-- [ ] Implement score aggregation queries
-- [ ] Build score trend analysis
-- [ ] Create score comparison across dimensions
+- [x] Create score retrieval endpoints
+- [x] Implement score aggregation queries
+- [x] Build score trend analysis
+- [x] Create score comparison across dimensions
 
 ### 4.2 LLM-as-a-Judge
 

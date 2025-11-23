@@ -10,8 +10,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/uuid"
-	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -40,13 +39,18 @@ func main() {
 
 	chHost := getEnv("CLICKHOUSE_HOST", "localhost")
 	chPort := getEnv("CLICKHOUSE_PORT", "9000")
-	chDB := getEnv("CLICKHOUSE_DB", "otelguard")
+	chDB := getEnv("CLICKHOUSE_DB", "default")
 
 	// Connect to PostgreSQL
 	pgDSN := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		pgHost, pgPort, pgUser, pgPass, pgDB)
 
-	pgConn, err := sqlx.Connect("postgres", pgDSN)
+	pgConfig, err := pgxpool.ParseConfig(pgDSN)
+	if err != nil {
+		log.Fatalf("Failed to parse PostgreSQL config: %v", err)
+	}
+
+	pgConn, err := pgxpool.NewWithConfig(context.Background(), pgConfig)
 	if err != nil {
 		log.Fatalf("Failed to connect to PostgreSQL: %v", err)
 	}
@@ -70,11 +74,11 @@ func main() {
 
 	// Seed PostgreSQL
 	log.Println("\nSeeding PostgreSQL...")
-	orgID, projectID, userID := seedPostgres(ctx, pgConn)
+	orgID, projectID, userID, promptIDs := seedPostgres(ctx, pgConn)
 
 	// Seed ClickHouse
 	log.Println("\nSeeding ClickHouse...")
-	seedClickHouse(ctx, chConn, projectID)
+	seedClickHouse(ctx, chConn, projectID, promptIDs)
 
 	log.Println("\n=========================")
 	log.Println("Seeding complete!")
@@ -86,13 +90,13 @@ func main() {
 	log.Println("  Password: demo1234")
 }
 
-func seedPostgres(ctx context.Context, db *sqlx.DB) (string, string, string) {
+func seedPostgres(ctx context.Context, db *pgxpool.Pool) (string, string, string, []uuid.UUID) {
 	// Create organization
 	orgID := uuid.New()
-	_, err := db.ExecContext(ctx, `
+	_, err := db.Exec(ctx, `
 		INSERT INTO organizations (id, name, slug, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $4)
-		ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name
+		ON CONFLICT (slug) DO NOTHING
 	`, orgID, "Demo Organization", "demo-org", time.Now())
 	if err != nil {
 		log.Printf("Warning: Could not create organization: %v", err)
@@ -102,10 +106,10 @@ func seedPostgres(ctx context.Context, db *sqlx.DB) (string, string, string) {
 
 	// Create project
 	projectID := uuid.New()
-	_, err = db.ExecContext(ctx, `
+	_, err = db.Exec(ctx, `
 		INSERT INTO projects (id, organization_id, name, slug, settings, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $6)
-		ON CONFLICT (organization_id, slug) DO UPDATE SET name = EXCLUDED.name
+		ON CONFLICT (organization_id, slug) DO NOTHING
 	`, projectID, orgID, "Demo Project", "demo-project", "{}", time.Now())
 	if err != nil {
 		log.Printf("Warning: Could not create project: %v", err)
@@ -116,7 +120,7 @@ func seedPostgres(ctx context.Context, db *sqlx.DB) (string, string, string) {
 	// Create demo user
 	userID := uuid.New()
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("demo1234"), 10)
-	_, err = db.ExecContext(ctx, `
+	_, err = db.Exec(ctx, `
 		INSERT INTO users (id, email, password_hash, name, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $5)
 		ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash
@@ -129,7 +133,7 @@ func seedPostgres(ctx context.Context, db *sqlx.DB) (string, string, string) {
 
 	// Add user to organization
 	memberID := uuid.New()
-	_, err = db.ExecContext(ctx, `
+	_, err = db.Exec(ctx, `
 		INSERT INTO organization_members (id, organization_id, user_id, role, created_at)
 		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (organization_id, user_id) DO NOTHING
@@ -141,13 +145,16 @@ func seedPostgres(ctx context.Context, db *sqlx.DB) (string, string, string) {
 	}
 
 	// Create sample prompts
+	promptTags := []string{"support", "code", "docs"}
+	promptIDs := make([]uuid.UUID, 3)
 	for i, promptName := range []string{"Customer Support Assistant", "Code Review Helper", "Documentation Generator"} {
 		promptID := uuid.New()
-		_, err = db.ExecContext(ctx, `
+		promptIDs[i] = promptID
+		_, err = db.Exec(ctx, `
 			INSERT INTO prompts (id, project_id, name, description, tags, created_at, updated_at)
 			VALUES ($1, $2, $3, $4, $5, $6, $6)
 		`, promptID, projectID, promptName, fmt.Sprintf("Sample prompt for %s", promptName),
-			fmt.Sprintf("{%s}", []string{"support", "code", "docs"}[i]), time.Now())
+			fmt.Sprintf("{%s}", promptTags[i]), time.Now())
 		if err != nil {
 			log.Printf("Warning: Could not create prompt %s: %v", promptName, err)
 		}
@@ -156,7 +163,7 @@ func seedPostgres(ctx context.Context, db *sqlx.DB) (string, string, string) {
 
 	// Create sample guardrail policy
 	policyID := uuid.New()
-	_, err = db.ExecContext(ctx, `
+	_, err = db.Exec(ctx, `
 		INSERT INTO guardrail_policies (id, project_id, name, description, enabled, priority, triggers, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
 	`, policyID, projectID, "Default Safety Policy", "Standard safety guardrails for production",
@@ -167,10 +174,10 @@ func seedPostgres(ctx context.Context, db *sqlx.DB) (string, string, string) {
 		log.Println("  ✓ Created sample guardrail policy")
 	}
 
-	return orgID.String(), projectID.String(), userID.String()
+	return orgID.String(), projectID.String(), userID.String(), promptIDs
 }
 
-func seedClickHouse(ctx context.Context, conn clickhouse.Conn, projectID string) {
+func seedClickHouse(ctx context.Context, conn clickhouse.Conn, projectID string, promptIDs []uuid.UUID) {
 	projectUUID, _ := uuid.Parse(projectID)
 
 	// Generate traces for the last 7 days
@@ -186,7 +193,7 @@ func seedClickHouse(ctx context.Context, conn clickhouse.Conn, projectID string)
 			id, project_id, session_id, user_id, name,
 			input, output, metadata, start_time, end_time,
 			latency_ms, total_tokens, prompt_tokens, completion_tokens,
-			cost, model, tags, status, error_message
+			model, tags, status, error_message, prompt_id, prompt_version
 		)
 	`)
 	if err != nil {
@@ -210,17 +217,6 @@ func seedClickHouse(ctx context.Context, conn clickhouse.Conn, projectID string)
 		model := models[rand.Intn(len(models))]
 		name := names[rand.Intn(len(names))]
 
-		// Cost calculation (approximate)
-		var cost float64
-		switch model {
-		case "gpt-4", "claude-3-opus":
-			cost = float64(promptTokens)*0.00003 + float64(completionTokens)*0.00006
-		case "gpt-4-turbo", "claude-3-sonnet":
-			cost = float64(promptTokens)*0.00001 + float64(completionTokens)*0.00003
-		default:
-			cost = float64(promptTokens)*0.0000005 + float64(completionTokens)*0.0000015
-		}
-
 		// Random tags
 		numTags := rand.Intn(3) + 1
 		traceTags := make([]string, numTags)
@@ -239,6 +235,17 @@ func seedClickHouse(ctx context.Context, conn clickhouse.Conn, projectID string)
 		sessionID := fmt.Sprintf("session-%d", rand.Intn(20)+1)
 		userID := fmt.Sprintf("user-%d", rand.Intn(10)+1)
 
+		// Assign prompt data to ~60% of traces
+		var promptID *uuid.UUID
+		var promptVersion *int32
+		if rand.Float32() < 0.6 && len(promptIDs) > 0 {
+			selectedPrompt := promptIDs[rand.Intn(len(promptIDs))]
+			promptID = &selectedPrompt
+			// Random version between 1-3
+			version := int32(rand.Intn(3) + 1)
+			promptVersion = &version
+		}
+
 		err = batch.Append(
 			traceID,
 			projectUUID,
@@ -254,11 +261,12 @@ func seedClickHouse(ctx context.Context, conn clickhouse.Conn, projectID string)
 			totalTokens,
 			promptTokens,
 			completionTokens,
-			cost,
 			model,
 			traceTags,
 			status,
 			errorMsg,
+			promptID,
+			promptVersion,
 		)
 		if err != nil {
 			log.Printf("Warning: Could not append trace: %v", err)
@@ -273,9 +281,9 @@ func seedClickHouse(ctx context.Context, conn clickhouse.Conn, projectID string)
 	// Insert spans for each trace
 	spanBatch, err := conn.PrepareBatch(ctx, `
 		INSERT INTO spans (
-			id, trace_id, parent_span_id, project_id, name, type,
+			id, trace_id, parent_span_id, project_id, name, span_type,
 			input, output, metadata, start_time, end_time,
-			latency_ms, tokens, cost, model, status, error_message
+			latency_ms, tokens, model, status, error_message
 		)
 	`)
 	if err != nil {
@@ -294,22 +302,16 @@ func seedClickHouse(ctx context.Context, conn clickhouse.Conn, projectID string)
 			endTime := startTime.Add(time.Duration(latencyMs) * time.Millisecond)
 
 			tokens := uint32(rand.Intn(500) + 20)
-			cost := float64(tokens) * 0.00001
 
 			model := ""
 			if spanType == "llm" || spanType == "embedding" {
 				model = models[rand.Intn(len(models))]
 			}
 
-			parentID := ""
-			if parentSpanID != nil {
-				parentID = parentSpanID.String()
-			}
-
 			err = spanBatch.Append(
 				spanID,
 				traceID,
-				parentID,
+				parentSpanID, // already a *uuid.UUID
 				projectUUID,
 				fmt.Sprintf("%s-span-%d", spanType, j),
 				spanType,
@@ -320,7 +322,6 @@ func seedClickHouse(ctx context.Context, conn clickhouse.Conn, projectID string)
 				endTime,
 				latencyMs,
 				tokens,
-				cost,
 				model,
 				"success",
 				"",
@@ -359,17 +360,19 @@ func seedClickHouse(ctx context.Context, conn clickhouse.Conn, projectID string)
 				scoreID := uuid.New()
 				value := rand.Float64()*0.4 + 0.6 // 0.6 to 1.0
 
+				var spanID *uuid.UUID   // nil for no span association
+				var configID *uuid.UUID // nil for no config association
 				err = scoreBatch.Append(
 					scoreID,
 					projectUUID,
 					traceID,
-					"",
+					spanID,
 					scoreName,
 					value,
 					"",
 					"numeric",
 					"llm_judge",
-					"",
+					configID,
 					"",
 					time.Now().Add(-time.Duration(rand.Intn(24))*time.Hour),
 				)

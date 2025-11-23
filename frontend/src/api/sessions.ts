@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from './client';
+import { useProjectContext } from '@/contexts/project-context';
 import type { Trace } from './traces';
 
 export interface Session {
@@ -33,17 +34,7 @@ export interface ListSessionsResponse {
   offset: number;
 }
 
-export interface SessionDetailResponse {
-  session: Session;
-  traces: {
-    data: Trace[];
-    total: number;
-    limit: number;
-    offset: number;
-  };
-}
-
-// Query keys
+// Query keys factory
 export const sessionKeys = {
   all: ['sessions'] as const,
   lists: () => [...sessionKeys.all, 'list'] as const,
@@ -52,21 +43,25 @@ export const sessionKeys = {
   detail: (id: string) => [...sessionKeys.details(), id] as const,
 };
 
-// Hooks
-export function useSessions(params: ListSessionsParams = {}) {
+// Hooks with project context
+export function useSessions(params: Omit<ListSessionsParams, 'projectId'> = {}) {
+  const { selectedProject } = useProjectContext();
+  const projectId = selectedProject?.id;
+
   return useQuery({
-    queryKey: sessionKeys.list(params),
-    queryFn: () => api.get<ListSessionsResponse>('/v1/sessions', { params }),
+    queryKey: sessionKeys.list({ ...params, projectId }),
+    queryFn: () =>
+      api.get<ListSessionsResponse>('/v1/sessions', {
+        params: { ...params, projectId }
+      }),
+    enabled: !!projectId,
   });
 }
 
-export function useSession(id: string, traceLimit?: number, traceOffset?: number) {
+export function useSession(id: string) {
   return useQuery({
     queryKey: sessionKeys.detail(id),
-    queryFn: () =>
-      api.get<SessionDetailResponse>(`/v1/sessions/${id}`, {
-        params: { traceLimit, traceOffset },
-      }),
+    queryFn: () => api.get<Session>(`/v1/sessions/${id}`),
     enabled: !!id,
   });
 }

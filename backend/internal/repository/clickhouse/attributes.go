@@ -25,11 +25,11 @@ func NewAttributeStore(conn driver.Conn) *AttributeStore {
 type AttributeType string
 
 const (
-	AttributeTypeString  AttributeType = "string"
-	AttributeTypeInt     AttributeType = "int"
-	AttributeTypeFloat   AttributeType = "float"
-	AttributeTypeBool    AttributeType = "bool"
-	AttributeTypeJSON    AttributeType = "json"
+	AttributeTypeString AttributeType = "string"
+	AttributeTypeInt    AttributeType = "int"
+	AttributeTypeFloat  AttributeType = "float"
+	AttributeTypeBool   AttributeType = "bool"
+	AttributeTypeJSON   AttributeType = "json"
 )
 
 // TraceAttribute represents a single trace attribute

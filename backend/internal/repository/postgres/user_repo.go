@@ -2,19 +2,21 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
+	"errors"
 
-	"github.com/jmoiron/sqlx"
+	"github.com/georgysavva/scany/v2/pgxscan"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/otelguard/otelguard/internal/domain"
 )
 
 // UserRepository handles user data access
 type UserRepository struct {
-	db *sqlx.DB
+	db *pgxpool.Pool
 }
 
 // NewUserRepository creates a new user repository
-func NewUserRepository(db *sqlx.DB) *UserRepository {
+func NewUserRepository(db *pgxpool.Pool) *UserRepository {
 	return &UserRepository{db: db}
 }
 
@@ -24,7 +26,7 @@ func (r *UserRepository) Create(ctx context.Context, user *domain.User) error {
 		INSERT INTO users (id, email, password_hash, name, avatar_url, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.db.Exec(ctx, query,
 		user.ID,
 		user.Email,
 		user.PasswordHash,
@@ -44,11 +46,14 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*domain.User, 
 		FROM users
 		WHERE id = $1 AND deleted_at IS NULL
 	`
-	err := r.db.GetContext(ctx, &user, query, id)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
+	err := pgxscan.Get(ctx, r.db, &user, query, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
 	}
-	return &user, err
+	return &user, nil
 }
 
 // GetByEmail retrieves a user by email
@@ -59,11 +64,14 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*domain.
 		FROM users
 		WHERE email = $1 AND deleted_at IS NULL
 	`
-	err := r.db.GetContext(ctx, &user, query, email)
-	if err == sql.ErrNoRows {
-		return nil, domain.ErrNotFound
+	err := pgxscan.Get(ctx, r.db, &user, query, email)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
 	}
-	return &user, err
+	return &user, nil
 }
 
 // Update updates a user
@@ -73,7 +81,7 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 		SET name = $2, avatar_url = $3, password_hash = $4, updated_at = $5
 		WHERE id = $1 AND deleted_at IS NULL
 	`
-	_, err := r.db.ExecContext(ctx, query,
+	_, err := r.db.Exec(ctx, query,
 		user.ID,
 		user.Name,
 		user.AvatarURL,
@@ -86,6 +94,6 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 // Delete soft-deletes a user
 func (r *UserRepository) Delete(ctx context.Context, id string) error {
 	query := `UPDATE users SET deleted_at = NOW() WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+	_, err := r.db.Exec(ctx, query, id)
 	return err
 }

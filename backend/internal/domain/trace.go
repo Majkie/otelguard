@@ -8,25 +8,25 @@ import (
 
 // Trace represents a complete trace/request in the system
 type Trace struct {
-	ID               uuid.UUID  `ch:"id" json:"id"`
-	ProjectID        uuid.UUID  `ch:"project_id" json:"projectId"`
-	SessionID        *string    `ch:"session_id" json:"sessionId,omitempty"`
-	UserID           *string    `ch:"user_id" json:"userId,omitempty"`
-	Name             string     `ch:"name" json:"name"`
-	Input            string     `ch:"input" json:"input"`
-	Output           string     `ch:"output" json:"output"`
-	Metadata         string     `ch:"metadata" json:"metadata,omitempty"`
-	StartTime        time.Time  `ch:"start_time" json:"startTime"`
-	EndTime          time.Time  `ch:"end_time" json:"endTime"`
-	LatencyMs        uint32     `ch:"latency_ms" json:"latencyMs"`
-	TotalTokens      uint32     `ch:"total_tokens" json:"totalTokens"`
-	PromptTokens     uint32     `ch:"prompt_tokens" json:"promptTokens"`
-	CompletionTokens uint32     `ch:"completion_tokens" json:"completionTokens"`
-	Cost             float64    `ch:"cost" json:"cost"`
-	Model            string     `ch:"model" json:"model"`
-	Tags             []string   `ch:"tags" json:"tags,omitempty"`
-	Status           string     `ch:"status" json:"status"`
-	ErrorMessage     *string    `ch:"error_message" json:"errorMessage,omitempty"`
+	ID               uuid.UUID `ch:"id" json:"id"`
+	ProjectID        uuid.UUID `ch:"project_id" json:"projectId"`
+	SessionID        *string   `ch:"session_id" json:"sessionId,omitempty"`
+	UserID           *string   `ch:"user_id" json:"userId,omitempty"`
+	Name             string    `ch:"name" json:"name"`
+	Input            string    `ch:"input" json:"input"`
+	Output           string    `ch:"output" json:"output"`
+	Metadata         string    `ch:"metadata" json:"metadata,omitempty"`
+	StartTime        time.Time `ch:"start_time" json:"startTime"`
+	EndTime          time.Time `ch:"end_time" json:"endTime"`
+	LatencyMs        uint32    `ch:"latency_ms" json:"latencyMs"`
+	TotalTokens      uint32    `ch:"total_tokens" json:"totalTokens"`
+	PromptTokens     uint32    `ch:"prompt_tokens" json:"promptTokens"`
+	CompletionTokens uint32    `ch:"completion_tokens" json:"completionTokens"`
+	Cost             float64   `ch:"cost" json:"cost"`
+	Model            string    `ch:"model" json:"model"`
+	Tags             []string  `ch:"tags" json:"tags,omitempty"`
+	Status           string    `ch:"status" json:"status"`
+	ErrorMessage     *string   `ch:"error_message" json:"errorMessage,omitempty"`
 	// Prompt linking fields
 	PromptID      *uuid.UUID `ch:"prompt_id" json:"promptId,omitempty"`
 	PromptVersion *int       `ch:"prompt_version" json:"promptVersion,omitempty"`
@@ -90,27 +90,27 @@ type GuardrailEvent struct {
 
 // Event represents a generic event (log, exception, custom event, etc.)
 type Event struct {
-	ID                 uuid.UUID         `ch:"id" json:"id"`
-	ProjectID          uuid.UUID         `ch:"project_id" json:"projectId"`
-	TraceID            *uuid.UUID        `ch:"trace_id" json:"traceId,omitempty"`
-	SpanID             *uuid.UUID        `ch:"span_id" json:"spanId,omitempty"`
-	SessionID          *string           `ch:"session_id" json:"sessionId,omitempty"`
-	UserID             *string           `ch:"user_id" json:"userId,omitempty"`
-	Name               string            `ch:"name" json:"name"`
-	Type               string            `ch:"type" json:"type"` // log, exception, custom, user_action, system
-	Level              string            `ch:"level" json:"level"`
-	Message            string            `ch:"message" json:"message"`
-	Data               string            `ch:"data" json:"data,omitempty"`
-	ExceptionType      *string           `ch:"exception_type" json:"exceptionType,omitempty"`
-	ExceptionMessage   *string           `ch:"exception_message" json:"exceptionMessage,omitempty"`
+	ID                  uuid.UUID         `ch:"id" json:"id"`
+	ProjectID           uuid.UUID         `ch:"project_id" json:"projectId"`
+	TraceID             *uuid.UUID        `ch:"trace_id" json:"traceId,omitempty"`
+	SpanID              *uuid.UUID        `ch:"span_id" json:"spanId,omitempty"`
+	SessionID           *string           `ch:"session_id" json:"sessionId,omitempty"`
+	UserID              *string           `ch:"user_id" json:"userId,omitempty"`
+	Name                string            `ch:"name" json:"name"`
+	Type                string            `ch:"type" json:"type"` // log, exception, custom, user_action, system
+	Level               string            `ch:"level" json:"level"`
+	Message             string            `ch:"message" json:"message"`
+	Data                string            `ch:"data" json:"data,omitempty"`
+	ExceptionType       *string           `ch:"exception_type" json:"exceptionType,omitempty"`
+	ExceptionMessage    *string           `ch:"exception_message" json:"exceptionMessage,omitempty"`
 	ExceptionStacktrace *string           `ch:"exception_stacktrace" json:"exceptionStacktrace,omitempty"`
-	Source             string            `ch:"source" json:"source"`
-	Environment        string            `ch:"environment" json:"environment"`
-	Version            string            `ch:"version" json:"version"`
-	Tags               []string          `ch:"tags" json:"tags,omitempty"`
-	Attributes         map[string]string `ch:"attributes" json:"attributes,omitempty"`
-	Timestamp          time.Time         `ch:"timestamp" json:"timestamp"`
-	CreatedAt          time.Time         `ch:"created_at" json:"createdAt"`
+	Source              string            `ch:"source" json:"source"`
+	Environment         string            `ch:"environment" json:"environment"`
+	Version             string            `ch:"version" json:"version"`
+	Tags                []string          `ch:"tags" json:"tags,omitempty"`
+	Attributes          map[string]string `ch:"attributes" json:"attributes,omitempty"`
+	Timestamp           time.Time         `ch:"timestamp" json:"timestamp"`
+	CreatedAt           time.Time         `ch:"created_at" json:"createdAt"`
 }
 
 // EventType constants
@@ -157,10 +157,10 @@ type SpanNode struct {
 
 // SpanTree represents a hierarchical tree of spans
 type SpanTree struct {
-	TraceID   uuid.UUID   `json:"traceId"`
-	RootSpans []*SpanNode `json:"rootSpans"`
-	TotalSpans int        `json:"totalSpans"`
-	MaxDepth   int        `json:"maxDepth"`
+	TraceID    uuid.UUID   `json:"traceId"`
+	RootSpans  []*SpanNode `json:"rootSpans"`
+	TotalSpans int         `json:"totalSpans"`
+	MaxDepth   int         `json:"maxDepth"`
 }
 
 // BuildSpanTree builds a tree structure from a flat list of spans

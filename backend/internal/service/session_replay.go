@@ -26,27 +26,27 @@ func NewSessionReplayService(traceRepo *clickhouse.TraceRepository, logger *zap.
 
 // ReplayStep represents a single step in the session replay
 type ReplayStep struct {
-	Index         int            `json:"index"`
-	Trace         *domain.Trace  `json:"trace"`
-	SpanTree      *domain.SpanTree `json:"spanTree,omitempty"`
-	TimeSinceStart time.Duration  `json:"timeSinceStart"`
-	DeltaFromPrev  time.Duration  `json:"deltaFromPrev"`
-	CumulativeCost float64        `json:"cumulativeCost"`
-	CumulativeTokens uint32       `json:"cumulativeTokens"`
+	Index            int              `json:"index"`
+	Trace            *domain.Trace    `json:"trace"`
+	SpanTree         *domain.SpanTree `json:"spanTree,omitempty"`
+	TimeSinceStart   time.Duration    `json:"timeSinceStart"`
+	DeltaFromPrev    time.Duration    `json:"deltaFromPrev"`
+	CumulativeCost   float64          `json:"cumulativeCost"`
+	CumulativeTokens uint32           `json:"cumulativeTokens"`
 }
 
 // SessionReplay represents the complete replay data for a session
 type SessionReplay struct {
-	SessionID      string        `json:"sessionId"`
-	UserID         string        `json:"userId,omitempty"`
-	TotalSteps     int           `json:"totalSteps"`
-	TotalDuration  time.Duration `json:"totalDuration"`
-	TotalCost      float64       `json:"totalCost"`
-	TotalTokens    uint32        `json:"totalTokens"`
-	StartTime      time.Time     `json:"startTime"`
-	EndTime        time.Time     `json:"endTime"`
-	Steps          []*ReplayStep `json:"steps"`
-	Models         []string      `json:"models"`
+	SessionID     string        `json:"sessionId"`
+	UserID        string        `json:"userId,omitempty"`
+	TotalSteps    int           `json:"totalSteps"`
+	TotalDuration time.Duration `json:"totalDuration"`
+	TotalCost     float64       `json:"totalCost"`
+	TotalTokens   uint32        `json:"totalTokens"`
+	StartTime     time.Time     `json:"startTime"`
+	EndTime       time.Time     `json:"endTime"`
+	Steps         []*ReplayStep `json:"steps"`
+	Models        []string      `json:"models"`
 }
 
 // GetSessionReplay returns the complete replay data for a session
@@ -164,24 +164,24 @@ func (s *SessionReplayService) GetReplayStep(ctx context.Context, sessionID stri
 
 // ReplayTimeline represents the session timeline for visualization
 type ReplayTimeline struct {
-	SessionID   string            `json:"sessionId"`
-	TotalDuration time.Duration   `json:"totalDuration"`
-	Events      []*TimelineEvent  `json:"events"`
+	SessionID     string           `json:"sessionId"`
+	TotalDuration time.Duration    `json:"totalDuration"`
+	Events        []*TimelineEvent `json:"events"`
 }
 
 // TimelineEvent represents a single event on the timeline
 type TimelineEvent struct {
-	Index          int           `json:"index"`
-	TraceID        string        `json:"traceId"`
-	Name           string        `json:"name"`
-	StartOffset    time.Duration `json:"startOffset"`
-	Duration       time.Duration `json:"duration"`
-	WidthPercent   float64       `json:"widthPercent"`
-	OffsetPercent  float64       `json:"offsetPercent"`
-	Status         string        `json:"status"`
-	Model          string        `json:"model,omitempty"`
-	Tokens         uint32        `json:"tokens"`
-	Cost           float64       `json:"cost"`
+	Index         int           `json:"index"`
+	TraceID       string        `json:"traceId"`
+	Name          string        `json:"name"`
+	StartOffset   time.Duration `json:"startOffset"`
+	Duration      time.Duration `json:"duration"`
+	WidthPercent  float64       `json:"widthPercent"`
+	OffsetPercent float64       `json:"offsetPercent"`
+	Status        string        `json:"status"`
+	Model         string        `json:"model,omitempty"`
+	Tokens        uint32        `json:"tokens"`
+	Cost          float64       `json:"cost"`
 }
 
 // GetReplayTimeline returns the timeline visualization data

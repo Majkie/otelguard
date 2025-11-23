@@ -6,7 +6,7 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
-	"github.com/jmoiron/sqlx"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -34,7 +34,7 @@ var ProviderSet = wire.NewSet(
 type Application struct {
 	Config         *config.Config
 	Logger         *zap.Logger
-	PostgresDB     *sqlx.DB
+	PostgresDB     *pgxpool.Pool
 	ClickHouseConn clickhouse.Conn
 	Router         *gin.Engine
 	Handlers       *api.Handlers

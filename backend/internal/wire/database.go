@@ -3,17 +3,17 @@ package wire
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/wire"
-	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/otelguard/otelguard/internal/config"
 )
 
 // PostgresDB wraps the database connection with its cleanup function.
 type PostgresDB struct {
-	DB      *sqlx.DB
+	DB      *pgxpool.Pool
 	Cleanup func()
 }
 
@@ -33,24 +33,32 @@ var DatabaseSet = wire.NewSet(
 
 // ProvidePostgresDB creates a PostgreSQL database connection.
 func ProvidePostgresDB(cfg *config.Config) (*PostgresDB, error) {
-	db, err := sqlx.Connect("postgres", cfg.Postgres.DSN())
+	config, err := pgxpool.ParseConfig(cfg.Postgres.DSN())
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
+		return nil, fmt.Errorf("failed to parse postgres config: %w", err)
 	}
 
-	db.SetMaxOpenConns(cfg.Postgres.MaxOpenConns)
-	db.SetMaxIdleConns(cfg.Postgres.MaxIdleConns)
-	db.SetConnMaxLifetime(cfg.Postgres.ConnMaxLifetime)
+	config.MaxConns = int32(cfg.Postgres.MaxOpenConns)
+	config.MinConns = int32(cfg.Postgres.MaxIdleConns)
+	config.MaxConnLifetime = cfg.Postgres.ConnMaxLifetime
 
-	if err := db.Ping(); err != nil {
-		db.Close()
+	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create postgres pool: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := pool.Ping(ctx); err != nil {
+		pool.Close()
 		return nil, fmt.Errorf("failed to ping postgres: %w", err)
 	}
 
 	return &PostgresDB{
-		DB: db,
+		DB: pool,
 		Cleanup: func() {
-			db.Close()
+			pool.Close()
 		},
 	}, nil
 }

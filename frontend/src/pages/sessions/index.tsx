@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useSessions, type ListSessionsParams } from '@/api/sessions';
+import { useSessions } from '@/api/sessions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -24,8 +24,16 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+type SessionsPageParams = {
+  limit?: number;
+  offset?: number;
+  userId?: string;
+  startTime?: string;
+  endTime?: string;
+};
+
 export function SessionsPage() {
-  const [params, setParams] = useState<ListSessionsParams>({
+  const [params, setParams] = useState<SessionsPageParams>({
     limit: 20,
     offset: 0,
   });

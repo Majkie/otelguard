@@ -1,11 +1,13 @@
 package middleware
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -53,25 +55,24 @@ type APIKeyValidator func(keyHash string) (*APIKeyClaims, error)
 // JWTAuth returns middleware for JWT authentication
 func JWTAuth(secret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var tokenString string
+
+		// Try to get token from Authorization header first
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error":   "unauthorized",
-				"message": "missing authorization header",
-			})
-			return
+		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+		} else {
+			// Fall back to cookie
+			var err error
+			tokenString, err = c.Cookie("access_token")
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"error":   "unauthorized",
+					"message": "missing authentication token",
+				})
+				return
+			}
 		}
-
-		// Check for Bearer token
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error":   "unauthorized",
-				"message": "invalid authorization header format",
-			})
-			return
-		}
-
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
 		// Parse and validate token
 		token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
@@ -226,4 +227,197 @@ func HashAPIKey(key, salt string) string {
 // SecureCompare performs a constant-time comparison
 func SecureCompare(a, b string) bool {
 	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
+}
+
+// GenerateCSRFToken generates a random CSRF token
+func GenerateCSRFToken() (string, error) {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(bytes), nil
+}
+
+// CSRFProtection middleware validates CSRF tokens for state-changing operations
+func CSRFProtection() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Skip CSRF check for safe methods
+		if c.Request.Method == "GET" || c.Request.Method == "HEAD" || c.Request.Method == "OPTIONS" {
+			c.Next()
+			return
+		}
+
+		// Get CSRF token from header
+		csrfToken := c.GetHeader("X-CSRF-Token")
+		if csrfToken == "" {
+			// Also check for token in form data for compatibility
+			csrfToken = c.PostForm("csrf_token")
+		}
+
+		if csrfToken == "" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error":   "csrf_required",
+				"message": "CSRF token required for this operation",
+			})
+			return
+		}
+
+		// For now, we'll store CSRF tokens in session-like cookies
+		// In production, you'd want to store them in Redis or similar
+		expectedToken, err := c.Cookie("csrf_token")
+		if err != nil || !SecureCompare(csrfToken, expectedToken) {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error":   "csrf_invalid",
+				"message": "Invalid CSRF token",
+			})
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// AutoRefreshAuth returns middleware that automatically refreshes tokens when close to expiry
+func AutoRefreshAuth(secret string, refreshThreshold time.Duration) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var tokenString string
+
+		// Try to get token from Authorization header first
+		authHeader := c.GetHeader("Authorization")
+		if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+		} else {
+			// Fall back to cookie
+			var err error
+			tokenString, err = c.Cookie("access_token")
+			if err != nil {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"error":   "unauthorized",
+					"message": "missing authentication token",
+				})
+				return
+			}
+		}
+
+		// Parse and validate token
+		token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, jwt.ErrSignatureInvalid
+			}
+			return []byte(secret), nil
+		})
+
+		if err != nil || !token.Valid {
+			// Try to refresh the token automatically
+			if refreshErr := refreshTokenIfNeeded(c, secret); refreshErr != nil {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"error":   "unauthorized",
+					"message": "invalid or expired token",
+				})
+				return
+			}
+
+			// Re-parse the token after refresh
+			tokenString, _ = c.Cookie("access_token")
+			token, err = jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+				return []byte(secret), nil
+			})
+
+			if err != nil || !token.Valid {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"error":   "unauthorized",
+					"message": "token refresh failed",
+				})
+				return
+			}
+		}
+
+		claims, ok := token.Claims.(*Claims)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error":   "unauthorized",
+				"message": "invalid token claims",
+			})
+			return
+		}
+
+		// Check if token needs refresh (proactive refresh)
+		if time.Until(claims.ExpiresAt.Time) < refreshThreshold {
+			// Try to refresh in background (don't block the request)
+			go func() {
+				// Note: This is a simplified version. In production, you'd want to use a worker queue
+				// or some other mechanism to handle concurrent refreshes properly
+				_ = refreshTokenIfNeeded(c.Copy(), secret)
+			}()
+		}
+
+		// Set claims in context
+		c.Set(string(ContextUserID), claims.UserID)
+		c.Set(string(ContextOrganizationID), claims.OrganizationID)
+		c.Set(string(ContextEmail), claims.Email)
+		c.Set(string(ContextRole), claims.Role)
+		c.Set(string(ContextAuthType), AuthTypeJWT)
+
+		c.Next()
+	}
+}
+
+// refreshTokenIfNeeded attempts to refresh the access token using the refresh token
+func refreshTokenIfNeeded(c *gin.Context, secret string) error {
+	refreshToken, err := c.Cookie("refresh_token")
+	if err != nil {
+		return err
+	}
+
+	// Validate refresh token
+	token, err := jwt.ParseWithClaims(refreshToken, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(secret), nil
+	})
+
+	if err != nil || !token.Valid {
+		return err
+	}
+
+	claims, ok := token.Claims.(*Claims)
+	if !ok {
+		return jwt.ErrTokenInvalidClaims
+	}
+
+	// Generate new tokens
+	now := time.Now()
+	expiresAt := now.Add(24 * time.Hour) // Default expiration, should come from config
+
+	newClaims := &Claims{
+		UserID:         claims.UserID,
+		OrganizationID: claims.OrganizationID,
+		Email:          claims.Email,
+		Role:           claims.Role,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			Issuer:    "otelguard",
+		},
+	}
+
+	newToken := jwt.NewWithClaims(jwt.SigningMethodHS256, newClaims)
+	tokenString, err := newToken.SignedString([]byte(secret))
+	if err != nil {
+		return err
+	}
+
+	// Set new access token cookie
+	isSecure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "access_token",
+		Value:    tokenString,
+		MaxAge:   int(24 * time.Hour.Seconds()),
+		Path:     "/",
+		Domain:   "",
+		Secure:   isSecure,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	return nil
 }

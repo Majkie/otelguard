@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const [isInitialized, setIsInitialized] = useState(false);
 
-  const { data: user, isLoading, error } = useMe();
+  const { data: user, isLoading, error, isError } = useMe();
   const logoutMutation = useLogout();
 
   useEffect(() => {
@@ -31,15 +31,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isLoading]);
 
   useEffect(() => {
-    if (error) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('refreshToken');
+    // If we get a 401 error, the user is not authenticated
+    if (isError && (error as any)?.status === 401) {
+      // Clear any cached auth state
+      setIsInitialized(true);
     }
-  }, [error]);
+  }, [isError, error]);
 
   const logout = () => {
     logoutMutation.mutate(undefined, {
       onSuccess: () => {
+        navigate('/login');
+      },
+      onError: () => {
+        // Even if logout fails, clear local state
         navigate('/login');
       },
     });
@@ -48,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextType = {
     user: user ?? null,
     isLoading: isLoading || !isInitialized,
-    isAuthenticated: !!user,
+    isAuthenticated: !!user && !isError,
     logout,
   };
 

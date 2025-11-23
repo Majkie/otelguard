@@ -31,7 +31,7 @@ const (
 // SamplerConfig contains configuration for the sampler
 type SamplerConfig struct {
 	Type          SamplerType `envconfig:"SAMPLER_TYPE" default:"always"`
-	Rate          float64     `envconfig:"SAMPLER_RATE" default:"1.0"`       // 0.0 to 1.0 for random/consistent sampling
+	Rate          float64     `envconfig:"SAMPLER_RATE" default:"1.0"`        // 0.0 to 1.0 for random/consistent sampling
 	MaxPerSecond  int         `envconfig:"SAMPLER_MAX_PER_SEC" default:"100"` // For rate_limit sampling
 	SampleErrors  bool        `envconfig:"SAMPLER_ERRORS" default:"true"`     // Always sample errors
 	SampleSlow    bool        `envconfig:"SAMPLER_SLOW" default:"true"`       // Always sample slow traces
@@ -66,10 +66,10 @@ type SamplerStats struct {
 
 // TraceSampler implements sampling logic
 type TraceSampler struct {
-	config  *SamplerConfig
-	logger  *zap.Logger
-	rng     *rand.Rand
-	rngMu   sync.Mutex
+	config *SamplerConfig
+	logger *zap.Logger
+	rng    *rand.Rand
+	rngMu  sync.Mutex
 
 	// Stats
 	received atomic.Int64

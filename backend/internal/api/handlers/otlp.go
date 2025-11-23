@@ -38,8 +38,8 @@ type OTLPTraceRequest struct {
 
 // ResourceSpan represents a resource with its spans
 type ResourceSpan struct {
-	Resource   Resource     `json:"resource"`
-	ScopeSpans []ScopeSpan  `json:"scopeSpans"`
+	Resource   Resource    `json:"resource"`
+	ScopeSpans []ScopeSpan `json:"scopeSpans"`
 }
 
 // Resource represents the resource producing spans
@@ -50,7 +50,7 @@ type Resource struct {
 // ScopeSpan represents an instrumentation scope with spans
 type ScopeSpan struct {
 	Scope InstrumentationScope `json:"scope"`
-	Spans []OTLPSpan          `json:"spans"`
+	Spans []OTLPSpan           `json:"spans"`
 }
 
 // InstrumentationScope represents the instrumentation library
@@ -120,17 +120,17 @@ const (
 	AttrLLMMaxTokens        = "gen_ai.request.max_tokens"
 
 	// Langfuse/Langchain conventions
-	AttrLangfuseInput       = "langfuse.input"
-	AttrLangfuseOutput      = "langfuse.output"
-	AttrLangfuseUserId      = "langfuse.user_id"
-	AttrLangfuseSessionId   = "langfuse.session_id"
-	AttrLangfuseMetadata    = "langfuse.metadata"
-	AttrLangfuseCost        = "langfuse.cost"
+	AttrLangfuseInput     = "langfuse.input"
+	AttrLangfuseOutput    = "langfuse.output"
+	AttrLangfuseUserId    = "langfuse.user_id"
+	AttrLangfuseSessionId = "langfuse.session_id"
+	AttrLangfuseMetadata  = "langfuse.metadata"
+	AttrLangfuseCost      = "langfuse.cost"
 
 	// Service attributes
-	AttrServiceName         = "service.name"
-	AttrServiceVersion      = "service.version"
-	AttrDeploymentEnv       = "deployment.environment"
+	AttrServiceName    = "service.name"
+	AttrServiceVersion = "service.version"
+	AttrDeploymentEnv  = "deployment.environment"
 )
 
 // SpanKind constants
@@ -452,14 +452,14 @@ func (h *OTLPHandler) determineSpanType(span OTLPSpan, attrs map[string]interfac
 	// Check span name patterns
 	name := strings.ToLower(span.Name)
 	if strings.Contains(name, "llm") || strings.Contains(name, "chat") ||
-	   strings.Contains(name, "completion") || strings.Contains(name, "generate") {
+		strings.Contains(name, "completion") || strings.Contains(name, "generate") {
 		return domain.SpanTypeLLM
 	}
 	if strings.Contains(name, "embed") {
 		return domain.SpanTypeEmbedding
 	}
 	if strings.Contains(name, "retriev") || strings.Contains(name, "search") ||
-	   strings.Contains(name, "vector") {
+		strings.Contains(name, "vector") {
 		return domain.SpanTypeRetrieval
 	}
 	if strings.Contains(name, "tool") || strings.Contains(name, "function") {

@@ -18,37 +18,62 @@ import (
 // PromptHandler handles prompt-related endpoints
 type PromptHandler struct {
 	promptService *service.PromptService
+	traceService  *service.TraceService
 	logger        *zap.Logger
 }
 
 // NewPromptHandler creates a new prompt handler
-func NewPromptHandler(promptService *service.PromptService, logger *zap.Logger) *PromptHandler {
+func NewPromptHandler(promptService *service.PromptService, traceService *service.TraceService, logger *zap.Logger) *PromptHandler {
 	return &PromptHandler{
 		promptService: promptService,
+		traceService:  traceService,
 		logger:        logger,
 	}
 }
 
 // List returns all prompts for a project
 func (h *PromptHandler) List(c *gin.Context) {
-	projectID := c.GetString("project_id")
+	projectID := c.Query("projectId")
 	if projectID == "" {
-		projectID = "default"
+		h.logger.Warn("projectId not found in query parameters")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "projectId is required",
+		})
+		return
+	}
+
+	// Validate UUID format
+	if _, err := uuid.Parse(projectID); err != nil {
+		h.logger.Error("invalid project_id format", zap.String("project_id", projectID), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid project_id format",
+		})
+		return
 	}
 
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
+	if limit <= 0 {
+		limit = 50
+	}
 	if limit > 100 {
 		limit = 100
 	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	h.logger.Debug("listing prompts", zap.String("project_id", projectID), zap.Int("limit", limit), zap.Int("offset", offset))
 
 	prompts, total, err := h.promptService.List(c.Request.Context(), projectID, &service.ListOptions{
 		Limit:  limit,
 		Offset: offset,
 	})
 	if err != nil {
-		h.logger.Error("failed to list prompts", zap.Error(err))
+		h.logger.Error("failed to list prompts", zap.String("project_id", projectID), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "internal_error",
 			"message": "Failed to retrieve prompts",
@@ -73,21 +98,32 @@ func (h *PromptHandler) Create(c *gin.Context) {
 		Tags        []string `json:"tags"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
+		h.logger.Error("invalid request body", zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid_request",
-			"message": err.Error(),
+			"message": "Invalid request body",
 		})
 		return
 	}
 
-	projectID := c.GetString("project_id")
+	projectID := c.Query("projectId")
 	if projectID == "" {
-		projectID = "default"
+		h.logger.Warn("projectId not found in query parameters")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "projectId is required",
+		})
+		return
 	}
 
 	projectUUID, err := uuid.Parse(projectID)
 	if err != nil {
-		projectUUID = uuid.New()
+		h.logger.Error("invalid projectId format", zap.String("projectId", projectID), zap.Error(err))
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid projectId format",
+		})
+		return
 	}
 
 	now := time.Now()
@@ -662,13 +698,153 @@ func (h *PromptHandler) GetLinkedTraces(c *gin.Context) {
 		return
 	}
 
-	// For now, return a placeholder response
-	// In a full implementation, this would query ClickHouse for traces with this prompt_id
+	// Get project ID from context
+	projectID := c.GetString("project_id")
+	if projectID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "missing_project",
+			"message": "Project ID is required",
+		})
+		return
+	}
+
+	// Pagination
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	if limit > 100 {
+		limit = 100
+	}
+	if limit < 1 {
+		limit = 50
+	}
+
+	// Query traces linked to this prompt
+	opts := &service.ListTracesOptions{
+		ProjectID: projectID,
+		PromptID:  promptID,
+		Limit:     limit,
+		Offset:    offset,
+		SortBy:    "start_time",
+		SortOrder: "DESC",
+	}
+
+	traces, total, err := h.traceService.ListTraces(c.Request.Context(), opts)
+	if err != nil {
+		h.logger.Error("failed to get linked traces", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve linked traces",
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"promptId": promptID,
-		"traces":   []interface{}{},
-		"total":    0,
-		"message":  "Traces linked to this prompt will appear here when SDK sends prompt_id with traces",
+		"traces":   traces,
+		"total":    total,
+		"limit":    limit,
+		"offset":   offset,
+	})
+}
+
+// GetPerformanceMetrics returns performance metrics for a prompt
+func (h *PromptHandler) GetPerformanceMetrics(c *gin.Context) {
+	promptID := c.Param("id")
+
+	// Verify prompt exists
+	_, err := h.promptService.GetByID(c.Request.Context(), promptID)
+	if err != nil {
+		if err == domain.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "not_found",
+				"message": "Prompt not found",
+			})
+			return
+		}
+		h.logger.Error("failed to get prompt", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve prompt",
+		})
+		return
+	}
+
+	// Get project ID from context
+	projectID := c.GetString("project_id")
+	if projectID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "missing_project",
+			"message": "Project ID is required",
+		})
+		return
+	}
+
+	// Time filters
+	startTime := c.Query("startTime")
+	endTime := c.Query("endTime")
+
+	metrics, err := h.traceService.GetPromptPerformanceMetrics(c.Request.Context(), projectID, promptID, startTime, endTime)
+	if err != nil {
+		h.logger.Error("failed to get prompt performance metrics", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve performance metrics",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"promptId": promptID,
+		"metrics":  metrics,
+	})
+}
+
+// DetectRegressions detects performance regressions between prompt versions
+func (h *PromptHandler) DetectRegressions(c *gin.Context) {
+	promptID := c.Param("id")
+
+	// Verify prompt exists
+	_, err := h.promptService.GetByID(c.Request.Context(), promptID)
+	if err != nil {
+		if err == domain.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "not_found",
+				"message": "Prompt not found",
+			})
+			return
+		}
+		h.logger.Error("failed to get prompt", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve prompt",
+		})
+		return
+	}
+
+	// Get project ID from context
+	projectID := c.GetString("project_id")
+	if projectID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "missing_project",
+			"message": "Project ID is required",
+		})
+		return
+	}
+
+	regressions, err := h.traceService.DetectPromptRegressions(c.Request.Context(), projectID, promptID)
+	if err != nil {
+		h.logger.Error("failed to detect prompt regressions", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to detect regressions",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"promptId":    promptID,
+		"regressions": regressions,
 	})
 }
 

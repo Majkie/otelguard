@@ -142,24 +142,24 @@ func normalizeModelName(model string) string {
 
 	// Common model name mappings
 	modelMappings := map[string]string{
-		"gpt-4-turbo":          "gpt-4-turbo",
-		"gpt-4-turbo-preview":  "gpt-4-turbo",
-		"gpt-4-0125-preview":   "gpt-4-turbo",
-		"gpt-4-1106-preview":   "gpt-4-turbo",
-		"gpt-4o":               "gpt-4o",
-		"gpt-4o-mini":          "gpt-4o-mini",
-		"gpt-4":                "gpt-4",
-		"gpt-3.5-turbo":        "gpt-3.5-turbo",
-		"gpt-3.5-turbo-0125":   "gpt-3.5-turbo",
-		"claude-3-opus":        "claude-3-opus",
-		"claude-3-sonnet":      "claude-3-sonnet",
-		"claude-3-haiku":       "claude-3-haiku",
-		"claude-3-5-sonnet":    "claude-3.5-sonnet",
-		"claude-3.5-sonnet":    "claude-3.5-sonnet",
-		"claude-2":             "claude-2",
-		"claude-instant":       "claude-instant",
-		"text-embedding-ada":   "text-embedding-ada-002",
-		"text-embedding-3":     "text-embedding-3-small",
+		"gpt-4-turbo":         "gpt-4-turbo",
+		"gpt-4-turbo-preview": "gpt-4-turbo",
+		"gpt-4-0125-preview":  "gpt-4-turbo",
+		"gpt-4-1106-preview":  "gpt-4-turbo",
+		"gpt-4o":              "gpt-4o",
+		"gpt-4o-mini":         "gpt-4o-mini",
+		"gpt-4":               "gpt-4",
+		"gpt-3.5-turbo":       "gpt-3.5-turbo",
+		"gpt-3.5-turbo-0125":  "gpt-3.5-turbo",
+		"claude-3-opus":       "claude-3-opus",
+		"claude-3-sonnet":     "claude-3-sonnet",
+		"claude-3-haiku":      "claude-3-haiku",
+		"claude-3-5-sonnet":   "claude-3.5-sonnet",
+		"claude-3.5-sonnet":   "claude-3.5-sonnet",
+		"claude-2":            "claude-2",
+		"claude-instant":      "claude-instant",
+		"text-embedding-ada":  "text-embedding-ada-002",
+		"text-embedding-3":    "text-embedding-3-small",
 	}
 
 	for pattern, normalized := range modelMappings {
@@ -173,20 +173,20 @@ func normalizeModelName(model string) string {
 
 // Model pricing per 1K tokens (input, output)
 var modelPricing = map[string][2]float64{
-	"gpt-4o":                   {0.005, 0.015},
-	"gpt-4o-mini":              {0.00015, 0.0006},
-	"gpt-4-turbo":              {0.01, 0.03},
-	"gpt-4":                    {0.03, 0.06},
-	"gpt-3.5-turbo":            {0.0005, 0.0015},
-	"claude-3-opus":            {0.015, 0.075},
-	"claude-3-sonnet":          {0.003, 0.015},
-	"claude-3.5-sonnet":        {0.003, 0.015},
-	"claude-3-haiku":           {0.00025, 0.00125},
-	"claude-2":                 {0.008, 0.024},
-	"claude-instant":           {0.0008, 0.0024},
-	"text-embedding-ada-002":   {0.0001, 0},
-	"text-embedding-3-small":   {0.00002, 0},
-	"text-embedding-3-large":   {0.00013, 0},
+	"gpt-4o":                 {0.005, 0.015},
+	"gpt-4o-mini":            {0.00015, 0.0006},
+	"gpt-4-turbo":            {0.01, 0.03},
+	"gpt-4":                  {0.03, 0.06},
+	"gpt-3.5-turbo":          {0.0005, 0.0015},
+	"claude-3-opus":          {0.015, 0.075},
+	"claude-3-sonnet":        {0.003, 0.015},
+	"claude-3.5-sonnet":      {0.003, 0.015},
+	"claude-3-haiku":         {0.00025, 0.00125},
+	"claude-2":               {0.008, 0.024},
+	"claude-instant":         {0.0008, 0.0024},
+	"text-embedding-ada-002": {0.0001, 0},
+	"text-embedding-3-small": {0.00002, 0},
+	"text-embedding-3-large": {0.00013, 0},
 }
 
 // calculateCost calculates the cost based on model and tokens
@@ -209,11 +209,11 @@ func hasPII(text string) bool {
 	}
 
 	patterns := []string{
-		`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b`,             // Email
-		`\b\d{3}[-.]?\d{3}[-.]?\d{4}\b`,                                   // Phone
-		`\b\d{3}[-]?\d{2}[-]?\d{4}\b`,                                     // SSN
-		`\b(?:\d{4}[-\s]?){3}\d{4}\b`,                                     // Credit card
-		`\b[A-Z][a-z]+\s+[A-Z][a-z]+\b`,                                   // Names (simple)
+		`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b`, // Email
+		`\b\d{3}[-.]?\d{3}[-.]?\d{4}\b`,                      // Phone
+		`\b\d{3}[-]?\d{2}[-]?\d{4}\b`,                        // SSN
+		`\b(?:\d{4}[-\s]?){3}\d{4}\b`,                        // Credit card
+		`\b[A-Z][a-z]+\s+[A-Z][a-z]+\b`,                      // Names (simple)
 	}
 
 	for _, pattern := range patterns {

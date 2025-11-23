@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
+import { useProjectContext } from '@/contexts/project-context';
 
 // Types
 export interface Trace {
@@ -46,8 +47,9 @@ export interface ListTracesParams {
   // Pagination
   limit?: number;
   offset?: number;
-  // Basic filters
+  // Project filter (injected by context)
   projectId?: string;
+  // Basic filters
   sessionId?: string;
   userId?: string;
   model?: string;
@@ -85,10 +87,14 @@ export const traceKeys = {
 };
 
 // Hooks
-export function useTraces(params: ListTracesParams = {}) {
+export function useTraces(params: Omit<ListTracesParams, 'projectId'> = {}) {
+  const { selectedProject } = useProjectContext();
+  const projectId = selectedProject?.id;
+
   return useQuery({
-    queryKey: traceKeys.list(params),
-    queryFn: () => api.get<ListTracesResponse>('/v1/traces', { params }),
+    queryKey: traceKeys.list({ ...params, projectId }),
+    queryFn: () => api.get<ListTracesResponse>('/v1/traces', { params: { ...params, projectId } }),
+    enabled: !!projectId,
   });
 }
 
@@ -101,10 +107,16 @@ export function useTrace(id: string) {
 }
 
 export function useTraceSpans(traceId: string) {
+  const { selectedProject } = useProjectContext();
+  const projectId = selectedProject?.id;
+
   return useQuery({
     queryKey: traceKeys.spans(traceId),
-    queryFn: () => api.get<{ data: Span[] }>(`/v1/traces/${traceId}/spans`),
-    enabled: !!traceId,
+    queryFn: () =>
+      api.get<{ data: Span[] }>(`/v1/traces/${traceId}/spans`, {
+        params: { projectId }
+      }),
+    enabled: !!traceId && !!projectId,
   });
 }
 
