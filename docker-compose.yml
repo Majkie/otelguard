@@ -1,7 +1,4 @@
-version: '3.8'
-
 services:
-  # PostgreSQL - Metadata storage
   postgres:
     image: postgres:18-alpine
     container_name: otelguard-postgres
@@ -22,8 +19,6 @@ services:
     networks:
       - otelguard
 
-  # ClickHouse - Event storage
-  # Using ulimits and privileged to fix get_mempolicy error
   clickhouse:
     image: clickhouse/clickhouse-server:24-alpine
     container_name: otelguard-clickhouse
@@ -33,8 +28,8 @@ services:
       CLICKHOUSE_PASSWORD: ""
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     ports:
-      - "8123:8123"  # HTTP interface
-      - "9000:9000"  # Native interface
+      - "8123:8123"
+      - "9000:9000"
     volumes:
       - clickhouse_data:/var/lib/clickhouse
       - ./backend/migrations/clickhouse:/docker-entrypoint-initdb.d:ro
@@ -42,7 +37,6 @@ services:
       nofile:
         soft: 262144
         hard: 262144
-    # Fix for get_mempolicy: Operation not permitted
     cap_add:
       - SYS_NICE
       - NET_ADMIN
@@ -57,27 +51,29 @@ services:
     networks:
       - otelguard
 
-  # Backend API (production build)
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: otelguard-backend
     environment:
       OTELGUARD_PORT: 8080
       OTELGUARD_ENV: development
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_USER: otelguard
-      POSTGRES_PASSWORD: otelguard
-      POSTGRES_DB: otelguard
-      CLICKHOUSE_HOST: clickhouse
-      CLICKHOUSE_PORT: 9000
-      CLICKHOUSE_DB: otelguard
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
-      API_KEY_SALT: ${API_KEY_SALT:-your-api-key-salt-change-in-production}
+      OTELGUARD_POSTGRES_HOST: postgres
+      OTELGUARD_POSTGRES_PORT: 5432
+      OTELGUARD_POSTGRES_USER: otelguard
+      OTELGUARD_POSTGRES_PASSWORD: otelguard
+      OTELGUARD_POSTGRES_DB: otelguard
+      OTELGUARD_CLICKHOUSE_HOST: clickhouse
+      OTELGUARD_CLICKHOUSE_PORT: 9000
+      OTELGUARD_CLICKHOUSE_DB: otelguard
+      JWT_SECRET: dev-secret-change-in-production
+      API_KEY_SALT: dev-salt-change-in-production
     ports:
       - "8080:8080"
+    volumes:
+      - ./backend:/app
+      - go_mod_cache:/go/pkg/mod
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,29 +81,11 @@ services:
         condition: service_healthy
     networks:
       - otelguard
-    profiles:
-      - prod
-
-  # Frontend (production build)
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: otelguard-frontend
-    environment:
-      VITE_API_URL: http://localhost:8080
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-    networks:
-      - otelguard
-    profiles:
-      - prod
 
 volumes:
   postgres_data:
   clickhouse_data:
+  go_mod_cache:
 
 networks:
   otelguard:

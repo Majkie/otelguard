@@ -11,13 +11,6 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    host: true, // Listen on all addresses, including LAN and public
-    strictPort: true,
-    // HMR configuration
-    hmr: {
-      overlay: true,
-    },
-    // Proxy API requests to backend
     proxy: {
       '/v1': {
         target: 'http://localhost:8080',
@@ -28,13 +21,5 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
-    // Watch options
-    watch: {
-      usePolling: true, // Use polling for Docker/WSL environments
-    },
-  },
-  // Optimizations for dev
-  optimizeDeps: {
-    include: ['react', 'react-dom', 'react-router-dom', '@tanstack/react-query'],
   },
 });
