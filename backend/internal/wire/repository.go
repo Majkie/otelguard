@@ -22,6 +22,7 @@ var RepositorySet = wire.NewSet(
 	// ClickHouse repositories
 	ProvideTraceRepository,
 	ProvideGuardrailEventRepository,
+	ProvideAgentRepository,
 )
 
 // PostgreSQL Repositories
@@ -76,4 +77,9 @@ func ProvideTraceRepository(conn clickhouse.Conn) *chrepo.TraceRepository {
 // ProvideGuardrailEventRepository creates a new GuardrailEventRepository.
 func ProvideGuardrailEventRepository(conn clickhouse.Conn) *chrepo.GuardrailEventRepository {
 	return chrepo.NewGuardrailEventRepository(conn)
+}
+
+// ProvideAgentRepository creates a new AgentRepository.
+func ProvideAgentRepository(conn clickhouse.Conn) *chrepo.AgentRepository {
+	return chrepo.NewAgentRepository(conn)
 }

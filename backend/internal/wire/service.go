@@ -26,6 +26,7 @@ var ServiceSet = wire.NewSet(
 	ProvideTokenizerService,
 	ProvidePricingService,
 	ProvideLLMService,
+	ProvideAgentService,
 )
 
 // ProvideAuthService creates a new AuthService.
@@ -191,4 +192,13 @@ func ProvideLLMService(
 	pricing *service.PricingService,
 ) *service.LLMServiceImpl {
 	return service.NewLLMService(logger, tokenizer, pricing)
+}
+
+// ProvideAgentService creates a new AgentService.
+func ProvideAgentService(
+	agentRepo *chrepo.AgentRepository,
+	traceRepo *chrepo.TraceRepository,
+	logger *zap.Logger,
+) *service.AgentService {
+	return service.NewAgentService(agentRepo, traceRepo, logger)
 }
