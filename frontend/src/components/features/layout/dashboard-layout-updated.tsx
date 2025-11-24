@@ -13,6 +13,7 @@ import {
   BarChart3,
   CheckSquare,
   Heart,
+  Network,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,7 @@ import { ProjectSelector } from '@/components/features/projects/project-selector
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Traces', href: '/traces', icon: Activity },
+  { name: 'Agent Graphs', href: '/agents', icon: Network },
   { name: 'Sessions', href: '/sessions', icon: MessageSquare },
   { name: 'Users', href: '/users', icon: Users },
   { name: 'Prompts', href: '/prompts', icon: FileText },

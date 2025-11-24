@@ -27,6 +27,8 @@ import FeedbackPage from '@/pages/feedback';
 import FeedbackAnalyticsPage from '@/pages/feedback/analytics';
 import AnnotationsPage from '@/pages/annotations';
 import AnnotatePage from '@/pages/annotations/annotate';
+import AgentsPage from '@/pages/agents';
+import AgentGraphDetailPage from '@/pages/agents/detail';
 
 // Layout
 import { DashboardLayout } from '@/components/features/layout/dashboard-layout-updated';
@@ -70,6 +72,8 @@ function App() {
             <Route path="guardrails" element={<GuardrailsPage />} />
             <Route path="annotations" element={<AnnotationsPage />} />
             <Route path="annotations/annotate" element={<AnnotatePage />} />
+            <Route path="agents" element={<AgentsPage />} />
+            <Route path="agents/:traceId" element={<AgentGraphDetailPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 
