@@ -391,21 +391,21 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 6.1 Agent Data Model
 
-- [ ] Extend trace model for agent identification
-- [ ] Create agent relationship tracking
-- [ ] Implement tool call tracking
-- [ ] Build inter-agent message tracking
-- [ ] Create agent state snapshots
-- [ ] Implement agent hierarchy detection
+- [x] Extend trace model for agent identification
+- [x] Create agent relationship tracking
+- [x] Implement tool call tracking
+- [x] Build inter-agent message tracking
+- [x] Create agent state snapshots
+- [x] Implement agent hierarchy detection
 
 ### 6.2 Graph Data Processing
 
-- [ ] Create graph construction from traces
-- [ ] Implement node/edge extraction
-- [ ] Build temporal ordering
-- [ ] Create parallel execution detection
-- [ ] Implement cycle detection
-- [ ] Build graph simplification for complex flows
+- [x] Create graph construction from traces
+- [x] Implement node/edge extraction
+- [x] Build temporal ordering
+- [x] Create parallel execution detection
+- [x] Implement cycle detection
+- [x] Build graph simplification for complex flows
 
 ### 6.3 Real-Time Updates
 

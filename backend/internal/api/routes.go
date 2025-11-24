@@ -25,6 +25,7 @@ type Handlers struct {
 	LLM        *handlers.LLMHandler
 	Annotation *handlers.AnnotationHandler
 	Feedback   *handlers.FeedbackHandler
+	Agent      *handlers.AgentHandler
 }
 
 // SetupRouter configures the Gin router with all routes and middleware
@@ -237,7 +238,30 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				analytics.GET("/scores/aggregations", h.Trace.GetScoreAggregations)
 				analytics.GET("/scores/trends", h.Trace.GetScoreTrends)
 				analytics.GET("/scores/comparisons", h.Trace.GetScoreComparisons)
+
+				// Agent analytics
+				analytics.GET("/agents", h.Agent.GetAgentStatistics)
+				analytics.GET("/tool-calls", h.Agent.GetToolCallStatistics)
 			}
+
+			// Agents (multi-agent visualization)
+			agents := dashboard.Group("/agents")
+			{
+				agents.GET("", h.Agent.ListAgents)
+				agents.POST("", h.Agent.CreateAgent)
+				agents.GET("/:id", h.Agent.GetAgent)
+				agents.GET("/:id/tool-calls", h.Agent.GetToolCallsByAgent)
+				agents.GET("/:id/states", h.Agent.GetAgentStates)
+			}
+
+			// Agent graphs for traces
+			dashboard.GET("/traces/:traceId/agents", h.Agent.GetAgentsByTrace)
+			dashboard.GET("/traces/:traceId/agents/hierarchy", h.Agent.GetAgentHierarchy)
+			dashboard.POST("/traces/:traceId/agents/detect", h.Agent.DetectAgents)
+			dashboard.GET("/traces/:traceId/tool-calls", h.Agent.GetToolCallsByTrace)
+			dashboard.GET("/traces/:traceId/agent-messages", h.Agent.GetAgentMessages)
+			dashboard.GET("/traces/:traceId/graph", h.Agent.GetAgentGraph)
+			dashboard.GET("/traces/:traceId/graph/:nodeId/subgraph", h.Agent.GetSubgraph)
 
 			// Annotation queues
 			annotationQueues := dashboard.Group("/annotation-queues")
