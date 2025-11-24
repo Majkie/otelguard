@@ -19,10 +19,13 @@ var RepositorySet = wire.NewSet(
 	ProvideAnnotationRepository,
 	ProvideFeedbackRepository,
 	ProvideFeedbackScoreMappingRepository,
+	ProvideEvaluatorRepository,
+	ProvideEvaluationJobRepository,
 	// ClickHouse repositories
 	ProvideTraceRepository,
 	ProvideGuardrailEventRepository,
 	ProvideAgentRepository,
+	ProvideEvaluationResultRepository,
 )
 
 // PostgreSQL Repositories
@@ -67,6 +70,16 @@ func ProvideFeedbackScoreMappingRepository(db *pgxpool.Pool) *pgrepo.FeedbackSco
 	return pgrepo.NewFeedbackScoreMappingRepository(db)
 }
 
+// ProvideEvaluatorRepository creates a new EvaluatorRepository.
+func ProvideEvaluatorRepository(db *pgxpool.Pool) *pgrepo.EvaluatorRepository {
+	return pgrepo.NewEvaluatorRepository(db)
+}
+
+// ProvideEvaluationJobRepository creates a new EvaluationJobRepository.
+func ProvideEvaluationJobRepository(db *pgxpool.Pool) *pgrepo.EvaluationJobRepository {
+	return pgrepo.NewEvaluationJobRepository(db)
+}
+
 // ClickHouse Repositories
 
 // ProvideTraceRepository creates a new TraceRepository.
@@ -82,4 +95,9 @@ func ProvideGuardrailEventRepository(conn clickhouse.Conn) *chrepo.GuardrailEven
 // ProvideAgentRepository creates a new AgentRepository.
 func ProvideAgentRepository(conn clickhouse.Conn) *chrepo.AgentRepository {
 	return chrepo.NewAgentRepository(conn)
+}
+
+// ProvideEvaluationResultRepository creates a new EvaluationResultRepository.
+func ProvideEvaluationResultRepository(conn clickhouse.Conn) *chrepo.EvaluationResultRepository {
+	return chrepo.NewEvaluationResultRepository(conn)
 }
