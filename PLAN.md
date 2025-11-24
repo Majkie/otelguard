@@ -418,14 +418,14 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 6.4 Graph Visualization UI
 
-- [ ] Integrate graph library (React Flow, D3, or Cytoscape)
-- [ ] Create agent node components
-- [ ] Build edge visualization with message types
-- [ ] Implement zoom/pan controls
-- [ ] Create minimap for large graphs
-- [ ] Build node detail panel
-- [ ] Implement edge highlighting
-- [ ] Create execution path highlighting
+- [x] Integrate graph library (React Flow, D3, or Cytoscape)
+- [x] Create agent node components
+- [x] Build edge visualization with message types
+- [x] Implement zoom/pan controls
+- [x] Create minimap for large graphs
+- [x] Build node detail panel
+- [x] Implement edge highlighting
+- [x] Create execution path highlighting
 
 ### 6.5 Timeline View
 
