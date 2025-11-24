@@ -26,6 +26,7 @@ type Handlers struct {
 	Annotation *handlers.AnnotationHandler
 	Feedback   *handlers.FeedbackHandler
 	Agent      *handlers.AgentHandler
+	Evaluator  *handlers.EvaluatorHandler
 }
 
 // SetupRouter configures the Gin router with all routes and middleware
@@ -316,6 +317,30 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				feedback.DELETE("/:id", h.Feedback.DeleteFeedback)
 				feedback.GET("/analytics", h.Feedback.GetFeedbackAnalytics)
 				feedback.GET("/trends", h.Feedback.GetFeedbackTrends)
+			}
+
+			// Evaluators (LLM-as-a-Judge)
+			evaluators := dashboard.Group("/evaluators")
+			{
+				evaluators.GET("", h.Evaluator.ListEvaluators)
+				evaluators.POST("", h.Evaluator.CreateEvaluator)
+				evaluators.GET("/templates", h.Evaluator.GetTemplates)
+				evaluators.GET("/templates/:templateId", h.Evaluator.GetTemplate)
+				evaluators.GET("/:id", h.Evaluator.GetEvaluator)
+				evaluators.PUT("/:id", h.Evaluator.UpdateEvaluator)
+				evaluators.DELETE("/:id", h.Evaluator.DeleteEvaluator)
+			}
+
+			// Evaluations
+			evaluations := dashboard.Group("/evaluations")
+			{
+				evaluations.POST("/run", h.Evaluator.RunEvaluation)
+				evaluations.POST("/batch", h.Evaluator.BatchEvaluation)
+				evaluations.GET("/jobs", h.Evaluator.ListJobs)
+				evaluations.GET("/jobs/:jobId", h.Evaluator.GetJob)
+				evaluations.GET("/results", h.Evaluator.GetResults)
+				evaluations.GET("/stats", h.Evaluator.GetStats)
+				evaluations.GET("/costs", h.Evaluator.GetCostSummary)
 			}
 
 			// User-specific routes

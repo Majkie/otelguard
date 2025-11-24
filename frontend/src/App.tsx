@@ -29,6 +29,9 @@ import AnnotationsPage from '@/pages/annotations';
 import AnnotatePage from '@/pages/annotations/annotate';
 import AgentsPage from '@/pages/agents';
 import AgentGraphDetailPage from '@/pages/agents/detail';
+import EvaluatorsPage from '@/pages/evaluators';
+import EvaluatorDetailPage from '@/pages/evaluators/detail';
+import EvaluationResultsPage from '@/pages/evaluators/results';
 
 // Layout
 import { DashboardLayout } from '@/components/features/layout/dashboard-layout-updated';
@@ -74,6 +77,9 @@ function App() {
             <Route path="annotations/annotate" element={<AnnotatePage />} />
             <Route path="agents" element={<AgentsPage />} />
             <Route path="agents/:traceId" element={<AgentGraphDetailPage />} />
+            <Route path="evaluators" element={<EvaluatorsPage />} />
+            <Route path="evaluators/results" element={<EvaluationResultsPage />} />
+            <Route path="evaluators/:id" element={<EvaluatorDetailPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 

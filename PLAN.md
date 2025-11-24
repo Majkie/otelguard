@@ -239,15 +239,15 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 4.2 LLM-as-a-Judge
 
-- [ ] Design evaluator configuration schema
-- [ ] Create built-in evaluation templates
-- [ ] Implement evaluator execution engine
-- [ ] Support multiple judge models
-- [ ] Create async evaluation job queue
-- [ ] Implement evaluation result storage
-- [ ] Build evaluation cost tracking
-- [ ] Create custom evaluator creation UI
-- [ ] Implement batch evaluation
+- [x] Design evaluator configuration schema
+- [x] Create built-in evaluation templates
+- [x] Implement evaluator execution engine
+- [x] Support multiple judge models
+- [x] Create async evaluation job queue
+- [x] Implement evaluation result storage
+- [x] Build evaluation cost tracking
+- [x] Create custom evaluator creation UI
+- [x] Implement batch evaluation
 
 ### 4.3 Human Annotation
 
