@@ -272,13 +272,14 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 4.5 Datasets & Experiments
 
-- [ ] Create dataset CRUD endpoints
-- [ ] Implement dataset item management
-- [ ] Build dataset import (CSV, JSON)
-- [ ] Create experiment execution engine
-- [ ] Implement experiment result storage
-- [ ] Build experiment comparison UI
-- [ ] Create statistical significance testing
+- [x] Create dataset CRUD endpoints
+- [x] Implement dataset item management
+- [x] Build dataset import (CSV, JSON)
+- [x] Create experiment execution engine
+- [x] Implement experiment result storage
+- [x] Build experiment comparison (backend with statistical metrics)
+- [ ] Build experiment comparison UI (frontend)
+- [x] Create statistical significance testing (advanced: t-tests, p-values)
 - [ ] Implement experiment scheduling
 
 ### 4.6 Score Analytics
@@ -299,9 +300,9 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 - [x] Design guardrail policy schema
 - [x] Create policy CRUD endpoints
-- [ ] Implement policy matching logic (triggers)
-- [ ] Build policy priority/ordering system
-- [ ] Create policy versioning
+- [x] Implement policy matching logic (triggers)
+- [x] Build policy priority/ordering system
+- [x] Create policy versioning
 - [ ] Implement policy inheritance
 - [ ] Build policy testing framework
 

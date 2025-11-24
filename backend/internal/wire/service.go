@@ -28,6 +28,8 @@ var ServiceSet = wire.NewSet(
 	ProvideLLMService,
 	ProvideAgentService,
 	ProvideEvaluatorService,
+	ProvideDatasetService,
+	ProvideExperimentService,
 )
 
 // ProvideAuthService creates a new AuthService.
@@ -215,4 +217,24 @@ func ProvideEvaluatorService(
 	logger *zap.Logger,
 ) *service.EvaluatorService {
 	return service.NewEvaluatorService(evaluatorRepo, jobRepo, resultRepo, traceRepo, llmService, pricing, logger)
+}
+
+// ProvideDatasetService creates a new DatasetService.
+func ProvideDatasetService(
+	datasetRepo *pgrepo.DatasetRepository,
+	logger *zap.Logger,
+) *service.DatasetService {
+	return service.NewDatasetService(datasetRepo, logger)
+}
+
+// ProvideExperimentService creates a new ExperimentService.
+func ProvideExperimentService(
+	experimentRepo *pgrepo.ExperimentRepository,
+	datasetRepo *pgrepo.DatasetRepository,
+	promptRepo *pgrepo.PromptRepository,
+	llmService *service.LLMServiceImpl,
+	evaluatorSvc *service.EvaluatorService,
+	logger *zap.Logger,
+) *service.ExperimentService {
+	return service.NewExperimentService(experimentRepo, datasetRepo, promptRepo, llmService, evaluatorSvc, logger)
 }

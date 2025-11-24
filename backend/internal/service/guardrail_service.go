@@ -2,6 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,13 +37,17 @@ func NewGuardrailService(
 
 // EvaluationInput represents the input for guardrail evaluation
 type EvaluationInput struct {
-	ProjectID uuid.UUID
-	TraceID   *uuid.UUID
-	SpanID    *uuid.UUID
-	PolicyID  *uuid.UUID
-	Input     string
-	Output    string
-	Context   map[string]interface{}
+	ProjectID   uuid.UUID
+	TraceID     *uuid.UUID
+	SpanID      *uuid.UUID
+	PolicyID    *uuid.UUID
+	Input       string
+	Output      string
+	Context     map[string]interface{}
+	Model       string   // LLM model being used
+	Environment string   // Environment (production, staging, etc.)
+	Tags        []string // Tags for matching
+	UserID      string   // User ID for matching
 }
 
 // EvaluationResult represents the result of guardrail evaluation
@@ -60,15 +68,39 @@ type Violation struct {
 	ActionTaken bool
 }
 
+// PolicyTriggers represents the trigger conditions for a guardrail policy
+type PolicyTriggers struct {
+	Models       []string          `json:"models,omitempty"`       // Model patterns (supports wildcards like "gpt-4*")
+	Environments []string          `json:"environments,omitempty"` // Environments to match
+	Tags         []string          `json:"tags,omitempty"`         // Required tags
+	UserIDs      []string          `json:"userIds,omitempty"`      // Specific user IDs
+	Conditions   map[string]string `json:"conditions,omitempty"`   // Custom conditions
+}
+
 // Evaluate evaluates content against guardrail policies
 func (s *GuardrailService) Evaluate(ctx context.Context, input *EvaluationInput) (*EvaluationResult, error) {
 	start := time.Now()
 
-	// Get applicable policies
-	policies, err := s.policyRepo.GetEnabledPolicies(ctx, input.ProjectID)
+	// Get all enabled policies
+	allPolicies, err := s.policyRepo.GetEnabledPolicies(ctx, input.ProjectID)
 	if err != nil {
 		return nil, err
 	}
+
+	// Filter policies based on triggers (policy matching logic)
+	matchedPolicies := s.filterPoliciesByTriggers(allPolicies, input)
+
+	// Sort policies by priority (higher priority first)
+	sort.Slice(matchedPolicies, func(i, j int) bool {
+		return matchedPolicies[i].Priority > matchedPolicies[j].Priority
+	})
+
+	s.logger.Debug("evaluating guardrails",
+		zap.Int("total_policies", len(allPolicies)),
+		zap.Int("matched_policies", len(matchedPolicies)),
+		zap.String("model", input.Model),
+		zap.String("environment", input.Environment),
+	)
 
 	result := &EvaluationResult{
 		Passed:     true,
@@ -76,13 +108,19 @@ func (s *GuardrailService) Evaluate(ctx context.Context, input *EvaluationInput)
 		Output:     input.Output,
 	}
 
-	for _, policy := range policies {
+	// Evaluate matched policies in priority order
+	for _, policy := range matchedPolicies {
 		// Get rules for policy
 		rules, err := s.policyRepo.GetRules(ctx, policy.ID)
 		if err != nil {
 			s.logger.Error("failed to get rules", zap.Error(err), zap.String("policy_id", policy.ID.String()))
 			continue
 		}
+
+		// Sort rules by order_index
+		sort.Slice(rules, func(i, j int) bool {
+			return rules[i].OrderIndex < rules[j].OrderIndex
+		})
 
 		for _, rule := range rules {
 			// Evaluate rule
@@ -97,24 +135,175 @@ func (s *GuardrailService) Evaluate(ctx context.Context, input *EvaluationInput)
 					Action:   rule.Action,
 				}
 
-				// Execute action
-				if rule.Action == "block" {
+				// Execute action based on type
+				switch rule.Action {
+				case "block":
 					violation.ActionTaken = true
 					result.Violations = append(result.Violations, violation)
-
-					// Log guardrail event
 					s.logEvent(ctx, input, policy, rule, true, message)
-					break // Stop evaluation on block
-				}
 
-				result.Violations = append(result.Violations, violation)
-				s.logEvent(ctx, input, policy, rule, true, message)
+					// Block action stops all further evaluation
+					result.LatencyMs = time.Since(start).Milliseconds()
+					return result, nil
+
+				case "sanitize":
+					// TODO: Implement sanitization logic
+					violation.ActionTaken = true
+					result.Remediated = true
+					result.Violations = append(result.Violations, violation)
+					s.logEvent(ctx, input, policy, rule, true, message)
+
+				case "alert":
+					// Continue evaluation but log the violation
+					violation.ActionTaken = true
+					result.Violations = append(result.Violations, violation)
+					s.logEvent(ctx, input, policy, rule, true, message)
+
+				default:
+					result.Violations = append(result.Violations, violation)
+					s.logEvent(ctx, input, policy, rule, true, message)
+				}
 			}
 		}
 	}
 
 	result.LatencyMs = time.Since(start).Milliseconds()
 	return result, nil
+}
+
+// filterPoliciesByTriggers filters policies based on trigger conditions
+func (s *GuardrailService) filterPoliciesByTriggers(policies []*domain.GuardrailPolicy, input *EvaluationInput) []*domain.GuardrailPolicy {
+	var matched []*domain.GuardrailPolicy
+
+	for _, policy := range policies {
+		// If specific policy requested, only match that one
+		if input.PolicyID != nil && policy.ID != *input.PolicyID {
+			continue
+		}
+
+		// Parse triggers
+		var triggers PolicyTriggers
+		if len(policy.Triggers) > 0 {
+			if err := json.Unmarshal(policy.Triggers, &triggers); err != nil {
+				s.logger.Warn("failed to parse policy triggers",
+					zap.Error(err),
+					zap.String("policy_id", policy.ID.String()),
+				)
+				// If triggers are invalid, include the policy (fail open)
+				matched = append(matched, policy)
+				continue
+			}
+		}
+
+		// If no triggers defined, match all
+		if len(triggers.Models) == 0 && len(triggers.Environments) == 0 &&
+			len(triggers.Tags) == 0 && len(triggers.UserIDs) == 0 {
+			matched = append(matched, policy)
+			continue
+		}
+
+		// Check model matching (supports wildcards)
+		if len(triggers.Models) > 0 && input.Model != "" {
+			modelMatched := false
+			for _, pattern := range triggers.Models {
+				if matchPattern(pattern, input.Model) {
+					modelMatched = true
+					break
+				}
+			}
+			if !modelMatched {
+				continue
+			}
+		}
+
+		// Check environment matching
+		if len(triggers.Environments) > 0 && input.Environment != "" {
+			envMatched := false
+			for _, env := range triggers.Environments {
+				if strings.EqualFold(env, input.Environment) {
+					envMatched = true
+					break
+				}
+			}
+			if !envMatched {
+				continue
+			}
+		}
+
+		// Check tag matching (any tag must match)
+		if len(triggers.Tags) > 0 && len(input.Tags) > 0 {
+			tagMatched := false
+			for _, requiredTag := range triggers.Tags {
+				for _, inputTag := range input.Tags {
+					if requiredTag == inputTag {
+						tagMatched = true
+						break
+					}
+				}
+				if tagMatched {
+					break
+				}
+			}
+			if !tagMatched {
+				continue
+			}
+		}
+
+		// Check user ID matching
+		if len(triggers.UserIDs) > 0 && input.UserID != "" {
+			userMatched := false
+			for _, userID := range triggers.UserIDs {
+				if userID == input.UserID {
+					userMatched = true
+					break
+				}
+			}
+			if !userMatched {
+				continue
+			}
+		}
+
+		// Policy matched all conditions
+		matched = append(matched, policy)
+	}
+
+	return matched
+}
+
+// matchPattern matches a string against a pattern with wildcard support
+// Supports * as wildcard (e.g., "gpt-4*" matches "gpt-4", "gpt-4-turbo", etc.)
+func matchPattern(pattern, str string) bool {
+	if pattern == "*" {
+		return true
+	}
+
+	if !strings.Contains(pattern, "*") {
+		return strings.EqualFold(pattern, str)
+	}
+
+	// Simple wildcard matching
+	parts := strings.Split(pattern, "*")
+	if len(parts) == 0 {
+		return true
+	}
+
+	// Check prefix
+	if len(parts[0]) > 0 {
+		if !strings.HasPrefix(strings.ToLower(str), strings.ToLower(parts[0])) {
+			return false
+		}
+		str = str[len(parts[0]):]
+	}
+
+	// Check suffix
+	if len(parts) > 1 && len(parts[len(parts)-1]) > 0 {
+		suffix := parts[len(parts)-1]
+		if !strings.HasSuffix(strings.ToLower(str), strings.ToLower(suffix)) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // evaluateRule evaluates a single rule against input/output
@@ -221,4 +410,132 @@ func (s *GuardrailService) logEvent(
 	if err := s.eventRepo.Insert(ctx, event); err != nil {
 		s.logger.Error("failed to log guardrail event", zap.Error(err))
 	}
+}
+
+// CreateVersion creates a new version snapshot of a policy
+func (s *GuardrailService) CreateVersion(ctx context.Context, policyID string, changeNotes string, createdBy uuid.UUID) (*domain.GuardrailPolicyVersion, error) {
+	// Get current policy
+	policy, err := s.policyRepo.GetByID(ctx, policyID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get current rules
+	rules, err := s.policyRepo.GetRules(ctx, policy.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Serialize rules to JSON
+	rulesJSON, err := json.Marshal(rules)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize rules: %w", err)
+	}
+
+	// Get next version number
+	nextVersion, err := s.policyRepo.GetNextVersionNumber(ctx, policyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get next version number: %w", err)
+	}
+
+	// Create version snapshot
+	version := &domain.GuardrailPolicyVersion{
+		ID:          uuid.New(),
+		PolicyID:    policy.ID,
+		Version:     nextVersion,
+		Name:        policy.Name,
+		Description: policy.Description,
+		Enabled:     policy.Enabled,
+		Priority:    policy.Priority,
+		Triggers:    policy.Triggers,
+		Rules:       rulesJSON,
+		ChangeNotes: changeNotes,
+		CreatedBy:   createdBy,
+		CreatedAt:   time.Now(),
+	}
+
+	if err := s.policyRepo.CreateVersion(ctx, version); err != nil {
+		return nil, fmt.Errorf("failed to create version: %w", err)
+	}
+
+	// Update current_version on policy
+	if err := s.policyRepo.UpdateCurrentVersion(ctx, policyID, nextVersion); err != nil {
+		s.logger.Warn("failed to update current version", zap.Error(err))
+	}
+
+	return version, nil
+}
+
+// GetVersion retrieves a specific version of a policy
+func (s *GuardrailService) GetVersion(ctx context.Context, policyID string, version int) (*domain.GuardrailPolicyVersion, error) {
+	return s.policyRepo.GetVersion(ctx, policyID, version)
+}
+
+// GetLatestVersion retrieves the latest version of a policy
+func (s *GuardrailService) GetLatestVersion(ctx context.Context, policyID string) (*domain.GuardrailPolicyVersion, error) {
+	return s.policyRepo.GetLatestVersion(ctx, policyID)
+}
+
+// ListVersions retrieves all versions of a policy
+func (s *GuardrailService) ListVersions(ctx context.Context, policyID string) ([]*domain.GuardrailPolicyVersion, error) {
+	return s.policyRepo.ListVersions(ctx, policyID)
+}
+
+// RestoreVersion restores a policy to a previous version
+func (s *GuardrailService) RestoreVersion(ctx context.Context, policyID string, version int, createdBy uuid.UUID) error {
+	// Get the version to restore
+	oldVersion, err := s.policyRepo.GetVersion(ctx, policyID, version)
+	if err != nil {
+		return fmt.Errorf("failed to get version: %w", err)
+	}
+
+	// Get current policy
+	policy, err := s.policyRepo.GetByID(ctx, policyID)
+	if err != nil {
+		return err
+	}
+
+	// Update policy with old version data
+	policy.Name = oldVersion.Name
+	policy.Description = oldVersion.Description
+	policy.Enabled = oldVersion.Enabled
+	policy.Priority = oldVersion.Priority
+	policy.Triggers = oldVersion.Triggers
+	policy.UpdatedAt = time.Now()
+
+	if err := s.policyRepo.Update(ctx, policy); err != nil {
+		return fmt.Errorf("failed to update policy: %w", err)
+	}
+
+	// Restore rules
+	var rules []*domain.GuardrailRule
+	if err := json.Unmarshal(oldVersion.Rules, &rules); err != nil {
+		return fmt.Errorf("failed to parse rules: %w", err)
+	}
+
+	// Delete existing rules
+	currentRules, err := s.policyRepo.GetRules(ctx, policy.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get current rules: %w", err)
+	}
+
+	for _, rule := range currentRules {
+		if err := s.policyRepo.DeleteRule(ctx, rule.ID.String()); err != nil {
+			s.logger.Warn("failed to delete rule", zap.Error(err))
+		}
+	}
+
+	// Add restored rules
+	for _, rule := range rules {
+		rule.ID = uuid.New() // Generate new IDs
+		rule.CreatedAt = time.Now()
+		if err := s.policyRepo.AddRule(ctx, rule); err != nil {
+			s.logger.Error("failed to add restored rule", zap.Error(err))
+		}
+	}
+
+	// Create a new version snapshot with restore note
+	changeNotes := fmt.Sprintf("Restored from version %d", version)
+	_, err = s.CreateVersion(ctx, policyID, changeNotes, createdBy)
+	return err
 }

@@ -24,8 +24,8 @@ func NewGuardrailRepository(db *pgxpool.Pool) *GuardrailRepository {
 // Create creates a new guardrail policy
 func (r *GuardrailRepository) Create(ctx context.Context, policy *domain.GuardrailPolicy) error {
 	query := `
-		INSERT INTO guardrail_policies (id, project_id, name, description, enabled, priority, triggers, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO guardrail_policies (id, project_id, name, description, enabled, priority, triggers, current_version, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	_, err := r.db.Exec(ctx, query,
 		policy.ID,
@@ -35,6 +35,7 @@ func (r *GuardrailRepository) Create(ctx context.Context, policy *domain.Guardra
 		policy.Enabled,
 		policy.Priority,
 		policy.Triggers,
+		policy.CurrentVersion,
 		policy.CreatedAt,
 		policy.UpdatedAt,
 	)
@@ -45,7 +46,7 @@ func (r *GuardrailRepository) Create(ctx context.Context, policy *domain.Guardra
 func (r *GuardrailRepository) GetByID(ctx context.Context, id string) (*domain.GuardrailPolicy, error) {
 	var policy domain.GuardrailPolicy
 	query := `
-		SELECT id, project_id, name, description, enabled, priority, triggers, created_at, updated_at
+		SELECT id, project_id, name, description, enabled, priority, triggers, current_version, created_at, updated_at
 		FROM guardrail_policies
 		WHERE id = $1
 	`
@@ -63,7 +64,7 @@ func (r *GuardrailRepository) GetByID(ctx context.Context, id string) (*domain.G
 func (r *GuardrailRepository) GetEnabledPolicies(ctx context.Context, projectID uuid.UUID) ([]*domain.GuardrailPolicy, error) {
 	var policies []*domain.GuardrailPolicy
 	query := `
-		SELECT id, project_id, name, description, enabled, priority, triggers, created_at, updated_at
+		SELECT id, project_id, name, description, enabled, priority, triggers, current_version, created_at, updated_at
 		FROM guardrail_policies
 		WHERE project_id = $1 AND enabled = true
 		ORDER BY priority DESC
@@ -83,7 +84,7 @@ func (r *GuardrailRepository) List(ctx context.Context, projectID string, opts *
 	}
 
 	listQuery := `
-		SELECT id, project_id, name, description, enabled, priority, triggers, created_at, updated_at
+		SELECT id, project_id, name, description, enabled, priority, triggers, current_version, created_at, updated_at
 		FROM guardrail_policies
 		WHERE project_id = $1
 		ORDER BY priority DESC, created_at DESC
@@ -176,5 +177,103 @@ func (r *GuardrailRepository) UpdateRule(ctx context.Context, rule *domain.Guard
 func (r *GuardrailRepository) DeleteRule(ctx context.Context, id string) error {
 	query := `DELETE FROM guardrail_rules WHERE id = $1`
 	_, err := r.db.Exec(ctx, query, id)
+	return err
+}
+
+// CreateVersion creates a new version snapshot of a policy
+func (r *GuardrailRepository) CreateVersion(ctx context.Context, version *domain.GuardrailPolicyVersion) error {
+	query := `
+		INSERT INTO guardrail_policy_versions
+		(id, policy_id, version, name, description, enabled, priority, triggers, rules, change_notes, created_by, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+	`
+	_, err := r.db.Exec(ctx, query,
+		version.ID,
+		version.PolicyID,
+		version.Version,
+		version.Name,
+		version.Description,
+		version.Enabled,
+		version.Priority,
+		version.Triggers,
+		version.Rules,
+		version.ChangeNotes,
+		version.CreatedBy,
+		version.CreatedAt,
+	)
+	return err
+}
+
+// GetVersion retrieves a specific version of a policy
+func (r *GuardrailRepository) GetVersion(ctx context.Context, policyID string, version int) (*domain.GuardrailPolicyVersion, error) {
+	var policyVersion domain.GuardrailPolicyVersion
+	query := `
+		SELECT id, policy_id, version, name, description, enabled, priority, triggers, rules, change_notes, created_by, created_at
+		FROM guardrail_policy_versions
+		WHERE policy_id = $1 AND version = $2 AND deleted_at IS NULL
+	`
+	err := pgxscan.Get(ctx, r.db, &policyVersion, query, policyID, version)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return &policyVersion, nil
+}
+
+// GetLatestVersion retrieves the latest version of a policy
+func (r *GuardrailRepository) GetLatestVersion(ctx context.Context, policyID string) (*domain.GuardrailPolicyVersion, error) {
+	var policyVersion domain.GuardrailPolicyVersion
+	query := `
+		SELECT id, policy_id, version, name, description, enabled, priority, triggers, rules, change_notes, created_by, created_at
+		FROM guardrail_policy_versions
+		WHERE policy_id = $1 AND deleted_at IS NULL
+		ORDER BY version DESC
+		LIMIT 1
+	`
+	err := pgxscan.Get(ctx, r.db, &policyVersion, query, policyID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return &policyVersion, nil
+}
+
+// ListVersions retrieves all versions of a policy
+func (r *GuardrailRepository) ListVersions(ctx context.Context, policyID string) ([]*domain.GuardrailPolicyVersion, error) {
+	var versions []*domain.GuardrailPolicyVersion
+	query := `
+		SELECT id, policy_id, version, name, description, enabled, priority, triggers, rules, change_notes, created_by, created_at
+		FROM guardrail_policy_versions
+		WHERE policy_id = $1 AND deleted_at IS NULL
+		ORDER BY version DESC
+	`
+	err := pgxscan.Select(ctx, r.db, &versions, query, policyID)
+	return versions, err
+}
+
+// GetNextVersionNumber gets the next version number for a policy
+func (r *GuardrailRepository) GetNextVersionNumber(ctx context.Context, policyID string) (int, error) {
+	var maxVersion int
+	query := `
+		SELECT COALESCE(MAX(version), 0) + 1
+		FROM guardrail_policy_versions
+		WHERE policy_id = $1
+	`
+	err := pgxscan.Get(ctx, r.db, &maxVersion, query, policyID)
+	return maxVersion, err
+}
+
+// UpdateCurrentVersion updates the current_version field of a policy
+func (r *GuardrailRepository) UpdateCurrentVersion(ctx context.Context, policyID string, version int) error {
+	query := `
+		UPDATE guardrail_policies
+		SET current_version = $2
+		WHERE id = $1
+	`
+	_, err := r.db.Exec(ctx, query, policyID, version)
 	return err
 }
