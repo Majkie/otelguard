@@ -429,12 +429,12 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 6.5 Timeline View
 
-- [ ] Create waterfall timeline component
-- [ ] Implement span duration visualization
-- [ ] Build parallel execution lanes
-- [ ] Create time scale controls
-- [ ] Implement span selection
-- [ ] Build timeline-graph synchronization
+- [x] Create waterfall timeline component
+- [x] Implement span duration visualization
+- [x] Build parallel execution lanes
+- [x] Create time scale controls
+- [x] Implement span selection
+- [x] Build timeline-graph synchronization
 
 ### 6.6 Replay & Debugging
 

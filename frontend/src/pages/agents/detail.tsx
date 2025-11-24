@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -8,11 +9,13 @@ import {
   Bot,
   AlertTriangle,
   Download,
+  GanttChart,
+  Route,
 } from 'lucide-react';
 
 import { useAgentGraph, useTraceAgents, useAgentMessages } from '@/api/agents';
 import { useTrace } from '@/api/traces';
-import { AgentGraph } from '@/components/features/agents';
+import { AgentGraph, AgentTimeline } from '@/components/features/agents';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,6 +33,8 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import type { GraphNode } from '@/types/agent';
 
@@ -49,6 +54,11 @@ export function AgentGraphDetailPage() {
   const { traceId } = useParams<{ traceId: string }>();
   const navigate = useNavigate();
 
+  // Synchronized selection state between graph and timeline
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [highlightCriticalPath, setHighlightCriticalPath] = useState(false);
+  const [highlightBottlenecks, setHighlightBottlenecks] = useState(false);
+
   // Fetch data
   const { data: trace, isLoading: traceLoading } = useTrace(traceId || '');
   const { data: graphData, isLoading: graphLoading, error: graphError } = useAgentGraph(traceId || '');
@@ -57,9 +67,15 @@ export function AgentGraphDetailPage() {
 
   const isLoading = traceLoading || graphLoading || agentsLoading;
 
-  const handleNodeClick = (node: GraphNode) => {
-    console.log('Node clicked:', node);
-  };
+  // Handle node selection from graph - syncs to timeline
+  const handleGraphNodeClick = useCallback((node: GraphNode) => {
+    setSelectedNodeId(node.id === selectedNodeId ? null : node.id);
+  }, [selectedNodeId]);
+
+  // Handle node selection from timeline - syncs to graph
+  const handleTimelineNodeSelect = useCallback((nodeId: string | null) => {
+    setSelectedNodeId(nodeId);
+  }, []);
 
   const handleExportGraph = () => {
     if (!graphData) return;
@@ -190,11 +206,15 @@ export function AgentGraphDetailPage() {
 
         {/* Tabs */}
         <Tabs defaultValue="graph" className="flex-1">
-          <div className="px-4 pt-2">
+          <div className="px-4 pt-2 flex items-center justify-between">
             <TabsList className="h-10">
               <TabsTrigger value="graph" className="gap-2">
                 <Network className="h-4 w-4" />
                 Graph
+              </TabsTrigger>
+              <TabsTrigger value="timeline" className="gap-2">
+                <GanttChart className="h-4 w-4" />
+                Timeline
               </TabsTrigger>
               <TabsTrigger value="agents" className="gap-2">
                 <Bot className="h-4 w-4" />
@@ -205,6 +225,32 @@ export function AgentGraphDetailPage() {
                 Messages ({messagesData?.data?.length || 0})
               </TabsTrigger>
             </TabsList>
+
+            {/* Highlight controls */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="critical-path"
+                  checked={highlightCriticalPath}
+                  onCheckedChange={setHighlightCriticalPath}
+                />
+                <Label htmlFor="critical-path" className="text-xs flex items-center gap-1 cursor-pointer">
+                  <Route className="h-3 w-3" />
+                  Critical Path
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="bottlenecks"
+                  checked={highlightBottlenecks}
+                  onCheckedChange={setHighlightBottlenecks}
+                />
+                <Label htmlFor="bottlenecks" className="text-xs flex items-center gap-1 cursor-pointer">
+                  <AlertTriangle className="h-3 w-3" />
+                  Bottlenecks
+                </Label>
+              </div>
+            </div>
           </div>
 
           <TabsContent value="graph" className="mt-0 p-4" style={{ height: 'calc(100vh - 16rem)' }}>
@@ -213,7 +259,18 @@ export function AgentGraphDetailPage() {
               className="h-full"
               showMinimap
               showControls
-              onNodeClick={handleNodeClick}
+              onNodeClick={handleGraphNodeClick}
+            />
+          </TabsContent>
+
+          <TabsContent value="timeline" className="mt-0 p-0" style={{ height: 'calc(100vh - 16rem)' }}>
+            <AgentTimeline
+              graph={graphData}
+              className="h-full"
+              selectedNodeId={selectedNodeId}
+              onSelectNode={handleTimelineNodeSelect}
+              highlightCriticalPath={highlightCriticalPath}
+              highlightBottlenecks={highlightBottlenecks}
             />
           </TabsContent>
 
