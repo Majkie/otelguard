@@ -68,9 +68,15 @@ func InitializeApplication(cfg *config.Config) (*wire.Application, error) {
 	evaluationResultRepository := wire.ProvideEvaluationResultRepository(conn)
 	evaluatorService := wire.ProvideEvaluatorService(evaluatorRepository, evaluationJobRepository, evaluationResultRepository, traceRepository, llmServiceImpl, pricingService, logger)
 	evaluatorHandler := wire.ProvideEvaluatorHandler(evaluatorService, logger)
-	handlers := wire.ProvideHandlers(healthHandler, authHandler, orgHandler, traceHandler, otlpHandler, promptHandler, guardrailHandler, annotationHandler, feedbackHandler, llmHandler, agentHandler, evaluatorHandler)
+	datasetRepository := wire.ProvideDatasetRepository(pool)
+	datasetService := wire.ProvideDatasetService(datasetRepository, logger)
+	datasetHandler := wire.ProvideDatasetHandler(datasetService, logger)
+	experimentRepository := wire.ProvideExperimentRepository(pool)
+	experimentService := wire.ProvideExperimentService(experimentRepository, datasetRepository, promptRepository, llmServiceImpl, evaluatorService, logger)
+	experimentHandler := wire.ProvideExperimentHandler(experimentService, logger)
+	handlers := wire.ProvideHandlers(healthHandler, authHandler, orgHandler, traceHandler, otlpHandler, promptHandler, guardrailHandler, annotationHandler, feedbackHandler, llmHandler, agentHandler, evaluatorHandler, datasetHandler, experimentHandler)
 	engine := wire.ProvideRouter(handlers, cfg, logger)
 	grpcComponents := wire.ProvideGRPCComponents(traceService, cfg, logger)
-	application := wire.ProvideApplication(cfg, logger, postgresDB, clickHouseDB, engine, handlers, traceService, batchWriterResult, grpcComponents)
+	application := wire.ProvideApplication(cfg, logger, postgresDB, clickHouseDB, engine, handlers, traceService, evaluatorService, experimentService, batchWriterResult, grpcComponents)
 	return application, nil
 }

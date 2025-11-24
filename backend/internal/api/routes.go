@@ -27,6 +27,8 @@ type Handlers struct {
 	Feedback   *handlers.FeedbackHandler
 	Agent      *handlers.AgentHandler
 	Evaluator  *handlers.EvaluatorHandler
+	Dataset    *handlers.DatasetHandler
+	Experiment *handlers.ExperimentHandler
 }
 
 // SetupRouter configures the Gin router with all routes and middleware
@@ -341,6 +343,44 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				evaluations.GET("/results", h.Evaluator.GetResults)
 				evaluations.GET("/stats", h.Evaluator.GetStats)
 				evaluations.GET("/costs", h.Evaluator.GetCostSummary)
+			}
+
+			// Datasets
+			datasets := dashboard.Group("/datasets")
+			{
+				datasets.GET("", h.Dataset.List)
+				datasets.POST("", h.Dataset.Create)
+				datasets.GET("/:id", h.Dataset.Get)
+				datasets.PUT("/:id", h.Dataset.Update)
+				datasets.DELETE("/:id", h.Dataset.Delete)
+
+				// Dataset items
+				datasets.GET("/:id/items", h.Dataset.ListItems)
+				datasets.POST("/items", h.Dataset.CreateItem)
+				datasets.GET("/items/:itemId", h.Dataset.GetItem)
+				datasets.PUT("/items/:itemId", h.Dataset.UpdateItem)
+				datasets.DELETE("/items/:itemId", h.Dataset.DeleteItem)
+
+				// Import
+				datasets.POST("/import", h.Dataset.Import)
+			}
+
+			// Experiments
+			experiments := dashboard.Group("/experiments")
+			{
+				experiments.GET("", h.Experiment.List)
+				experiments.POST("", h.Experiment.Create)
+				experiments.GET("/datasets/:datasetId", h.Experiment.ListByDataset)
+				experiments.GET("/:id", h.Experiment.Get)
+				experiments.POST("/:id/execute", h.Experiment.Execute)
+
+				// Runs
+				experiments.GET("/:id/runs", h.Experiment.ListRuns)
+				experiments.GET("/runs/:runId", h.Experiment.GetRun)
+				experiments.GET("/runs/:runId/results", h.Experiment.GetResults)
+
+				// Comparison
+				experiments.POST("/compare", h.Experiment.CompareRuns)
 			}
 
 			// User-specific routes

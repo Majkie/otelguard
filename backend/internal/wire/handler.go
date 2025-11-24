@@ -25,6 +25,8 @@ var HandlerSet = wire.NewSet(
 	ProvideLLMHandler,
 	ProvideAgentHandler,
 	ProvideEvaluatorHandler,
+	ProvideDatasetHandler,
+	ProvideExperimentHandler,
 	ProvideHandlers,
 )
 
@@ -126,6 +128,22 @@ func ProvideEvaluatorHandler(
 	return handlers.NewEvaluatorHandler(evaluatorService, logger)
 }
 
+// ProvideDatasetHandler creates a new DatasetHandler.
+func ProvideDatasetHandler(
+	datasetService *service.DatasetService,
+	logger *zap.Logger,
+) *handlers.DatasetHandler {
+	return handlers.NewDatasetHandler(datasetService, logger)
+}
+
+// ProvideExperimentHandler creates a new ExperimentHandler.
+func ProvideExperimentHandler(
+	experimentService *service.ExperimentService,
+	logger *zap.Logger,
+) *handlers.ExperimentHandler {
+	return handlers.NewExperimentHandler(experimentService, logger)
+}
+
 // ProvideHandlers creates the Handlers struct containing all handlers.
 func ProvideHandlers(
 	health *handlers.HealthHandler,
@@ -140,6 +158,8 @@ func ProvideHandlers(
 	llm *handlers.LLMHandler,
 	agent *handlers.AgentHandler,
 	evaluator *handlers.EvaluatorHandler,
+	dataset *handlers.DatasetHandler,
+	experiment *handlers.ExperimentHandler,
 ) *api.Handlers {
 	return &api.Handlers{
 		Health:     health,
@@ -154,5 +174,7 @@ func ProvideHandlers(
 		LLM:        llm,
 		Agent:      agent,
 		Evaluator:  evaluator,
+		Dataset:    dataset,
+		Experiment: experiment,
 	}
 }

@@ -36,11 +36,13 @@ type Application struct {
 	Logger         *zap.Logger
 	PostgresDB     *pgxpool.Pool
 	ClickHouseConn clickhouse.Conn
-	Router         *gin.Engine
-	Handlers       *api.Handlers
-	TraceService   *service.TraceService
-	BatchWriter    *BatchWriterResult
-	GRPCComponents *GRPCComponents
+	Router            *gin.Engine
+	Handlers          *api.Handlers
+	TraceService      *service.TraceService
+	EvaluatorService  *service.EvaluatorService
+	ExperimentService *service.ExperimentService
+	BatchWriter       *BatchWriterResult
+	GRPCComponents    *GRPCComponents
 
 	// Database wrappers with cleanup
 	postgresWrapper   *PostgresDB
@@ -52,6 +54,16 @@ func (a *Application) Start() {
 	// Start batch writer if enabled
 	if a.BatchWriter != nil && a.BatchWriter.Writer != nil {
 		a.BatchWriter.Start()
+	}
+
+	// Start evaluator service
+	if a.EvaluatorService != nil {
+		a.EvaluatorService.Start()
+	}
+
+	// Start experiment service
+	if a.ExperimentService != nil {
+		a.ExperimentService.Start()
 	}
 }
 
@@ -147,6 +159,8 @@ func ProvideApplication(
 	router *gin.Engine,
 	handlers *api.Handlers,
 	traceService *service.TraceService,
+	evaluatorService *service.EvaluatorService,
+	experimentService *service.ExperimentService,
 	batchWriter *BatchWriterResult,
 	grpcComponents *GRPCComponents,
 ) *Application {
@@ -158,6 +172,8 @@ func ProvideApplication(
 		Router:            router,
 		Handlers:          handlers,
 		TraceService:      traceService,
+		EvaluatorService:  evaluatorService,
+		ExperimentService: experimentService,
 		BatchWriter:       batchWriter,
 		GRPCComponents:    grpcComponents,
 		postgresWrapper:   pgWrapper,

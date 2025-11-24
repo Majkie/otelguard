@@ -646,3 +646,157 @@ type FeedbackTrend struct {
 	AverageRating float64 `json:"averageRating"`
 	CommentCount  int64   `json:"commentCount"`
 }
+
+// Dataset represents a collection of test cases for evaluation
+type Dataset struct {
+	ID          uuid.UUID    `db:"id" json:"id"`
+	ProjectID   uuid.UUID    `db:"project_id" json:"projectId"`
+	Name        string       `db:"name" json:"name"`
+	Description string       `db:"description" json:"description,omitempty"`
+	CreatedAt   time.Time    `db:"created_at" json:"createdAt"`
+	UpdatedAt   time.Time    `db:"updated_at" json:"updatedAt"`
+	DeletedAt   sql.NullTime `db:"deleted_at" json:"-"`
+}
+
+// DatasetItem represents a single test case within a dataset
+type DatasetItem struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	DatasetID      uuid.UUID `db:"dataset_id" json:"datasetId"`
+	Input          []byte    `db:"input" json:"input"`
+	ExpectedOutput []byte    `db:"expected_output" json:"expectedOutput,omitempty"`
+	Metadata       []byte    `db:"metadata" json:"metadata,omitempty"`
+	CreatedAt      time.Time `db:"created_at" json:"createdAt"`
+}
+
+// DatasetCreate represents data for creating a new dataset
+type DatasetCreate struct {
+	ProjectID   uuid.UUID `json:"projectId" validate:"required"`
+	Name        string    `json:"name" validate:"required,min=1,max=255"`
+	Description string    `json:"description,omitempty"`
+}
+
+// DatasetUpdate represents data for updating a dataset
+type DatasetUpdate struct {
+	Name        *string `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
+	Description *string `json:"description,omitempty"`
+}
+
+// DatasetItemCreate represents data for creating a dataset item
+type DatasetItemCreate struct {
+	DatasetID      uuid.UUID              `json:"datasetId" validate:"required"`
+	Input          map[string]interface{} `json:"input" validate:"required"`
+	ExpectedOutput map[string]interface{} `json:"expectedOutput,omitempty"`
+	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// DatasetItemUpdate represents data for updating a dataset item
+type DatasetItemUpdate struct {
+	Input          *map[string]interface{} `json:"input,omitempty"`
+	ExpectedOutput *map[string]interface{} `json:"expectedOutput,omitempty"`
+	Metadata       *map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// DatasetImport represents data for bulk importing dataset items
+type DatasetImport struct {
+	DatasetID uuid.UUID          `json:"datasetId" validate:"required"`
+	Format    string             `json:"format" validate:"required,oneof=json csv"`
+	Items     []DatasetItemInput `json:"items,omitempty"`
+	Data      string             `json:"data,omitempty"` // CSV or JSON string
+}
+
+// DatasetItemInput represents a simplified dataset item for import
+type DatasetItemInput struct {
+	Input          map[string]interface{} `json:"input"`
+	ExpectedOutput map[string]interface{} `json:"expectedOutput,omitempty"`
+	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// Experiment represents an evaluation experiment configuration
+type Experiment struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	ProjectID   uuid.UUID `db:"project_id" json:"projectId"`
+	DatasetID   uuid.UUID `db:"dataset_id" json:"datasetId"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description,omitempty"`
+	Config      []byte    `db:"config" json:"config"` // Prompt version, model config, evaluators
+	Status      string    `db:"status" json:"status"` // 'pending', 'running', 'completed', 'failed'
+	CreatedBy   uuid.UUID `db:"created_by" json:"createdBy"`
+	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updatedAt"`
+}
+
+// ExperimentConfig represents the configuration for an experiment
+type ExperimentConfig struct {
+	PromptID      *uuid.UUID             `json:"promptId,omitempty"`
+	PromptVersion *int                   `json:"promptVersion,omitempty"`
+	Model         string                 `json:"model" validate:"required"`
+	Provider      string                 `json:"provider" validate:"required"`
+	Parameters    map[string]interface{} `json:"parameters,omitempty"`
+	Evaluators    []uuid.UUID            `json:"evaluators,omitempty"` // ScoreConfig IDs or Evaluator IDs
+	Timeout       int                    `json:"timeout,omitempty"`    // seconds
+}
+
+// ExperimentRun represents a single execution of an experiment
+type ExperimentRun struct {
+	ID           uuid.UUID    `db:"id" json:"id"`
+	ExperimentID uuid.UUID    `db:"experiment_id" json:"experimentId"`
+	RunNumber    int          `db:"run_number" json:"runNumber"`
+	Status       string       `db:"status" json:"status"` // 'pending', 'running', 'completed', 'failed'
+	StartedAt    time.Time    `db:"started_at" json:"startedAt"`
+	CompletedAt  sql.NullTime `db:"completed_at" json:"completedAt,omitempty"`
+	TotalItems   int          `db:"total_items" json:"totalItems"`
+	CompletedItems int        `db:"completed_items" json:"completedItems"`
+	FailedItems  int          `db:"failed_items" json:"failedItems"`
+	TotalCost    float64      `db:"total_cost" json:"totalCost"`
+	TotalLatency int64        `db:"total_latency_ms" json:"totalLatencyMs"` // milliseconds
+	Error        string       `db:"error" json:"error,omitempty"`
+	CreatedAt    time.Time    `db:"created_at" json:"createdAt"`
+}
+
+// ExperimentResult represents the result of running an experiment on a dataset item
+type ExperimentResult struct {
+	ID            uuid.UUID `db:"id" json:"id"`
+	RunID         uuid.UUID `db:"run_id" json:"runId"`
+	DatasetItemID uuid.UUID `db:"dataset_item_id" json:"datasetItemId"`
+	TraceID       *string   `db:"trace_id" json:"traceId,omitempty"`
+	Output        []byte    `db:"output" json:"output,omitempty"`
+	Scores        []byte    `db:"scores" json:"scores,omitempty"` // JSON map of score name to value
+	LatencyMs     int64     `db:"latency_ms" json:"latencyMs"`
+	TokensUsed    int       `db:"tokens_used" json:"tokensUsed"`
+	Cost          float64   `db:"cost" json:"cost"`
+	Status        string    `db:"status" json:"status"` // 'success', 'error'
+	Error         string    `db:"error" json:"error,omitempty"`
+	CreatedAt     time.Time `db:"created_at" json:"createdAt"`
+}
+
+// ExperimentCreate represents data for creating a new experiment
+type ExperimentCreate struct {
+	ProjectID   uuid.UUID         `json:"projectId" validate:"required"`
+	DatasetID   uuid.UUID         `json:"datasetId" validate:"required"`
+	Name        string            `json:"name" validate:"required,min=1,max=255"`
+	Description string            `json:"description,omitempty"`
+	Config      *ExperimentConfig `json:"config" validate:"required"`
+	CreatedBy   uuid.UUID         `json:"createdBy" validate:"required"`
+}
+
+// ExperimentExecute represents data for executing an experiment
+type ExperimentExecute struct {
+	ExperimentID uuid.UUID `json:"experimentId" validate:"required"`
+	Async        bool      `json:"async,omitempty"` // Run in background
+}
+
+// ExperimentComparison represents comparison data between multiple experiment runs
+type ExperimentComparison struct {
+	RunIDs []uuid.UUID                   `json:"runIds"`
+	Runs   []*ExperimentRun              `json:"runs"`
+	Metrics map[string]*ComparisonMetrics `json:"metrics"`
+}
+
+// ComparisonMetrics represents aggregated metrics for experiment comparison
+type ComparisonMetrics struct {
+	Mean   float64 `json:"mean"`
+	Median float64 `json:"median"`
+	StdDev float64 `json:"stdDev"`
+	Min    float64 `json:"min"`
+	Max    float64 `json:"max"`
+}
