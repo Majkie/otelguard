@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -409,4 +410,132 @@ func (s *GuardrailService) logEvent(
 	if err := s.eventRepo.Insert(ctx, event); err != nil {
 		s.logger.Error("failed to log guardrail event", zap.Error(err))
 	}
+}
+
+// CreateVersion creates a new version snapshot of a policy
+func (s *GuardrailService) CreateVersion(ctx context.Context, policyID string, changeNotes string, createdBy uuid.UUID) (*domain.GuardrailPolicyVersion, error) {
+	// Get current policy
+	policy, err := s.policyRepo.GetByID(ctx, policyID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get current rules
+	rules, err := s.policyRepo.GetRules(ctx, policy.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Serialize rules to JSON
+	rulesJSON, err := json.Marshal(rules)
+	if err != nil {
+		return nil, fmt.Errorf("failed to serialize rules: %w", err)
+	}
+
+	// Get next version number
+	nextVersion, err := s.policyRepo.GetNextVersionNumber(ctx, policyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get next version number: %w", err)
+	}
+
+	// Create version snapshot
+	version := &domain.GuardrailPolicyVersion{
+		ID:          uuid.New(),
+		PolicyID:    policy.ID,
+		Version:     nextVersion,
+		Name:        policy.Name,
+		Description: policy.Description,
+		Enabled:     policy.Enabled,
+		Priority:    policy.Priority,
+		Triggers:    policy.Triggers,
+		Rules:       rulesJSON,
+		ChangeNotes: changeNotes,
+		CreatedBy:   createdBy,
+		CreatedAt:   time.Now(),
+	}
+
+	if err := s.policyRepo.CreateVersion(ctx, version); err != nil {
+		return nil, fmt.Errorf("failed to create version: %w", err)
+	}
+
+	// Update current_version on policy
+	if err := s.policyRepo.UpdateCurrentVersion(ctx, policyID, nextVersion); err != nil {
+		s.logger.Warn("failed to update current version", zap.Error(err))
+	}
+
+	return version, nil
+}
+
+// GetVersion retrieves a specific version of a policy
+func (s *GuardrailService) GetVersion(ctx context.Context, policyID string, version int) (*domain.GuardrailPolicyVersion, error) {
+	return s.policyRepo.GetVersion(ctx, policyID, version)
+}
+
+// GetLatestVersion retrieves the latest version of a policy
+func (s *GuardrailService) GetLatestVersion(ctx context.Context, policyID string) (*domain.GuardrailPolicyVersion, error) {
+	return s.policyRepo.GetLatestVersion(ctx, policyID)
+}
+
+// ListVersions retrieves all versions of a policy
+func (s *GuardrailService) ListVersions(ctx context.Context, policyID string) ([]*domain.GuardrailPolicyVersion, error) {
+	return s.policyRepo.ListVersions(ctx, policyID)
+}
+
+// RestoreVersion restores a policy to a previous version
+func (s *GuardrailService) RestoreVersion(ctx context.Context, policyID string, version int, createdBy uuid.UUID) error {
+	// Get the version to restore
+	oldVersion, err := s.policyRepo.GetVersion(ctx, policyID, version)
+	if err != nil {
+		return fmt.Errorf("failed to get version: %w", err)
+	}
+
+	// Get current policy
+	policy, err := s.policyRepo.GetByID(ctx, policyID)
+	if err != nil {
+		return err
+	}
+
+	// Update policy with old version data
+	policy.Name = oldVersion.Name
+	policy.Description = oldVersion.Description
+	policy.Enabled = oldVersion.Enabled
+	policy.Priority = oldVersion.Priority
+	policy.Triggers = oldVersion.Triggers
+	policy.UpdatedAt = time.Now()
+
+	if err := s.policyRepo.Update(ctx, policy); err != nil {
+		return fmt.Errorf("failed to update policy: %w", err)
+	}
+
+	// Restore rules
+	var rules []*domain.GuardrailRule
+	if err := json.Unmarshal(oldVersion.Rules, &rules); err != nil {
+		return fmt.Errorf("failed to parse rules: %w", err)
+	}
+
+	// Delete existing rules
+	currentRules, err := s.policyRepo.GetRules(ctx, policy.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get current rules: %w", err)
+	}
+
+	for _, rule := range currentRules {
+		if err := s.policyRepo.DeleteRule(ctx, rule.ID.String()); err != nil {
+			s.logger.Warn("failed to delete rule", zap.Error(err))
+		}
+	}
+
+	// Add restored rules
+	for _, rule := range rules {
+		rule.ID = uuid.New() // Generate new IDs
+		rule.CreatedAt = time.Now()
+		if err := s.policyRepo.AddRule(ctx, rule); err != nil {
+			s.logger.Error("failed to add restored rule", zap.Error(err))
+		}
+	}
+
+	// Create a new version snapshot with restore note
+	changeNotes := fmt.Sprintf("Restored from version %d", version)
+	_, err = s.CreateVersion(ctx, policyID, changeNotes, createdBy)
+	return err
 }

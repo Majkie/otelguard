@@ -279,7 +279,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Implement experiment result storage
 - [x] Build experiment comparison (backend with statistical metrics)
 - [ ] Build experiment comparison UI (frontend)
-- [ ] Create statistical significance testing (advanced: t-tests, p-values)
+- [x] Create statistical significance testing (advanced: t-tests, p-values)
 - [ ] Implement experiment scheduling
 
 ### 4.6 Score Analytics
@@ -302,7 +302,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Create policy CRUD endpoints
 - [x] Implement policy matching logic (triggers)
 - [x] Build policy priority/ordering system
-- [ ] Create policy versioning
+- [x] Create policy versioning
 - [ ] Implement policy inheritance
 - [ ] Build policy testing framework
 

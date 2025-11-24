@@ -320,3 +320,172 @@ func (h *GuardrailHandler) UpdateRule(c *gin.Context) {
 func (h *GuardrailHandler) DeleteRule(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{"error": "not_implemented"})
 }
+
+// CreateVersion creates a new version snapshot of a policy
+func (h *GuardrailHandler) CreateVersion(c *gin.Context) {
+	policyID := c.Param("id")
+	if _, err := uuid.Parse(policyID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid policy ID",
+		})
+		return
+	}
+
+	var req struct {
+		ChangeNotes string `json:"changeNotes,omitempty"`
+		CreatedBy   string `json:"createdBy" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	createdBy, err := uuid.Parse(req.CreatedBy)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid createdBy UUID",
+		})
+		return
+	}
+
+	version, err := h.guardrailService.CreateVersion(c.Request.Context(), policyID, req.ChangeNotes, createdBy)
+	if err != nil {
+		h.logger.Error("failed to create policy version", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to create version",
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, version)
+}
+
+// GetVersion retrieves a specific version of a policy
+func (h *GuardrailHandler) GetVersion(c *gin.Context) {
+	policyID := c.Param("id")
+	versionStr := c.Param("version")
+
+	if _, err := uuid.Parse(policyID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid policy ID",
+		})
+		return
+	}
+
+	version := 0
+	if _, err := fmt.Sscanf(versionStr, "%d", &version); err != nil || version < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid version number",
+		})
+		return
+	}
+
+	policyVersion, err := h.guardrailService.GetVersion(c.Request.Context(), policyID, version)
+	if err != nil {
+		if err == domain.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "not_found",
+				"message": "Version not found",
+			})
+			return
+		}
+		h.logger.Error("failed to get policy version", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve version",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, policyVersion)
+}
+
+// ListVersions retrieves all versions of a policy
+func (h *GuardrailHandler) ListVersions(c *gin.Context) {
+	policyID := c.Param("id")
+	if _, err := uuid.Parse(policyID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid policy ID",
+		})
+		return
+	}
+
+	versions, err := h.guardrailService.ListVersions(c.Request.Context(), policyID)
+	if err != nil {
+		h.logger.Error("failed to list policy versions", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": "Failed to retrieve versions",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data": versions,
+	})
+}
+
+// RestoreVersion restores a policy to a previous version
+func (h *GuardrailHandler) RestoreVersion(c *gin.Context) {
+	policyID := c.Param("id")
+	versionStr := c.Param("version")
+
+	if _, err := uuid.Parse(policyID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid policy ID",
+		})
+		return
+	}
+
+	version := 0
+	if _, err := fmt.Sscanf(versionStr, "%d", &version); err != nil || version < 1 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid version number",
+		})
+		return
+	}
+
+	var req struct {
+		CreatedBy string `json:"createdBy" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	createdBy, err := uuid.Parse(req.CreatedBy)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid createdBy UUID",
+		})
+		return
+	}
+
+	if err := h.guardrailService.RestoreVersion(c.Request.Context(), policyID, version, createdBy); err != nil {
+		h.logger.Error("failed to restore policy version", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": fmt.Sprintf("Policy restored to version %d", version),
+	})
+}

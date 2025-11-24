@@ -216,6 +216,12 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				guardrails.POST("/policies/:id/rules", h.Guardrail.AddRule)
 				guardrails.PUT("/policies/:id/rules/:ruleId", h.Guardrail.UpdateRule)
 				guardrails.DELETE("/policies/:id/rules/:ruleId", h.Guardrail.DeleteRule)
+
+				// Versions
+				guardrails.POST("/policies/:id/versions", h.Guardrail.CreateVersion)
+				guardrails.GET("/policies/:id/versions", h.Guardrail.ListVersions)
+				guardrails.GET("/policies/:id/versions/:version", h.Guardrail.GetVersion)
+				guardrails.POST("/policies/:id/versions/:version/restore", h.Guardrail.RestoreVersion)
 			}
 
 			// LLM
@@ -381,6 +387,7 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 
 				// Comparison
 				experiments.POST("/compare", h.Experiment.CompareRuns)
+				experiments.POST("/statistical-comparison", h.Experiment.StatisticalComparison)
 			}
 
 			// User-specific routes

@@ -98,15 +98,33 @@ type PromptVersion struct {
 
 // GuardrailPolicy represents a guardrail policy
 type GuardrailPolicy struct {
-	ID          uuid.UUID `db:"id" json:"id"`
-	ProjectID   uuid.UUID `db:"project_id" json:"projectId"`
-	Name        string    `db:"name" json:"name"`
-	Description string    `db:"description" json:"description,omitempty"`
-	Enabled     bool      `db:"enabled" json:"enabled"`
-	Priority    int       `db:"priority" json:"priority"`
-	Triggers    []byte    `db:"triggers" json:"triggers"`
-	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updatedAt"`
+	ID             uuid.UUID `db:"id" json:"id"`
+	ProjectID      uuid.UUID `db:"project_id" json:"projectId"`
+	Name           string    `db:"name" json:"name"`
+	Description    string    `db:"description" json:"description,omitempty"`
+	Enabled        bool      `db:"enabled" json:"enabled"`
+	Priority       int       `db:"priority" json:"priority"`
+	Triggers       []byte    `db:"triggers" json:"triggers"`
+	CurrentVersion int       `db:"current_version" json:"currentVersion"`
+	CreatedAt      time.Time `db:"created_at" json:"createdAt"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updatedAt"`
+}
+
+// GuardrailPolicyVersion represents a version snapshot of a guardrail policy
+type GuardrailPolicyVersion struct {
+	ID          uuid.UUID    `db:"id" json:"id"`
+	PolicyID    uuid.UUID    `db:"policy_id" json:"policyId"`
+	Version     int          `db:"version" json:"version"`
+	Name        string       `db:"name" json:"name"`
+	Description string       `db:"description" json:"description,omitempty"`
+	Enabled     bool         `db:"enabled" json:"enabled"`
+	Priority    int          `db:"priority" json:"priority"`
+	Triggers    []byte       `db:"triggers" json:"triggers"`
+	Rules       []byte       `db:"rules" json:"rules"` // Snapshot of rules at this version
+	ChangeNotes string       `db:"change_notes" json:"changeNotes,omitempty"`
+	CreatedBy   uuid.UUID    `db:"created_by" json:"createdBy"`
+	CreatedAt   time.Time    `db:"created_at" json:"createdAt"`
+	DeletedAt   sql.NullTime `db:"deleted_at" json:"-"`
 }
 
 // GuardrailRule represents a rule within a guardrail policy
@@ -799,4 +817,27 @@ type ComparisonMetrics struct {
 	StdDev float64 `json:"stdDev"`
 	Min    float64 `json:"min"`
 	Max    float64 `json:"max"`
+	N      int     `json:"n"` // Sample size
+}
+
+// PairwiseComparison represents statistical comparison between two experiment runs
+type PairwiseComparison struct {
+	Run1ID         uuid.UUID `json:"run1Id"`
+	Run2ID         uuid.UUID `json:"run2Id"`
+	Run1Name       string    `json:"run1Name"`
+	Run2Name       string    `json:"run2Name"`
+	MetricName     string    `json:"metricName"`
+	TStatistic     float64   `json:"tStatistic"`
+	PValue         float64   `json:"pValue"`
+	DegreesOfFreedom int     `json:"degreesOfFreedom"`
+	SignificantAt05  bool    `json:"significantAt05"` // p < 0.05
+	SignificantAt01  bool    `json:"significantAt01"` // p < 0.01
+	MeanDifference   float64 `json:"meanDifference"`
+	EffectSize       float64 `json:"effectSize"` // Cohen's d
+}
+
+// StatisticalComparison represents complete statistical analysis of experiment runs
+type StatisticalComparison struct {
+	ExperimentComparison
+	PairwiseTests map[string][]*PairwiseComparison `json:"pairwiseTests"` // metric name -> comparisons
 }

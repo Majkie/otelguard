@@ -525,6 +525,8 @@ func (s *ExperimentService) calculateMetrics(
 		return metrics
 	}
 
+	metrics.N = len(values)
+
 	// Calculate mean
 	sum := 0.0
 	for _, v := range values {
@@ -564,4 +566,326 @@ func (s *ExperimentService) calculateMetrics(
 	metrics.StdDev = math.Sqrt(variance)
 
 	return metrics
+}
+
+// PerformStatisticalComparison performs statistical significance testing between experiment runs
+func (s *ExperimentService) PerformStatisticalComparison(ctx context.Context, runIDs []uuid.UUID) (*domain.StatisticalComparison, error) {
+	if len(runIDs) < 2 {
+		return nil, fmt.Errorf("at least 2 runs required for statistical comparison")
+	}
+
+	// First get basic comparison
+	baseComparison, err := s.CompareRuns(ctx, runIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	comparison := &domain.StatisticalComparison{
+		ExperimentComparison: *baseComparison,
+		PairwiseTests:        make(map[string][]*domain.PairwiseComparison),
+	}
+
+	// Get results for each run
+	runResults := make([][]*domain.ExperimentResult, len(runIDs))
+	for i, runID := range runIDs {
+		results, err := s.experimentRepo.GetResultsByRunID(ctx, runID.String())
+		if err != nil {
+			return nil, fmt.Errorf("failed to get results for run %s: %w", runID, err)
+		}
+		runResults[i] = results
+	}
+
+	// Metrics to test
+	metrics := map[string]func(*domain.ExperimentResult) float64{
+		"latency": func(r *domain.ExperimentResult) float64 { return float64(r.LatencyMs) },
+		"cost":    func(r *domain.ExperimentResult) float64 { return r.Cost },
+		"tokens":  func(r *domain.ExperimentResult) float64 { return float64(r.TokensUsed) },
+	}
+
+	// Perform pairwise t-tests for each metric
+	for metricName, extractor := range metrics {
+		comparisons := make([]*domain.PairwiseComparison, 0)
+
+		// Compare each pair of runs
+		for i := 0; i < len(runIDs); i++ {
+			for j := i + 1; j < len(runIDs); j++ {
+				comp := s.performTTest(
+					comparison.Runs[i],
+					comparison.Runs[j],
+					runResults[i],
+					runResults[j],
+					metricName,
+					extractor,
+				)
+				comparisons = append(comparisons, comp)
+			}
+		}
+
+		comparison.PairwiseTests[metricName] = comparisons
+	}
+
+	return comparison, nil
+}
+
+// performTTest performs a two-sample t-test between two experiment runs
+func (s *ExperimentService) performTTest(
+	run1, run2 *domain.ExperimentRun,
+	results1, results2 []*domain.ExperimentResult,
+	metricName string,
+	extractor func(*domain.ExperimentResult) float64,
+) *domain.PairwiseComparison {
+	// Extract values for each run
+	values1 := make([]float64, 0)
+	for _, r := range results1 {
+		if r.Status == "success" {
+			values1 = append(values1, extractor(r))
+		}
+	}
+
+	values2 := make([]float64, 0)
+	for _, r := range results2 {
+		if r.Status == "success" {
+			values2 = append(values2, extractor(r))
+		}
+	}
+
+	comparison := &domain.PairwiseComparison{
+		Run1ID:     run1.ID,
+		Run2ID:     run2.ID,
+		Run1Name:   fmt.Sprintf("Run #%d", run1.RunNumber),
+		Run2Name:   fmt.Sprintf("Run #%d", run2.RunNumber),
+		MetricName: metricName,
+	}
+
+	// Need at least 2 samples in each group
+	if len(values1) < 2 || len(values2) < 2 {
+		comparison.PValue = 1.0
+		return comparison
+	}
+
+	// Calculate statistics for each group
+	mean1, stdDev1 := s.calculateMeanAndStdDev(values1)
+	mean2, stdDev2 := s.calculateMeanAndStdDev(values2)
+
+	n1 := float64(len(values1))
+	n2 := float64(len(values2))
+
+	comparison.MeanDifference = mean1 - mean2
+
+	// Calculate pooled standard deviation for effect size
+	pooledStdDev := math.Sqrt(((n1-1)*stdDev1*stdDev1 + (n2-1)*stdDev2*stdDev2) / (n1 + n2 - 2))
+	if pooledStdDev > 0 {
+		comparison.EffectSize = comparison.MeanDifference / pooledStdDev
+	}
+
+	// Calculate t-statistic using Welch's t-test (unequal variances)
+	se1 := stdDev1 * stdDev1 / n1
+	se2 := stdDev2 * stdDev2 / n2
+	standardError := math.Sqrt(se1 + se2)
+
+	if standardError == 0 {
+		comparison.PValue = 1.0
+		return comparison
+	}
+
+	comparison.TStatistic = comparison.MeanDifference / standardError
+
+	// Calculate degrees of freedom using Welch-Satterthwaite equation
+	numerator := (se1 + se2) * (se1 + se2)
+	denominator := (se1*se1)/(n1-1) + (se2*se2)/(n2-1)
+	if denominator > 0 {
+		comparison.DegreesOfFreedom = int(numerator / denominator)
+	} else {
+		comparison.DegreesOfFreedom = int(n1 + n2 - 2)
+	}
+
+	// Calculate two-tailed p-value
+	comparison.PValue = s.calculatePValue(comparison.TStatistic, comparison.DegreesOfFreedom)
+
+	// Determine significance levels
+	comparison.SignificantAt05 = comparison.PValue < 0.05
+	comparison.SignificantAt01 = comparison.PValue < 0.01
+
+	return comparison
+}
+
+// calculateMeanAndStdDev calculates mean and standard deviation of a sample
+func (s *ExperimentService) calculateMeanAndStdDev(values []float64) (mean, stdDev float64) {
+	if len(values) == 0 {
+		return 0, 0
+	}
+
+	// Calculate mean
+	sum := 0.0
+	for _, v := range values {
+		sum += v
+	}
+	mean = sum / float64(len(values))
+
+	// Calculate standard deviation
+	if len(values) == 1 {
+		return mean, 0
+	}
+
+	variance := 0.0
+	for _, v := range values {
+		diff := v - mean
+		variance += diff * diff
+	}
+	variance /= float64(len(values) - 1) // Sample standard deviation (n-1)
+	stdDev = math.Sqrt(variance)
+
+	return mean, stdDev
+}
+
+// calculatePValue calculates the two-tailed p-value for a t-statistic
+// Using approximation based on the t-distribution
+func (s *ExperimentService) calculatePValue(tStat float64, df int) float64 {
+	// Use absolute value for two-tailed test
+	t := math.Abs(tStat)
+
+	// For large degrees of freedom (df > 30), t-distribution approximates normal distribution
+	if df > 30 {
+		// Use normal approximation
+		return 2.0 * (1.0 - s.normalCDF(t))
+	}
+
+	// For small df, use more accurate t-distribution approximation
+	// This is a numerical approximation of the incomplete beta function
+	x := float64(df) / (float64(df) + t*t)
+	pValue := s.incompleteBeta(x, float64(df)/2.0, 0.5)
+
+	return pValue
+}
+
+// normalCDF calculates the cumulative distribution function for standard normal distribution
+func (s *ExperimentService) normalCDF(x float64) float64 {
+	// Using error function approximation
+	return 0.5 * (1.0 + math.Erf(x/math.Sqrt(2.0)))
+}
+
+// incompleteBeta approximates the regularized incomplete beta function
+// This is used for calculating p-values from the t-distribution
+func (s *ExperimentService) incompleteBeta(x, a, b float64) float64 {
+	// For the t-distribution, we can use a continued fraction approximation
+	// This is a simplified implementation suitable for our use case
+
+	if x <= 0.0 {
+		return 0.0
+	}
+	if x >= 1.0 {
+		return 1.0
+	}
+
+	// Use symmetry property if needed
+	if x > (a+1.0)/(a+b+2.0) {
+		return 1.0 - s.incompleteBeta(1.0-x, b, a)
+	}
+
+	// Continued fraction approximation (Lentz's algorithm)
+	const maxIterations = 200
+	const epsilon = 1e-10
+
+	// Calculate beta function B(a,b)
+	lnBeta := s.logGamma(a) + s.logGamma(b) - s.logGamma(a+b)
+
+	// Initial values
+	front := math.Exp(a*math.Log(x) + b*math.Log(1.0-x) - lnBeta) / a
+
+	f := 1.0
+	c := 1.0
+	d := 0.0
+
+	for i := 0; i <= maxIterations; i++ {
+		m := float64(i)
+
+		// Calculate numerator and denominator
+		var numerator, denominator float64
+
+		if i == 0 {
+			numerator = 1.0
+		} else {
+			m2 := 2.0 * m
+			numerator = m * (b - m) * x / ((a + m2 - 1.0) * (a + m2))
+		}
+
+		denominator = 1.0
+
+		// Update d
+		d = denominator + numerator*d
+		if math.Abs(d) < epsilon {
+			d = epsilon
+		}
+		d = 1.0 / d
+
+		// Update c
+		c = denominator + numerator/c
+		if math.Abs(c) < epsilon {
+			c = epsilon
+		}
+
+		// Update f
+		cd := c * d
+		f *= cd
+
+		// Check convergence
+		if math.Abs(cd-1.0) < epsilon {
+			return front * f
+		}
+
+		// Second term in continued fraction
+		m2 := 2.0 * m
+		numerator = -(a + m) * (a + b + m) * x / ((a + m2) * (a + m2 + 1.0))
+		denominator = 1.0
+
+		d = denominator + numerator*d
+		if math.Abs(d) < epsilon {
+			d = epsilon
+		}
+		d = 1.0 / d
+
+		c = denominator + numerator/c
+		if math.Abs(c) < epsilon {
+			c = epsilon
+		}
+
+		cd = c * d
+		f *= cd
+
+		if math.Abs(cd-1.0) < epsilon {
+			return front * f
+		}
+	}
+
+	return front * f
+}
+
+// logGamma calculates the natural logarithm of the gamma function
+// Using Stirling's approximation for large values
+func (s *ExperimentService) logGamma(x float64) float64 {
+	if x <= 0 {
+		return math.Inf(1)
+	}
+
+	// Coefficients for Lanczos approximation
+	coef := []float64{
+		76.18009172947146,
+		-86.50532032941677,
+		24.01409824083091,
+		-1.231739572450155,
+		0.1208650973866179e-2,
+		-0.5395239384953e-5,
+	}
+
+	y := x
+	tmp := x + 5.5
+	tmp -= (x + 0.5) * math.Log(tmp)
+	ser := 1.000000000190015
+
+	for i := 0; i < 6; i++ {
+		y++
+		ser += coef[i] / y
+	}
+
+	return -tmp + math.Log(2.5066282746310005*ser/x)
 }

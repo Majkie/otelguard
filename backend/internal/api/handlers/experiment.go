@@ -308,3 +308,43 @@ func (h *ExperimentHandler) CompareRuns(c *gin.Context) {
 
 	c.JSON(http.StatusOK, comparison)
 }
+
+// StatisticalComparison performs statistical significance testing on experiment runs
+func (h *ExperimentHandler) StatisticalComparison(c *gin.Context) {
+	var req struct {
+		RunIDs []string `json:"runIds" binding:"required,min=2"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	// Parse run IDs
+	runIDs := make([]uuid.UUID, 0, len(req.RunIDs))
+	for _, idStr := range req.RunIDs {
+		id, err := uuid.Parse(idStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "invalid_request",
+				"message": "invalid run ID format",
+			})
+			return
+		}
+		runIDs = append(runIDs, id)
+	}
+
+	comparison, err := h.experimentService.PerformStatisticalComparison(c.Request.Context(), runIDs)
+	if err != nil {
+		h.logger.Error("failed to perform statistical comparison", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, comparison)
+}
