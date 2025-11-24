@@ -1,6 +1,6 @@
 -- Evaluators table (LLM-as-a-Judge configurations)
 CREATE TABLE IF NOT EXISTS evaluators (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid7(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     name VARCHAR(255) NOT NULL,
     description TEXT DEFAULT '',
@@ -25,7 +25,7 @@ CREATE INDEX idx_evaluators_enabled ON evaluators(enabled) WHERE deleted_at IS N
 
 -- Evaluation jobs table (async job queue)
 CREATE TABLE IF NOT EXISTS evaluation_jobs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid7(),
     project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     evaluator_id UUID NOT NULL REFERENCES evaluators(id) ON DELETE CASCADE,
     status VARCHAR(50) NOT NULL DEFAULT 'pending',
