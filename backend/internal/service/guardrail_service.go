@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,13 +36,17 @@ func NewGuardrailService(
 
 // EvaluationInput represents the input for guardrail evaluation
 type EvaluationInput struct {
-	ProjectID uuid.UUID
-	TraceID   *uuid.UUID
-	SpanID    *uuid.UUID
-	PolicyID  *uuid.UUID
-	Input     string
-	Output    string
-	Context   map[string]interface{}
+	ProjectID   uuid.UUID
+	TraceID     *uuid.UUID
+	SpanID      *uuid.UUID
+	PolicyID    *uuid.UUID
+	Input       string
+	Output      string
+	Context     map[string]interface{}
+	Model       string   // LLM model being used
+	Environment string   // Environment (production, staging, etc.)
+	Tags        []string // Tags for matching
+	UserID      string   // User ID for matching
 }
 
 // EvaluationResult represents the result of guardrail evaluation
@@ -60,15 +67,39 @@ type Violation struct {
 	ActionTaken bool
 }
 
+// PolicyTriggers represents the trigger conditions for a guardrail policy
+type PolicyTriggers struct {
+	Models       []string          `json:"models,omitempty"`       // Model patterns (supports wildcards like "gpt-4*")
+	Environments []string          `json:"environments,omitempty"` // Environments to match
+	Tags         []string          `json:"tags,omitempty"`         // Required tags
+	UserIDs      []string          `json:"userIds,omitempty"`      // Specific user IDs
+	Conditions   map[string]string `json:"conditions,omitempty"`   // Custom conditions
+}
+
 // Evaluate evaluates content against guardrail policies
 func (s *GuardrailService) Evaluate(ctx context.Context, input *EvaluationInput) (*EvaluationResult, error) {
 	start := time.Now()
 
-	// Get applicable policies
-	policies, err := s.policyRepo.GetEnabledPolicies(ctx, input.ProjectID)
+	// Get all enabled policies
+	allPolicies, err := s.policyRepo.GetEnabledPolicies(ctx, input.ProjectID)
 	if err != nil {
 		return nil, err
 	}
+
+	// Filter policies based on triggers (policy matching logic)
+	matchedPolicies := s.filterPoliciesByTriggers(allPolicies, input)
+
+	// Sort policies by priority (higher priority first)
+	sort.Slice(matchedPolicies, func(i, j int) bool {
+		return matchedPolicies[i].Priority > matchedPolicies[j].Priority
+	})
+
+	s.logger.Debug("evaluating guardrails",
+		zap.Int("total_policies", len(allPolicies)),
+		zap.Int("matched_policies", len(matchedPolicies)),
+		zap.String("model", input.Model),
+		zap.String("environment", input.Environment),
+	)
 
 	result := &EvaluationResult{
 		Passed:     true,
@@ -76,13 +107,19 @@ func (s *GuardrailService) Evaluate(ctx context.Context, input *EvaluationInput)
 		Output:     input.Output,
 	}
 
-	for _, policy := range policies {
+	// Evaluate matched policies in priority order
+	for _, policy := range matchedPolicies {
 		// Get rules for policy
 		rules, err := s.policyRepo.GetRules(ctx, policy.ID)
 		if err != nil {
 			s.logger.Error("failed to get rules", zap.Error(err), zap.String("policy_id", policy.ID.String()))
 			continue
 		}
+
+		// Sort rules by order_index
+		sort.Slice(rules, func(i, j int) bool {
+			return rules[i].OrderIndex < rules[j].OrderIndex
+		})
 
 		for _, rule := range rules {
 			// Evaluate rule
@@ -97,24 +134,175 @@ func (s *GuardrailService) Evaluate(ctx context.Context, input *EvaluationInput)
 					Action:   rule.Action,
 				}
 
-				// Execute action
-				if rule.Action == "block" {
+				// Execute action based on type
+				switch rule.Action {
+				case "block":
 					violation.ActionTaken = true
 					result.Violations = append(result.Violations, violation)
-
-					// Log guardrail event
 					s.logEvent(ctx, input, policy, rule, true, message)
-					break // Stop evaluation on block
-				}
 
-				result.Violations = append(result.Violations, violation)
-				s.logEvent(ctx, input, policy, rule, true, message)
+					// Block action stops all further evaluation
+					result.LatencyMs = time.Since(start).Milliseconds()
+					return result, nil
+
+				case "sanitize":
+					// TODO: Implement sanitization logic
+					violation.ActionTaken = true
+					result.Remediated = true
+					result.Violations = append(result.Violations, violation)
+					s.logEvent(ctx, input, policy, rule, true, message)
+
+				case "alert":
+					// Continue evaluation but log the violation
+					violation.ActionTaken = true
+					result.Violations = append(result.Violations, violation)
+					s.logEvent(ctx, input, policy, rule, true, message)
+
+				default:
+					result.Violations = append(result.Violations, violation)
+					s.logEvent(ctx, input, policy, rule, true, message)
+				}
 			}
 		}
 	}
 
 	result.LatencyMs = time.Since(start).Milliseconds()
 	return result, nil
+}
+
+// filterPoliciesByTriggers filters policies based on trigger conditions
+func (s *GuardrailService) filterPoliciesByTriggers(policies []*domain.GuardrailPolicy, input *EvaluationInput) []*domain.GuardrailPolicy {
+	var matched []*domain.GuardrailPolicy
+
+	for _, policy := range policies {
+		// If specific policy requested, only match that one
+		if input.PolicyID != nil && policy.ID != *input.PolicyID {
+			continue
+		}
+
+		// Parse triggers
+		var triggers PolicyTriggers
+		if len(policy.Triggers) > 0 {
+			if err := json.Unmarshal(policy.Triggers, &triggers); err != nil {
+				s.logger.Warn("failed to parse policy triggers",
+					zap.Error(err),
+					zap.String("policy_id", policy.ID.String()),
+				)
+				// If triggers are invalid, include the policy (fail open)
+				matched = append(matched, policy)
+				continue
+			}
+		}
+
+		// If no triggers defined, match all
+		if len(triggers.Models) == 0 && len(triggers.Environments) == 0 &&
+			len(triggers.Tags) == 0 && len(triggers.UserIDs) == 0 {
+			matched = append(matched, policy)
+			continue
+		}
+
+		// Check model matching (supports wildcards)
+		if len(triggers.Models) > 0 && input.Model != "" {
+			modelMatched := false
+			for _, pattern := range triggers.Models {
+				if matchPattern(pattern, input.Model) {
+					modelMatched = true
+					break
+				}
+			}
+			if !modelMatched {
+				continue
+			}
+		}
+
+		// Check environment matching
+		if len(triggers.Environments) > 0 && input.Environment != "" {
+			envMatched := false
+			for _, env := range triggers.Environments {
+				if strings.EqualFold(env, input.Environment) {
+					envMatched = true
+					break
+				}
+			}
+			if !envMatched {
+				continue
+			}
+		}
+
+		// Check tag matching (any tag must match)
+		if len(triggers.Tags) > 0 && len(input.Tags) > 0 {
+			tagMatched := false
+			for _, requiredTag := range triggers.Tags {
+				for _, inputTag := range input.Tags {
+					if requiredTag == inputTag {
+						tagMatched = true
+						break
+					}
+				}
+				if tagMatched {
+					break
+				}
+			}
+			if !tagMatched {
+				continue
+			}
+		}
+
+		// Check user ID matching
+		if len(triggers.UserIDs) > 0 && input.UserID != "" {
+			userMatched := false
+			for _, userID := range triggers.UserIDs {
+				if userID == input.UserID {
+					userMatched = true
+					break
+				}
+			}
+			if !userMatched {
+				continue
+			}
+		}
+
+		// Policy matched all conditions
+		matched = append(matched, policy)
+	}
+
+	return matched
+}
+
+// matchPattern matches a string against a pattern with wildcard support
+// Supports * as wildcard (e.g., "gpt-4*" matches "gpt-4", "gpt-4-turbo", etc.)
+func matchPattern(pattern, str string) bool {
+	if pattern == "*" {
+		return true
+	}
+
+	if !strings.Contains(pattern, "*") {
+		return strings.EqualFold(pattern, str)
+	}
+
+	// Simple wildcard matching
+	parts := strings.Split(pattern, "*")
+	if len(parts) == 0 {
+		return true
+	}
+
+	// Check prefix
+	if len(parts[0]) > 0 {
+		if !strings.HasPrefix(strings.ToLower(str), strings.ToLower(parts[0])) {
+			return false
+		}
+		str = str[len(parts[0]):]
+	}
+
+	// Check suffix
+	if len(parts) > 1 && len(parts[len(parts)-1]) > 0 {
+		suffix := parts[len(parts)-1]
+		if !strings.HasSuffix(strings.ToLower(str), strings.ToLower(suffix)) {
+			return false
+		}
+	}
+
+	return true
 }
 
 // evaluateRule evaluates a single rule against input/output
