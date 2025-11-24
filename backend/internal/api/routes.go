@@ -151,9 +151,9 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 			traces := dashboard.Group("/traces")
 			{
 				traces.GET("", h.Trace.ListTraces)
-				traces.GET("/:id", h.Trace.GetTrace)
-				traces.GET("/:id/spans", h.Trace.GetSpans)
-				traces.DELETE("/:id", h.Trace.DeleteTrace)
+				traces.GET("/:traceId", h.Trace.GetTrace)
+				traces.GET("/:traceId/spans", h.Trace.GetSpans)
+				traces.DELETE("/:traceId", h.Trace.DeleteTrace)
 			}
 
 			// Scores (dashboard view)

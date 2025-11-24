@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS agents (
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(start_time)
 ORDER BY (project_id, trace_id, start_time, id)
-TTL start_time + INTERVAL 90 DAY
+TTL toDate(start_time) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- Agent relationships table - tracks relationships between agents
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS agent_relationships (
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (project_id, trace_id, timestamp, id)
-TTL timestamp + INTERVAL 90 DAY
+TTL toDate(timestamp) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- Tool calls table - tracks tool invocations by agents
@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS tool_calls (
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(start_time)
 ORDER BY (project_id, trace_id, start_time, id)
-TTL start_time + INTERVAL 90 DAY
+TTL toDate(start_time) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- Agent messages table - stores messages between agents
@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS agent_messages (
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (project_id, trace_id, sequence_num, id)
-TTL timestamp + INTERVAL 90 DAY
+TTL toDate(timestamp) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- Agent states table - stores snapshots of agent state
@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS agent_states (
 ENGINE = MergeTree()
 PARTITION BY toYYYYMM(timestamp)
 ORDER BY (project_id, trace_id, agent_id, sequence_num, id)
-TTL timestamp + INTERVAL 90 DAY
+TTL toDate(timestamp) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- Materialized view for agent statistics per trace

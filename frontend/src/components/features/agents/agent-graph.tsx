@@ -2,14 +2,12 @@ import { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   ReactFlow,
   MiniMap,
-  Controls,
   Background,
   BackgroundVariant,
   useNodesState,
   useEdgesState,
   type Node,
   type Edge,
-  type OnSelectionChangeFunc,
   Panel,
   useReactFlow,
   MarkerType,
@@ -96,7 +94,6 @@ export function AgentGraphVisualization({
   graph,
   className,
   showMinimap = true,
-  showControls = true,
   onNodeClick,
 }: AgentGraphProps) {
   const { fitView, zoomIn, zoomOut, setCenter } = useReactFlow();
@@ -182,18 +179,13 @@ export function AgentGraphVisualization({
     setEdges(initialEdges);
   }, [initialNodes, initialEdges, setNodes, setEdges]);
 
-  // Handle selection changes
-  const onSelectionChange: OnSelectionChangeFunc = useCallback(
-    ({ nodes: selectedNodes }) => {
-      if (selectedNodes.length > 0) {
-        const nodeId = selectedNodes[0].id;
-        setSelectedNodeId(nodeId);
-        const graphNode = graph.nodes.find((n) => n.id === nodeId);
-        if (graphNode && onNodeClick) {
-          onNodeClick(graphNode);
-        }
-      } else {
-        setSelectedNodeId(null);
+  // Handle node clicks directly (more reliable than selection)
+  const handleNodeClick = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      setSelectedNodeId(node.id);
+      const graphNode = graph.nodes.find((n) => n.id === node.id);
+      if (graphNode && onNodeClick) {
+        onNodeClick(graphNode);
       }
     },
     [graph.nodes, onNodeClick]
@@ -235,13 +227,13 @@ export function AgentGraphVisualization({
 
   return (
     <div className={cn('flex h-full', className)}>
-      <div className="flex-1 relative">
+      <div className="flex-1 relative border border-border rounded-lg overflow-hidden">
         <ReactFlow
           nodes={nodes}
           edges={edges}
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
-          onSelectionChange={onSelectionChange}
+          onNodeClick={handleNodeClick}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
@@ -417,8 +409,6 @@ export function AgentGraphVisualization({
               zoomable
             />
           )}
-
-          {showControls && <Controls className="!bg-background !border" />}
 
           <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
         </ReactFlow>

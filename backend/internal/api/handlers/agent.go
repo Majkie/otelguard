@@ -58,7 +58,7 @@ type AgentResponse struct {
 	SpanID       string   `json:"spanId"`
 	ParentAgent  *string  `json:"parentAgentId,omitempty"`
 	Name         string   `json:"name"`
-	Type         string   `json:"type"`
+	Type         string   `json:"agentType"`
 	Role         string   `json:"role"`
 	Model        *string  `json:"model,omitempty"`
 	SystemPrompt *string  `json:"systemPrompt,omitempty"`
@@ -77,25 +77,25 @@ type AgentResponse struct {
 // toAgentResponse converts a domain agent to API response
 func toAgentResponse(agent *domain.Agent) *AgentResponse {
 	resp := &AgentResponse{
-		ID:          agent.ID.String(),
-		ProjectID:   agent.ProjectID.String(),
-		TraceID:     agent.TraceID.String(),
-		SpanID:      agent.SpanID.String(),
-		Name:        agent.Name,
-		Type:        agent.Type,
-		Role:        agent.Role,
-		Model:       agent.Model,
+		ID:           agent.ID.String(),
+		ProjectID:    agent.ProjectID.String(),
+		TraceID:      agent.TraceID.String(),
+		SpanID:       agent.SpanID.String(),
+		Name:         agent.Name,
+		Type:         agent.Type,
+		Role:         agent.Role,
+		Model:        agent.Model,
 		SystemPrompt: agent.SystemPrompt,
-		StartTime:   agent.StartTime.Format(time.RFC3339Nano),
-		EndTime:     agent.EndTime.Format(time.RFC3339Nano),
-		LatencyMs:   agent.LatencyMs,
-		TotalTokens: agent.TotalTokens,
-		Cost:        agent.Cost,
-		Status:      agent.Status,
+		StartTime:    agent.StartTime.Format(time.RFC3339Nano),
+		EndTime:      agent.EndTime.Format(time.RFC3339Nano),
+		LatencyMs:    agent.LatencyMs,
+		TotalTokens:  agent.TotalTokens,
+		Cost:         agent.Cost,
+		Status:       agent.Status,
 		ErrorMessage: agent.ErrorMessage,
-		Metadata:    agent.Metadata,
-		Tags:        agent.Tags,
-		CreatedAt:   agent.CreatedAt.Format(time.RFC3339Nano),
+		Metadata:     agent.Metadata,
+		Tags:         agent.Tags,
+		CreatedAt:    agent.CreatedAt.Format(time.RFC3339Nano),
 	}
 
 	if agent.ParentAgent != nil {
@@ -126,7 +126,7 @@ func (h *AgentHandler) CreateAgent(c *gin.Context) {
 		return
 	}
 
-	projectID := c.GetString(middleware.ContextKeyProjectID)
+	projectID := c.GetString(middleware.ContextProjectID)
 
 	// Parse IDs
 	var agentID uuid.UUID
@@ -206,7 +206,7 @@ func (h *AgentHandler) CreateAgent(c *gin.Context) {
 
 // GetAgent retrieves an agent by ID
 func (h *AgentHandler) GetAgent(c *gin.Context) {
-	projectID := c.GetString(middleware.ContextKeyProjectID)
+	projectID := c.GetString(middleware.ContextProjectID)
 	agentID := c.Param("id")
 
 	if _, err := uuid.Parse(agentID); err != nil {
@@ -240,7 +240,7 @@ func (h *AgentHandler) GetAgent(c *gin.Context) {
 
 // ListAgents lists agents with filtering and pagination
 func (h *AgentHandler) ListAgents(c *gin.Context) {
-	projectID := c.GetString(middleware.ContextKeyProjectID)
+	projectID := c.GetString(middleware.ContextProjectID)
 
 	limit := 50
 	offset := 0
@@ -290,7 +290,7 @@ func (h *AgentHandler) ListAgents(c *gin.Context) {
 
 // GetAgentsByTrace retrieves all agents for a trace
 func (h *AgentHandler) GetAgentsByTrace(c *gin.Context) {
-	projectID := c.GetString(middleware.ContextKeyProjectID)
+	projectID := c.GetString(middleware.ContextProjectID)
 	traceID := c.Param("traceId")
 
 	if _, err := uuid.Parse(traceID); err != nil {
@@ -324,7 +324,7 @@ func (h *AgentHandler) GetAgentsByTrace(c *gin.Context) {
 
 // GetAgentHierarchy retrieves the agent hierarchy for a trace
 func (h *AgentHandler) GetAgentHierarchy(c *gin.Context) {
-	projectID := c.GetString(middleware.ContextKeyProjectID)
+	projectID := c.GetString(middleware.ContextProjectID)
 	traceID := c.Param("traceId")
 
 	if _, err := uuid.Parse(traceID); err != nil {
@@ -350,7 +350,7 @@ func (h *AgentHandler) GetAgentHierarchy(c *gin.Context) {
 
 // DetectAgents detects and stores agents from trace spans
 func (h *AgentHandler) DetectAgents(c *gin.Context) {
-	projectID := c.GetString(middleware.ContextKeyProjectID)
+	projectID := c.GetString(middleware.ContextProjectID)
 	traceID := c.Param("traceId")
 
 	if _, err := uuid.Parse(traceID); err != nil {
@@ -398,7 +398,7 @@ type ToolCallResponse struct {
 	LatencyMs    uint32  `json:"latencyMs"`
 	Status       string  `json:"status"`
 	ErrorMessage *string `json:"errorMessage,omitempty"`
-	RetryCount   int     `json:"retryCount"`
+	RetryCount   int32   `json:"retryCount"`
 	Metadata     string  `json:"metadata,omitempty"`
 	CreatedAt    string  `json:"createdAt"`
 }
@@ -433,7 +433,7 @@ func toToolCallResponse(tc *domain.ToolCall) *ToolCallResponse {
 
 // GetToolCallsByTrace retrieves tool calls for a trace
 func (h *AgentHandler) GetToolCallsByTrace(c *gin.Context) {
-	projectID := c.GetString(middleware.ContextKeyProjectID)
+	projectID := c.GetString(middleware.ContextProjectID)
 	traceID := c.Param("traceId")
 
 	if _, err := uuid.Parse(traceID); err != nil {
@@ -467,8 +467,8 @@ func (h *AgentHandler) GetToolCallsByTrace(c *gin.Context) {
 
 // GetToolCallsByAgent retrieves tool calls for an agent
 func (h *AgentHandler) GetToolCallsByAgent(c *gin.Context) {
-	projectID := c.GetString(middleware.ContextKeyProjectID)
-	agentID := c.Param("agentId")
+	projectID := c.GetString(middleware.ContextProjectID)
+	agentID := c.Param("id")
 
 	if _, err := uuid.Parse(agentID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -501,7 +501,7 @@ func (h *AgentHandler) GetToolCallsByAgent(c *gin.Context) {
 
 // GetAgentMessages retrieves messages for a trace
 func (h *AgentHandler) GetAgentMessages(c *gin.Context) {
-	projectID := c.GetString(middleware.ContextKeyProjectID)
+	projectID := c.GetString(middleware.ContextProjectID)
 	traceID := c.Param("traceId")
 
 	if _, err := uuid.Parse(traceID); err != nil {
@@ -530,8 +530,8 @@ func (h *AgentHandler) GetAgentMessages(c *gin.Context) {
 
 // GetAgentStates retrieves state snapshots for an agent
 func (h *AgentHandler) GetAgentStates(c *gin.Context) {
-	projectID := c.GetString(middleware.ContextKeyProjectID)
-	agentID := c.Param("agentId")
+	projectID := c.GetString(middleware.ContextProjectID)
+	agentID := c.Param("id")
 
 	if _, err := uuid.Parse(agentID); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -559,7 +559,7 @@ func (h *AgentHandler) GetAgentStates(c *gin.Context) {
 
 // GetAgentGraph builds and returns the agent graph for a trace
 func (h *AgentHandler) GetAgentGraph(c *gin.Context) {
-	projectID := c.GetString(middleware.ContextKeyProjectID)
+	projectID := c.GetString(middleware.ContextProjectID)
 	traceID := c.Param("traceId")
 
 	if _, err := uuid.Parse(traceID); err != nil {
@@ -599,7 +599,7 @@ func (h *AgentHandler) GetAgentGraph(c *gin.Context) {
 
 // GetSubgraph returns a subgraph starting from a specific node
 func (h *AgentHandler) GetSubgraph(c *gin.Context) {
-	projectID := c.GetString(middleware.ContextKeyProjectID)
+	projectID := c.GetString(middleware.ContextProjectID)
 	traceID := c.Param("traceId")
 	nodeID := c.Param("nodeId")
 
@@ -639,7 +639,7 @@ func (h *AgentHandler) GetSubgraph(c *gin.Context) {
 
 // GetAgentStatistics retrieves aggregated agent statistics
 func (h *AgentHandler) GetAgentStatistics(c *gin.Context) {
-	projectID := c.GetString(middleware.ContextKeyProjectID)
+	projectID := c.GetString(middleware.ContextProjectID)
 
 	// Parse time range
 	endTime := time.Now()
@@ -671,7 +671,7 @@ func (h *AgentHandler) GetAgentStatistics(c *gin.Context) {
 
 // GetToolCallStatistics retrieves aggregated tool call statistics
 func (h *AgentHandler) GetToolCallStatistics(c *gin.Context) {
-	projectID := c.GetString(middleware.ContextKeyProjectID)
+	projectID := c.GetString(middleware.ContextProjectID)
 
 	// Parse time range
 	endTime := time.Now()

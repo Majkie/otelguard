@@ -9,26 +9,26 @@ import (
 
 // Agent represents an identified agent within a multi-agent system
 type Agent struct {
-	ID          uuid.UUID  `ch:"id" json:"id"`
-	ProjectID   uuid.UUID  `ch:"project_id" json:"projectId"`
-	TraceID     uuid.UUID  `ch:"trace_id" json:"traceId"`
-	SpanID      uuid.UUID  `ch:"span_id" json:"spanId"`               // The span that represents this agent's execution
-	ParentAgent *uuid.UUID `ch:"parent_agent_id" json:"parentAgentId,omitempty"` // Parent agent if delegated
-	Name        string     `ch:"name" json:"name"`
-	Type        string     `ch:"agent_type" json:"agentType"` // orchestrator, worker, tool_caller, planner, executor, custom
-	Role        string     `ch:"role" json:"role"`            // Human-readable role description
-	Model       *string    `ch:"model" json:"model,omitempty"`
-	SystemPrompt *string   `ch:"system_prompt" json:"systemPrompt,omitempty"`
-	StartTime   time.Time  `ch:"start_time" json:"startTime"`
-	EndTime     time.Time  `ch:"end_time" json:"endTime"`
-	LatencyMs   uint32     `ch:"latency_ms" json:"latencyMs"`
-	TotalTokens uint32     `ch:"total_tokens" json:"totalTokens"`
-	Cost        float64    `ch:"cost" json:"cost"`
-	Status      string     `ch:"status" json:"status"` // running, success, error, timeout
-	ErrorMessage *string   `ch:"error_message" json:"errorMessage,omitempty"`
-	Metadata    string     `ch:"metadata" json:"metadata,omitempty"` // JSON metadata
-	Tags        []string   `ch:"tags" json:"tags,omitempty"`
-	CreatedAt   time.Time  `ch:"created_at" json:"createdAt"`
+	ID           uuid.UUID  `ch:"id" json:"id"`
+	ProjectID    uuid.UUID  `ch:"project_id" json:"projectId"`
+	TraceID      uuid.UUID  `ch:"trace_id" json:"traceId"`
+	SpanID       uuid.UUID  `ch:"span_id" json:"spanId"`                          // The span that represents this agent's execution
+	ParentAgent  *uuid.UUID `ch:"parent_agent_id" json:"parentAgentId,omitempty"` // Parent agent if delegated
+	Name         string     `ch:"name" json:"name"`
+	Type         string     `ch:"agent_type" json:"agentType"` // orchestrator, worker, tool_caller, planner, executor, custom
+	Role         string     `ch:"role" json:"role"`            // Human-readable role description
+	Model        *string    `ch:"model" json:"model,omitempty"`
+	SystemPrompt *string    `ch:"system_prompt" json:"systemPrompt,omitempty"`
+	StartTime    time.Time  `ch:"start_time" json:"startTime"`
+	EndTime      time.Time  `ch:"end_time" json:"endTime"`
+	LatencyMs    uint32     `ch:"latency_ms" json:"latencyMs"`
+	TotalTokens  uint32     `ch:"total_tokens" json:"totalTokens"`
+	Cost         float64    `ch:"cost" json:"cost"`
+	Status       string     `ch:"status" json:"status"` // running, success, error, timeout
+	ErrorMessage *string    `ch:"error_message" json:"errorMessage,omitempty"`
+	Metadata     string     `ch:"metadata" json:"metadata,omitempty"` // JSON metadata
+	Tags         []string   `ch:"tags" json:"tags,omitempty"`
+	CreatedAt    time.Time  `ch:"created_at" json:"createdAt"`
 }
 
 // AgentType constants
@@ -52,45 +52,45 @@ const (
 
 // AgentRelationship represents a relationship between two agents
 type AgentRelationship struct {
-	ID             uuid.UUID `ch:"id" json:"id"`
-	ProjectID      uuid.UUID `ch:"project_id" json:"projectId"`
-	TraceID        uuid.UUID `ch:"trace_id" json:"traceId"`
-	SourceAgentID  uuid.UUID `ch:"source_agent_id" json:"sourceAgentId"`
-	TargetAgentID  uuid.UUID `ch:"target_agent_id" json:"targetAgentId"`
-	RelationType   string    `ch:"relation_type" json:"relationType"` // delegates_to, calls, responds_to, supervises
-	Timestamp      time.Time `ch:"timestamp" json:"timestamp"`
-	Metadata       string    `ch:"metadata" json:"metadata,omitempty"`
-	CreatedAt      time.Time `ch:"created_at" json:"createdAt"`
+	ID            uuid.UUID `ch:"id" json:"id"`
+	ProjectID     uuid.UUID `ch:"project_id" json:"projectId"`
+	TraceID       uuid.UUID `ch:"trace_id" json:"traceId"`
+	SourceAgentID uuid.UUID `ch:"source_agent_id" json:"sourceAgentId"`
+	TargetAgentID uuid.UUID `ch:"target_agent_id" json:"targetAgentId"`
+	RelationType  string    `ch:"relation_type" json:"relationType"` // delegates_to, calls, responds_to, supervises
+	Timestamp     time.Time `ch:"timestamp" json:"timestamp"`
+	Metadata      string    `ch:"metadata" json:"metadata,omitempty"`
+	CreatedAt     time.Time `ch:"created_at" json:"createdAt"`
 }
 
 // RelationType constants
 const (
-	RelationTypeDelegatesTo = "delegates_to" // Agent delegates work to another agent
-	RelationTypeCalls       = "calls"        // Agent calls another agent
-	RelationTypeRespondsTo  = "responds_to"  // Agent responds to another agent
-	RelationTypeSupervises  = "supervises"   // Agent supervises another agent
+	RelationTypeDelegatesTo  = "delegates_to" // Agent delegates work to another agent
+	RelationTypeCalls        = "calls"        // Agent calls another agent
+	RelationTypeRespondsTo   = "responds_to"  // Agent responds to another agent
+	RelationTypeSupervises   = "supervises"   // Agent supervises another agent
 	RelationTypeCollaborates = "collaborates" // Agents work together
 )
 
 // ToolCall represents a tool invocation by an agent
 type ToolCall struct {
-	ID          uuid.UUID  `ch:"id" json:"id"`
-	ProjectID   uuid.UUID  `ch:"project_id" json:"projectId"`
-	TraceID     uuid.UUID  `ch:"trace_id" json:"traceId"`
-	SpanID      uuid.UUID  `ch:"span_id" json:"spanId"`
-	AgentID     *uuid.UUID `ch:"agent_id" json:"agentId,omitempty"` // Optional link to agent
-	Name        string     `ch:"name" json:"name"`
-	Description string     `ch:"description" json:"description,omitempty"`
-	Input       string     `ch:"input" json:"input"`   // JSON input parameters
-	Output      string     `ch:"output" json:"output"` // JSON output
-	StartTime   time.Time  `ch:"start_time" json:"startTime"`
-	EndTime     time.Time  `ch:"end_time" json:"endTime"`
-	LatencyMs   uint32     `ch:"latency_ms" json:"latencyMs"`
-	Status      string     `ch:"status" json:"status"` // success, error, timeout
-	ErrorMessage *string   `ch:"error_message" json:"errorMessage,omitempty"`
-	RetryCount  int        `ch:"retry_count" json:"retryCount"`
-	Metadata    string     `ch:"metadata" json:"metadata,omitempty"`
-	CreatedAt   time.Time  `ch:"created_at" json:"createdAt"`
+	ID           uuid.UUID  `ch:"id" json:"id"`
+	ProjectID    uuid.UUID  `ch:"project_id" json:"projectId"`
+	TraceID      uuid.UUID  `ch:"trace_id" json:"traceId"`
+	SpanID       uuid.UUID  `ch:"span_id" json:"spanId"`
+	AgentID      *uuid.UUID `ch:"agent_id" json:"agentId,omitempty"` // Optional link to agent
+	Name         string     `ch:"name" json:"name"`
+	Description  string     `ch:"description" json:"description,omitempty"`
+	Input        string     `ch:"input" json:"input"`   // JSON input parameters
+	Output       string     `ch:"output" json:"output"` // JSON output
+	StartTime    time.Time  `ch:"start_time" json:"startTime"`
+	EndTime      time.Time  `ch:"end_time" json:"endTime"`
+	LatencyMs    uint32     `ch:"latency_ms" json:"latencyMs"`
+	Status       string     `ch:"status" json:"status"` // success, error, timeout
+	ErrorMessage *string    `ch:"error_message" json:"errorMessage,omitempty"`
+	RetryCount   int32      `ch:"retry_count" json:"retryCount"`
+	Metadata     string     `ch:"metadata" json:"metadata,omitempty"`
+	CreatedAt    time.Time  `ch:"created_at" json:"createdAt"`
 }
 
 // ToolCallStatus constants
@@ -103,22 +103,22 @@ const (
 
 // AgentMessage represents a message passed between agents
 type AgentMessage struct {
-	ID            uuid.UUID  `ch:"id" json:"id"`
-	ProjectID     uuid.UUID  `ch:"project_id" json:"projectId"`
-	TraceID       uuid.UUID  `ch:"trace_id" json:"traceId"`
-	SpanID        *uuid.UUID `ch:"span_id" json:"spanId,omitempty"`
-	FromAgentID   uuid.UUID  `ch:"from_agent_id" json:"fromAgentId"`
-	ToAgentID     uuid.UUID  `ch:"to_agent_id" json:"toAgentId"`
-	MessageType   string     `ch:"message_type" json:"messageType"` // request, response, notification, broadcast
-	Role          string     `ch:"role" json:"role"`                // user, assistant, system, function, tool
-	Content       string     `ch:"content" json:"content"`
-	ContentType   string     `ch:"content_type" json:"contentType"` // text, json, tool_call, tool_result
-	SequenceNum   int        `ch:"sequence_num" json:"sequenceNum"` // Order in conversation
-	ParentMsgID   *uuid.UUID `ch:"parent_msg_id" json:"parentMsgId,omitempty"` // For threading
-	TokenCount    uint32     `ch:"token_count" json:"tokenCount"`
-	Timestamp     time.Time  `ch:"timestamp" json:"timestamp"`
-	Metadata      string     `ch:"metadata" json:"metadata,omitempty"`
-	CreatedAt     time.Time  `ch:"created_at" json:"createdAt"`
+	ID          uuid.UUID  `ch:"id" json:"id"`
+	ProjectID   uuid.UUID  `ch:"project_id" json:"projectId"`
+	TraceID     uuid.UUID  `ch:"trace_id" json:"traceId"`
+	SpanID      *uuid.UUID `ch:"span_id" json:"spanId,omitempty"`
+	FromAgentID uuid.UUID  `ch:"from_agent_id" json:"fromAgentId"`
+	ToAgentID   uuid.UUID  `ch:"to_agent_id" json:"toAgentId"`
+	MessageType string     `ch:"message_type" json:"messageType"` // request, response, notification, broadcast
+	Role        string     `ch:"role" json:"role"`                // user, assistant, system, function, tool
+	Content     string     `ch:"content" json:"content"`
+	ContentType string     `ch:"content_type" json:"contentType"`            // text, json, tool_call, tool_result
+	SequenceNum int32      `ch:"sequence_num" json:"sequenceNum"`            // Order in conversation
+	ParentMsgID *uuid.UUID `ch:"parent_msg_id" json:"parentMsgId,omitempty"` // For threading
+	TokenCount  uint32     `ch:"token_count" json:"tokenCount"`
+	Timestamp   time.Time  `ch:"timestamp" json:"timestamp"`
+	Metadata    string     `ch:"metadata" json:"metadata,omitempty"`
+	CreatedAt   time.Time  `ch:"created_at" json:"createdAt"`
 }
 
 // MessageType constants
@@ -148,20 +148,20 @@ const (
 
 // AgentState represents a snapshot of an agent's state at a point in time
 type AgentState struct {
-	ID          uuid.UUID `ch:"id" json:"id"`
-	ProjectID   uuid.UUID `ch:"project_id" json:"projectId"`
-	TraceID     uuid.UUID `ch:"trace_id" json:"traceId"`
-	AgentID     uuid.UUID `ch:"agent_id" json:"agentId"`
+	ID          uuid.UUID  `ch:"id" json:"id"`
+	ProjectID   uuid.UUID  `ch:"project_id" json:"projectId"`
+	TraceID     uuid.UUID  `ch:"trace_id" json:"traceId"`
+	AgentID     uuid.UUID  `ch:"agent_id" json:"agentId"`
 	SpanID      *uuid.UUID `ch:"span_id" json:"spanId,omitempty"`
-	SequenceNum int       `ch:"sequence_num" json:"sequenceNum"` // Order of state snapshots
-	State       string    `ch:"state" json:"state"`              // Current lifecycle state
-	Variables   string    `ch:"variables" json:"variables"`      // JSON key-value store
-	Memory      string    `ch:"memory" json:"memory"`            // JSON memory/context
-	Plan        string    `ch:"plan" json:"plan,omitempty"`      // JSON current plan if any
-	Reasoning   string    `ch:"reasoning" json:"reasoning,omitempty"` // Agent's reasoning at this point
-	Timestamp   time.Time `ch:"timestamp" json:"timestamp"`
-	Metadata    string    `ch:"metadata" json:"metadata,omitempty"`
-	CreatedAt   time.Time `ch:"created_at" json:"createdAt"`
+	SequenceNum int32      `ch:"sequence_num" json:"sequenceNum"`      // Order of state snapshots
+	State       string     `ch:"state" json:"state"`                   // Current lifecycle state
+	Variables   string     `ch:"variables" json:"variables"`           // JSON key-value store
+	Memory      string     `ch:"memory" json:"memory"`                 // JSON memory/context
+	Plan        string     `ch:"plan" json:"plan,omitempty"`           // JSON current plan if any
+	Reasoning   string     `ch:"reasoning" json:"reasoning,omitempty"` // Agent's reasoning at this point
+	Timestamp   time.Time  `ch:"timestamp" json:"timestamp"`
+	Metadata    string     `ch:"metadata" json:"metadata,omitempty"`
+	CreatedAt   time.Time  `ch:"created_at" json:"createdAt"`
 }
 
 // AgentLifecycleState constants
@@ -177,10 +177,10 @@ const (
 
 // AgentHierarchy represents the hierarchical structure of agents in a trace
 type AgentHierarchy struct {
-	TraceID    uuid.UUID          `json:"traceId"`
-	Agents     []*AgentNode       `json:"agents"`
-	RootAgents []*AgentNode       `json:"rootAgents"`
-	MaxDepth   int                `json:"maxDepth"`
+	TraceID    uuid.UUID    `json:"traceId"`
+	Agents     []*AgentNode `json:"agents"`
+	RootAgents []*AgentNode `json:"rootAgents"`
+	MaxDepth   int          `json:"maxDepth"`
 }
 
 // AgentNode represents an agent in the hierarchy tree
@@ -294,21 +294,21 @@ func DetectAgentHierarchyFromSpans(spans []*Span) []*Agent {
 	for _, span := range spans {
 		if span.Type == SpanTypeAgent {
 			agent := &Agent{
-				ID:        uuid.New(),
-				ProjectID: span.ProjectID,
-				TraceID:   span.TraceID,
-				SpanID:    span.ID,
-				Name:      span.Name,
-				Type:      detectAgentType(span),
-				StartTime: span.StartTime,
-				EndTime:   span.EndTime,
-				LatencyMs: span.LatencyMs,
-				TotalTokens: span.Tokens,
-				Cost:      span.Cost,
-				Model:     span.Model,
-				Status:    span.Status,
+				ID:           uuid.New(),
+				ProjectID:    span.ProjectID,
+				TraceID:      span.TraceID,
+				SpanID:       span.ID,
+				Name:         span.Name,
+				Type:         detectAgentType(span),
+				StartTime:    span.StartTime,
+				EndTime:      span.EndTime,
+				LatencyMs:    span.LatencyMs,
+				TotalTokens:  span.Tokens,
+				Cost:         span.Cost,
+				Model:        span.Model,
+				Status:       span.Status,
 				ErrorMessage: span.ErrorMessage,
-				Metadata:  span.Metadata,
+				Metadata:     span.Metadata,
 			}
 			agents = append(agents, agent)
 			spanToAgent[span.ID] = agent
@@ -390,8 +390,8 @@ func containsAny(s string, substrs ...string) bool {
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) &&
 		(s == substr ||
-		 len(s) > len(substr) &&
-		 (stringContains(toLower(s), toLower(substr))))
+			len(s) > len(substr) &&
+				(stringContains(toLower(s), toLower(substr))))
 }
 
 func toLower(s string) string {
@@ -422,19 +422,19 @@ func ExtractToolCallsFromSpans(spans []*Span, agentMap map[uuid.UUID]*Agent) []*
 	for _, span := range spans {
 		if span.Type == SpanTypeTool {
 			toolCall := &ToolCall{
-				ID:        uuid.New(),
-				ProjectID: span.ProjectID,
-				TraceID:   span.TraceID,
-				SpanID:    span.ID,
-				Name:      span.Name,
-				Input:     span.Input,
-				Output:    span.Output,
-				StartTime: span.StartTime,
-				EndTime:   span.EndTime,
-				LatencyMs: span.LatencyMs,
-				Status:    span.Status,
+				ID:           uuid.New(),
+				ProjectID:    span.ProjectID,
+				TraceID:      span.TraceID,
+				SpanID:       span.ID,
+				Name:         span.Name,
+				Input:        span.Input,
+				Output:       span.Output,
+				StartTime:    span.StartTime,
+				EndTime:      span.EndTime,
+				LatencyMs:    span.LatencyMs,
+				Status:       span.Status,
 				ErrorMessage: span.ErrorMessage,
-				Metadata:  span.Metadata,
+				Metadata:     span.Metadata,
 			}
 
 			// Try to find the parent agent

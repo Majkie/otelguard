@@ -939,7 +939,7 @@ func stringsplit(s, sep string) []string {
 
 // GetTrace returns a single trace
 func (h *TraceHandler) GetTrace(c *gin.Context) {
-	id := c.Param("id")
+	id := c.Param("traceId")
 
 	trace, err := h.traceService.GetTrace(c.Request.Context(), id)
 	if err != nil {
@@ -955,7 +955,7 @@ func (h *TraceHandler) GetTrace(c *gin.Context) {
 
 // GetSpans returns spans for a trace
 func (h *TraceHandler) GetSpans(c *gin.Context) {
-	traceID := c.Param("id")
+	traceID := c.Param("traceId")
 
 	spans, err := h.traceService.GetSpans(c.Request.Context(), traceID)
 	if err != nil {
@@ -974,7 +974,7 @@ func (h *TraceHandler) GetSpans(c *gin.Context) {
 
 // DeleteTrace deletes a trace
 func (h *TraceHandler) DeleteTrace(c *gin.Context) {
-	id := c.Param("id")
+	id := c.Param("traceId")
 
 	if err := h.traceService.DeleteTrace(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

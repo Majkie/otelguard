@@ -75,7 +75,7 @@ export function AgentGraphDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="h-full flex flex-col">
+      <div className="flex flex-col" style={{ height: 'calc(100vh - 8rem)' }}>
         <div className="border-b p-4">
           <div className="flex items-center gap-4">
             <Skeleton className="h-8 w-8" />
@@ -99,7 +99,7 @@ export function AgentGraphDetailPage() {
 
   if (graphError || !graphData) {
     return (
-      <div className="h-full flex flex-col">
+      <div className="flex flex-col" style={{ height: 'calc(100vh - 8rem)' }}>
         <div className="border-b p-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => navigate('/agents')}>
@@ -129,10 +129,10 @@ export function AgentGraphDetailPage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 8rem)' }}>
       {/* Header */}
-      <div className="border-b p-4 shrink-0">
-        <div className="flex items-center justify-between">
+      <div className="bg-background shrink-0">
+        <div className="flex items-center justify-between p-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => navigate('/agents')}>
               <ArrowLeft className="h-4 w-4" />
@@ -144,23 +144,32 @@ export function AgentGraphDetailPage() {
               </h1>
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 <span>Trace: {traceId?.slice(0, 8)}...</span>
-                <span>|</span>
+                <span>•</span>
                 <span className="flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   {formatLatency(graphData.metadata.totalLatencyMs)}
                 </span>
-                <span>|</span>
+                <span>•</span>
                 <span className="flex items-center gap-1">
                   <Bot className="h-3 w-3" />
-                  {agentsData?.data?.length || 0} agents
+                  {agentsData?.data?.length || 0} {agentsData?.data?.length === 1 ? 'agent' : 'agents'}
                 </span>
-                {trace?.cost && (
+                {trace?.cost != null && trace.cost > 0 && (
                   <>
-                    <span>|</span>
+                    <span>•</span>
                     <span className="flex items-center gap-1">
                       <Coins className="h-3 w-3" />
                       {formatCost(trace.cost)}
                     </span>
+                  </>
+                )}
+                {graphData.metadata.bottlenecks && graphData.metadata.bottlenecks.length > 0 && (
+                  <>
+                    <span>•</span>
+                    <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-400 dark:border-orange-800">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      {graphData.metadata.bottlenecks.length} bottleneck{graphData.metadata.bottlenecks.length === 1 ? '' : 's'}
+                    </Badge>
                   </>
                 )}
               </div>
@@ -169,64 +178,23 @@ export function AgentGraphDetailPage() {
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={handleExportGraph}>
               <Download className="mr-2 h-4 w-4" />
-              Export JSON
+              Export
             </Button>
             <Button variant="outline" size="sm" asChild>
               <Link to={`/traces/${traceId}`}>
-                View Trace Details
+                View Trace
               </Link>
             </Button>
           </div>
         </div>
-      </div>
 
-      {/* Stats Bar */}
-      <div className="border-b p-3 flex items-center gap-6 text-sm bg-muted/30 shrink-0">
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground">Nodes:</span>
-          <Badge variant="secondary">{graphData.metadata.totalNodes}</Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground">Edges:</span>
-          <Badge variant="secondary">{graphData.metadata.totalEdges}</Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground">Max Depth:</span>
-          <Badge variant="secondary">{graphData.metadata.maxDepth}</Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground">Max Parallelism:</span>
-          <Badge variant="secondary">{graphData.metadata.maxParallelism}</Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-muted-foreground">Critical Path:</span>
-          <Badge variant="outline">
-            {formatLatency(graphData.metadata.criticalPathMs)}
-          </Badge>
-        </div>
-        {graphData.metadata.hasCycles && (
-          <Badge variant="destructive" className="flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3" />
-            Has Cycles
-          </Badge>
-        )}
-        {graphData.metadata.bottlenecks && graphData.metadata.bottlenecks.length > 0 && (
-          <Badge className="bg-orange-500 flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3" />
-            {graphData.metadata.bottlenecks.length} Bottleneck
-            {graphData.metadata.bottlenecks.length > 1 ? 's' : ''}
-          </Badge>
-        )}
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-hidden">
-        <Tabs defaultValue="graph" className="h-full flex flex-col">
-          <div className="border-b px-4 shrink-0">
+        {/* Tabs */}
+        <Tabs defaultValue="graph" className="flex-1">
+          <div className="px-4 pt-2">
             <TabsList className="h-10">
               <TabsTrigger value="graph" className="gap-2">
                 <Network className="h-4 w-4" />
-                Graph View
+                Graph
               </TabsTrigger>
               <TabsTrigger value="agents" className="gap-2">
                 <Bot className="h-4 w-4" />
@@ -239,7 +207,7 @@ export function AgentGraphDetailPage() {
             </TabsList>
           </div>
 
-          <TabsContent value="graph" className="flex-1 mt-0 overflow-hidden">
+          <TabsContent value="graph" className="mt-0 p-4" style={{ height: 'calc(100vh - 16rem)' }}>
             <AgentGraph
               graph={graphData}
               className="h-full"
@@ -249,7 +217,7 @@ export function AgentGraphDetailPage() {
             />
           </TabsContent>
 
-          <TabsContent value="agents" className="flex-1 mt-0 overflow-hidden">
+          <TabsContent value="agents" className="mt-0 p-0" style={{ height: 'calc(100vh - 16rem)' }}>
             <ScrollArea className="h-full">
               <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {agentsData?.data?.map((agent) => (
@@ -316,7 +284,7 @@ export function AgentGraphDetailPage() {
             </ScrollArea>
           </TabsContent>
 
-          <TabsContent value="messages" className="flex-1 mt-0 overflow-hidden">
+          <TabsContent value="messages" className="mt-0 p-0" style={{ height: 'calc(100vh - 16rem)' }}>
             <ScrollArea className="h-full">
               <div className="p-4 space-y-3">
                 {messagesData?.data?.map((msg) => (

@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 import { useAgents } from '@/api/agents';
-import { useTraces, type Trace } from '@/api/traces';
+import type { Agent } from '@/types/agent';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -56,23 +56,20 @@ function formatCost(cost: number): string {
   return `$${cost.toFixed(2)}`;
 }
 
-// Page showing traces that have agents with ability to view graph
+// Page showing agents and their traces
 export function AgentsPage() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [sorting, setSorting] = useState<SortingState>([{ id: 'startTime', desc: true }]);
 
-  // Get traces (agent graphs are per-trace)
-  const { data: tracesData, isLoading: tracesLoading } = useTraces({
+  // Get agents data
+  const { data: agentsData, isLoading: agentsLoading } = useAgents({ 
     limit: 100,
     sortBy: 'start_time',
     sortOrder: 'DESC',
   });
 
-  // Get agents data
-  const { data: agentsData, isLoading: agentsLoading } = useAgents({ limit: 100 });
-
-  // Group agents by trace for the visualization feature
+  // Group agents by trace for statistics
   const traceAgentCounts = useMemo(() => {
     if (!agentsData?.data) return new Map<string, number>();
     const counts = new Map<string, number>();
@@ -82,19 +79,13 @@ export function AgentsPage() {
     return counts;
   }, [agentsData]);
 
-  // Filter traces that have agents
-  const tracesWithAgents = useMemo(() => {
-    if (!tracesData?.data) return [];
-    return tracesData.data.filter(
-      (trace) => traceAgentCounts.get(trace.id) && traceAgentCounts.get(trace.id)! > 0
-    );
-  }, [tracesData, traceAgentCounts]);
+  const uniqueTraceCount = traceAgentCounts.size;
 
-  const columns: ColumnDef<Trace>[] = useMemo(
+  const columns: ColumnDef<Agent>[] = useMemo(
     () => [
       {
         accessorKey: 'name',
-        header: 'Trace Name',
+        header: 'Agent Name',
         cell: ({ row }) => (
           <div className="flex items-center gap-2">
             <Bot className="h-4 w-4 text-muted-foreground" />
@@ -103,16 +94,20 @@ export function AgentsPage() {
         ),
       },
       {
-        id: 'agentCount',
-        header: 'Agents',
-        cell: ({ row }) => {
-          const count = traceAgentCounts.get(row.original.id) || 0;
-          return (
-            <Badge variant="secondary" className="font-mono">
-              {count}
-            </Badge>
-          );
-        },
+        accessorKey: 'agentType',
+        header: 'Type',
+        cell: ({ row }) => (
+          <Badge variant="outline" className="capitalize">
+            {row.original.agentType.replace('_', ' ')}
+          </Badge>
+        ),
+      },
+      {
+        accessorKey: 'role',
+        header: 'Role',
+        cell: ({ row }) => (
+          <span className="text-sm text-muted-foreground">{row.original.role || '—'}</span>
+        ),
       },
       {
         accessorKey: 'latencyMs',
@@ -178,7 +173,9 @@ export function AgentsPage() {
                 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
               row.original.status === 'error' &&
                 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-              row.original.status === 'pending' &&
+              row.original.status === 'running' &&
+                'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+              row.original.status === 'timeout' &&
                 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
             )}
           >
@@ -220,7 +217,10 @@ export function AgentsPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate(`/agents/${row.original.id}`)}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/agents/${row.original.traceId}`);
+              }}
             >
               <Network className="mr-1 h-4 w-4" />
               View Graph
@@ -228,7 +228,10 @@ export function AgentsPage() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate(`/traces/${row.original.id}`)}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/traces/${row.original.traceId}`);
+              }}
             >
               <Eye className="h-4 w-4" />
             </Button>
@@ -236,18 +239,21 @@ export function AgentsPage() {
         ),
       },
     ],
-    [traceAgentCounts, navigate]
+    [navigate]
   );
 
   const filteredData = useMemo(() => {
-    if (!searchQuery) return tracesWithAgents;
+    if (!agentsData?.data) return [];
+    if (!searchQuery) return agentsData.data;
     const query = searchQuery.toLowerCase();
-    return tracesWithAgents.filter(
-      (trace) =>
-        trace.name.toLowerCase().includes(query) ||
-        trace.model.toLowerCase().includes(query)
+    return agentsData.data.filter(
+      (agent) =>
+        agent.name.toLowerCase().includes(query) ||
+        agent.agentType.toLowerCase().includes(query) ||
+        (agent.role && agent.role.toLowerCase().includes(query)) ||
+        (agent.model && agent.model.toLowerCase().includes(query))
     );
-  }, [tracesWithAgents, searchQuery]);
+  }, [agentsData, searchQuery]);
 
   const table = useReactTable({
     data: filteredData,
@@ -263,7 +269,7 @@ export function AgentsPage() {
     },
   });
 
-  const isLoading = tracesLoading || agentsLoading;
+  const isLoading = agentsLoading;
 
   if (isLoading) {
     return (
@@ -290,18 +296,18 @@ export function AgentsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Network className="h-6 w-6" />
-            Agent Graphs
+            <Bot className="h-6 w-6" />
+            Agents
           </h1>
           <p className="text-muted-foreground">
-            Visualize multi-agent system execution flows
+            View and analyze multi-agent system executions
           </p>
         </div>
         <div className="flex items-center gap-4">
           <div className="relative w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Search traces..."
+              placeholder="Search agents..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -314,26 +320,28 @@ export function AgentsPage() {
       <div className="grid grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Total Traces with Agents</CardDescription>
-            <CardTitle className="text-2xl">{tracesWithAgents.length}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
             <CardDescription>Total Agents</CardDescription>
             <CardTitle className="text-2xl">{agentsData?.total || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
+            <CardDescription>Unique Traces</CardDescription>
+            <CardTitle className="text-2xl">{uniqueTraceCount}</CardTitle>
+          </CardHeader>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
             <CardDescription>Avg Latency</CardDescription>
             <CardTitle className="text-2xl">
-              {formatLatency(
-                Math.round(
-                  tracesWithAgents.reduce((acc, t) => acc + t.latencyMs, 0) /
-                    (tracesWithAgents.length || 1)
-                )
-              )}
+              {agentsData?.data && agentsData.data.length > 0
+                ? formatLatency(
+                    Math.round(
+                      agentsData.data.reduce((acc, a) => acc + a.latencyMs, 0) /
+                        agentsData.data.length
+                    )
+                  )
+                : '—'}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -341,7 +349,9 @@ export function AgentsPage() {
           <CardHeader className="pb-2">
             <CardDescription>Total Cost</CardDescription>
             <CardTitle className="text-2xl">
-              {formatCost(tracesWithAgents.reduce((acc, t) => acc + t.cost, 0))}
+              {agentsData?.data
+                ? formatCost(agentsData.data.reduce((acc, a) => acc + a.cost, 0))
+                : '$0.00'}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -372,8 +382,8 @@ export function AgentsPage() {
                 table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
-                    className="cursor-pointer"
-                    onClick={() => navigate(`/agents/${row.original.id}`)}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => navigate(`/agents/${row.original.traceId}`)}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TableCell key={cell.id}>
@@ -386,8 +396,8 @@ export function AgentsPage() {
                 <TableRow>
                   <TableCell colSpan={columns.length} className="h-24 text-center">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                      <Network className="h-8 w-8" />
-                      <p>No traces with agents found</p>
+                      <Bot className="h-8 w-8" />
+                      <p>No agents found</p>
                       <p className="text-sm">
                         Agent data will appear here when multi-agent traces are captured
                       </p>

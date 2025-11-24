@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { X, Clock, Coins, MessageSquare, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import type { GraphNode, GraphEdge, Bottleneck } from '@/types/agent';
@@ -85,16 +84,16 @@ export function NodeDetailPanel({
 
   if (!node) {
     return (
-      <div className="w-80 border-l bg-background p-4 flex items-center justify-center text-muted-foreground">
+      <div className="w-80 ml-4 border border-border rounded-lg bg-card p-4 flex items-center justify-center text-muted-foreground">
         Select a node to view details
       </div>
     );
   }
 
   return (
-    <div className="w-80 border-l bg-background flex flex-col">
+    <div className="w-80 ml-4 border border-border rounded-lg bg-card flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b">
+      <div className="flex items-center justify-between p-4 border-b border-border bg-muted/30">
         <div className="flex items-center gap-2">
           <StatusIcon
             className={cn(
@@ -111,7 +110,7 @@ export function NodeDetailPanel({
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-3">
           {/* Type and Status */}
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant="outline" className="capitalize">
@@ -138,11 +137,9 @@ export function NodeDetailPanel({
             )}
           </div>
 
-          <Separator />
-
           {/* Metrics */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium">Metrics</h4>
+          <div className="space-y-2 pt-3 border-t border-border">
+            <h4 className="text-sm font-medium text-foreground">Metrics</h4>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <div className="text-xs text-muted-foreground flex items-center gap-1">
@@ -184,10 +181,8 @@ export function NodeDetailPanel({
 
           {/* Bottleneck Info */}
           {bottleneckInfo && (
-            <>
-              <Separator />
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium text-orange-600">Bottleneck Analysis</h4>
+            <div className="space-y-2 pt-3 border-t border-border">
+              <h4 className="text-sm font-medium text-orange-600">Bottleneck Analysis</h4>
                 <div className="text-sm text-muted-foreground">
                   <p>
                     This node accounts for{' '}
@@ -199,24 +194,19 @@ export function NodeDetailPanel({
                   <p className="mt-1 text-xs">{bottleneckInfo.reason}</p>
                 </div>
               </div>
-            </>
           )}
 
           {/* Model */}
           {node.model && (
-            <>
-              <Separator />
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium">Model</h4>
-                <Badge variant="outline">{node.model}</Badge>
-              </div>
-            </>
+            <div className="space-y-2 pt-3 border-t border-border">
+              <h4 className="text-sm font-medium text-foreground">Model</h4>
+              <Badge variant="outline">{node.model}</Badge>
+            </div>
           )}
 
           {/* Timing */}
-          <Separator />
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">Timing</h4>
+          <div className="space-y-2 pt-3 border-t border-border">
+            <h4 className="text-sm font-medium text-foreground">Timing</h4>
             <div className="space-y-1 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Start:</span>
@@ -231,10 +221,9 @@ export function NodeDetailPanel({
 
           {/* Connections */}
           {(incomingEdges.length > 0 || outgoingEdges.length > 0) && (
-            <>
-              <Separator />
-              <div className="space-y-3">
-                <h4 className="text-sm font-medium">Connections</h4>
+            <div className="space-y-2 pt-3 border-t border-border">
+              <h4 className="text-sm font-medium text-foreground">Connections</h4>
+              <div className="space-y-2">
 
                 {incomingEdges.length > 0 && (
                   <div className="space-y-1">
@@ -294,26 +283,22 @@ export function NodeDetailPanel({
                   </div>
                 )}
               </div>
-            </>
+            </div>
           )}
 
           {/* Metadata */}
           {metadata && Object.keys(metadata).length > 0 && (
-            <>
-              <Separator />
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium">Metadata</h4>
+            <div className="space-y-2 pt-3 border-t border-border">
+              <h4 className="text-sm font-medium text-foreground">Metadata</h4>
                 <pre className="text-xs bg-muted p-2 rounded overflow-auto max-h-40 font-mono">
                   {JSON.stringify(metadata, null, 2)}
                 </pre>
-              </div>
-            </>
+            </div>
           )}
 
           {/* IDs */}
-          <Separator />
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">Identifiers</h4>
+          <div className="space-y-2 pt-3 border-t border-border">
+            <h4 className="text-sm font-medium text-foreground">Identifiers</h4>
             <div className="space-y-1 text-xs font-mono">
               <div className="flex flex-col gap-0.5">
                 <span className="text-muted-foreground">Node ID:</span>

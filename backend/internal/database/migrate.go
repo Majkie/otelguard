@@ -10,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-//go:embed migrations/postgres/*.sql
+//go:embed migrations/*.sql
 var postgresMigrations embed.FS
 
 // MigrateConfig holds migration configuration
@@ -21,7 +21,7 @@ type MigrateConfig struct {
 
 // RunMigrations runs all pending PostgreSQL migrations
 func RunMigrations(cfg *MigrateConfig) error {
-	d, err := iofs.New(postgresMigrations, "migrations/postgres")
+	d, err := iofs.New(postgresMigrations, "migrations")
 	if err != nil {
 		return fmt.Errorf("failed to create migration source: %w", err)
 	}
@@ -54,7 +54,7 @@ func RunMigrations(cfg *MigrateConfig) error {
 
 // MigrateDown rolls back all migrations
 func MigrateDown(cfg *MigrateConfig) error {
-	d, err := iofs.New(postgresMigrations, "migrations/postgres")
+	d, err := iofs.New(postgresMigrations, "migrations")
 	if err != nil {
 		return fmt.Errorf("failed to create migration source: %w", err)
 	}
@@ -78,7 +78,7 @@ func MigrateDown(cfg *MigrateConfig) error {
 
 // MigrateToVersion migrates to a specific version
 func MigrateToVersion(cfg *MigrateConfig, version uint) error {
-	d, err := iofs.New(postgresMigrations, "migrations/postgres")
+	d, err := iofs.New(postgresMigrations, "migrations")
 	if err != nil {
 		return fmt.Errorf("failed to create migration source: %w", err)
 	}
@@ -102,7 +102,7 @@ func MigrateToVersion(cfg *MigrateConfig, version uint) error {
 
 // GetMigrationVersion returns the current migration version
 func GetMigrationVersion(cfg *MigrateConfig) (uint, bool, error) {
-	d, err := iofs.New(postgresMigrations, "migrations/postgres")
+	d, err := iofs.New(postgresMigrations, "migrations")
 	if err != nil {
 		return 0, false, fmt.Errorf("failed to create migration source: %w", err)
 	}

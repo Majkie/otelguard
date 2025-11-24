@@ -17,7 +17,7 @@ import (
 // Wire will generate the implementation of this function.
 func InitializeApplication(cfg *config.Config) (*wire.Application, error) {
 	logger := wire.ProvideLogger(cfg)
-	postgresDB, err := wire.ProvidePostgresDB(cfg)
+	postgresDB, err := wire.ProvidePostgresDB(cfg, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -34,9 +34,9 @@ func InitializeApplication(cfg *config.Config) (*wire.Application, error) {
 	orgService := wire.ProvideOrgService(organizationRepository, projectRepository, userRepository, logger, cfg)
 	authHandler := wire.ProvideAuthHandler(authService, orgService, cfg, logger)
 	orgHandler := wire.ProvideOrgHandler(orgService, logger)
-	conn := clickHouseDB.Conn
-	traceRepository := wire.ProvideTraceRepository(conn)
-	batchWriterResult := wire.ProvideBatchWriter(conn, cfg, logger)
+	v := clickHouseDB.Conn
+	traceRepository := wire.ProvideTraceRepository(v)
+	batchWriterResult := wire.ProvideBatchWriter(v, cfg, logger)
 	samplerConfig := wire.ProvideSamplerConfig(cfg)
 	traceService := wire.ProvideTraceService(traceRepository, batchWriterResult, samplerConfig, cfg, logger)
 	traceHandler := wire.ProvideTraceHandler(traceService, logger)
@@ -45,7 +45,7 @@ func InitializeApplication(cfg *config.Config) (*wire.Application, error) {
 	promptService := wire.ProvidePromptService(promptRepository, logger)
 	promptHandler := wire.ProvidePromptHandler(promptService, traceService, logger)
 	guardrailRepository := wire.ProvideGuardrailRepository(pool)
-	guardrailEventRepository := wire.ProvideGuardrailEventRepository(conn)
+	guardrailEventRepository := wire.ProvideGuardrailEventRepository(v)
 	guardrailService := wire.ProvideGuardrailService(guardrailRepository, guardrailEventRepository, logger)
 	guardrailHandler := wire.ProvideGuardrailHandler(guardrailService, logger)
 	annotationRepository := wire.ProvideAnnotationRepository(pool)
@@ -60,7 +60,7 @@ func InitializeApplication(cfg *config.Config) (*wire.Application, error) {
 	pricingService := wire.ProvidePricingService()
 	llmServiceImpl := wire.ProvideLLMService(logger, tokenizerService, pricingService)
 	llmHandler := wire.ProvideLLMHandler(llmServiceImpl, tokenizerService, pricingService, logger)
-	agentRepository := wire.ProvideAgentRepository(conn)
+	agentRepository := wire.ProvideAgentRepository(v)
 	agentService := wire.ProvideAgentService(agentRepository, traceRepository, logger)
 	agentHandler := wire.ProvideAgentHandler(agentService, logger)
 	handlers := wire.ProvideHandlers(healthHandler, authHandler, orgHandler, traceHandler, otlpHandler, promptHandler, guardrailHandler, annotationHandler, feedbackHandler, llmHandler, agentHandler)

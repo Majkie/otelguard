@@ -9,14 +9,14 @@ import (
 
 // AgentGraph represents a directed graph of agent interactions
 type AgentGraph struct {
-	TraceID       uuid.UUID         `json:"traceId"`
-	ProjectID     uuid.UUID         `json:"projectId"`
-	Nodes         []*GraphNode      `json:"nodes"`
-	Edges         []*GraphEdge      `json:"edges"`
-	NodeMap       map[uuid.UUID]*GraphNode `json:"-"` // Internal lookup
-	EdgeMap       map[string]*GraphEdge    `json:"-"` // Internal lookup (source-target key)
-	Metadata      *GraphMetadata    `json:"metadata"`
-	CreatedAt     time.Time         `json:"createdAt"`
+	TraceID   uuid.UUID                `json:"traceId"`
+	ProjectID uuid.UUID                `json:"projectId"`
+	Nodes     []*GraphNode             `json:"nodes"`
+	Edges     []*GraphEdge             `json:"edges"`
+	NodeMap   map[uuid.UUID]*GraphNode `json:"-"` // Internal lookup
+	EdgeMap   map[string]*GraphEdge    `json:"-"` // Internal lookup (source-target key)
+	Metadata  *GraphMetadata           `json:"metadata"`
+	CreatedAt time.Time                `json:"createdAt"`
 }
 
 // GraphNode represents a node in the agent graph
@@ -34,8 +34,8 @@ type GraphNode struct {
 	Tokens        uint32        `json:"tokens,omitempty"`
 	Cost          float64       `json:"cost,omitempty"`
 	Model         *string       `json:"model,omitempty"`
-	Depth         int           `json:"depth"`          // Depth in the graph
-	ParallelGroup int           `json:"parallelGroup"`  // Group of parallel nodes
+	Depth         int           `json:"depth"`         // Depth in the graph
+	ParallelGroup int           `json:"parallelGroup"` // Group of parallel nodes
 	Metadata      string        `json:"metadata,omitempty"`
 	Position      *NodePosition `json:"position,omitempty"` // For visualization
 }
@@ -63,46 +63,46 @@ const (
 
 // GraphEdge represents an edge connecting two nodes
 type GraphEdge struct {
-	ID          uuid.UUID `json:"id"`
-	Source      uuid.UUID `json:"source"`      // Source node ID
-	Target      uuid.UUID `json:"target"`      // Target node ID
-	Type        EdgeType  `json:"type"`
-	Label       string    `json:"label,omitempty"`
-	Weight      float64   `json:"weight,omitempty"` // For weighted graphs
-	Order       int       `json:"order"`            // Temporal order
-	MessageID   *uuid.UUID `json:"messageId,omitempty"`
-	LatencyMs   uint32    `json:"latencyMs,omitempty"`
-	Metadata    string    `json:"metadata,omitempty"`
+	ID        uuid.UUID  `json:"id"`
+	Source    uuid.UUID  `json:"source"` // Source node ID
+	Target    uuid.UUID  `json:"target"` // Target node ID
+	Type      EdgeType   `json:"type"`
+	Label     string     `json:"label,omitempty"`
+	Weight    float64    `json:"weight,omitempty"` // For weighted graphs
+	Order     int        `json:"order"`            // Temporal order
+	MessageID *uuid.UUID `json:"messageId,omitempty"`
+	LatencyMs uint32     `json:"latencyMs,omitempty"`
+	Metadata  string     `json:"metadata,omitempty"`
 }
 
 // EdgeType represents the type of graph edge
 type EdgeType string
 
 const (
-	EdgeTypeDelegation   EdgeType = "delegation"   // Agent delegates to another
-	EdgeTypeToolCall     EdgeType = "tool_call"    // Agent calls a tool
-	EdgeTypeLLMCall      EdgeType = "llm_call"     // Agent makes an LLM call
-	EdgeTypeMessage      EdgeType = "message"      // Message between agents
-	EdgeTypeSequence     EdgeType = "sequence"     // Sequential execution
-	EdgeTypeParallel     EdgeType = "parallel"     // Parallel execution
-	EdgeTypeReturn       EdgeType = "return"       // Return from delegation
-	EdgeTypeCustom       EdgeType = "custom"
+	EdgeTypeDelegation EdgeType = "delegation" // Agent delegates to another
+	EdgeTypeToolCall   EdgeType = "tool_call"  // Agent calls a tool
+	EdgeTypeLLMCall    EdgeType = "llm_call"   // Agent makes an LLM call
+	EdgeTypeMessage    EdgeType = "message"    // Message between agents
+	EdgeTypeSequence   EdgeType = "sequence"   // Sequential execution
+	EdgeTypeParallel   EdgeType = "parallel"   // Parallel execution
+	EdgeTypeReturn     EdgeType = "return"     // Return from delegation
+	EdgeTypeCustom     EdgeType = "custom"
 )
 
 // GraphMetadata contains metadata about the graph
 type GraphMetadata struct {
-	TotalNodes       int              `json:"totalNodes"`
-	TotalEdges       int              `json:"totalEdges"`
-	MaxDepth         int              `json:"maxDepth"`
-	MaxParallelism   int              `json:"maxParallelism"`
-	HasCycles        bool             `json:"hasCycles"`
-	CycleNodes       []uuid.UUID      `json:"cycleNodes,omitempty"`
-	ParallelGroups   int              `json:"parallelGroups"`
-	TotalLatencyMs   uint32           `json:"totalLatencyMs"`
-	CriticalPath     []uuid.UUID      `json:"criticalPath,omitempty"`
-	CriticalPathMs   uint32           `json:"criticalPathMs"`
-	Bottlenecks      []*Bottleneck    `json:"bottlenecks,omitempty"`
-	ExecutionLanes   []*ExecutionLane `json:"executionLanes,omitempty"`
+	TotalNodes     int              `json:"totalNodes"`
+	TotalEdges     int              `json:"totalEdges"`
+	MaxDepth       int              `json:"maxDepth"`
+	MaxParallelism int              `json:"maxParallelism"`
+	HasCycles      bool             `json:"hasCycles"`
+	CycleNodes     []uuid.UUID      `json:"cycleNodes,omitempty"`
+	ParallelGroups int              `json:"parallelGroups"`
+	TotalLatencyMs uint32           `json:"totalLatencyMs"`
+	CriticalPath   []uuid.UUID      `json:"criticalPath,omitempty"`
+	CriticalPathMs uint32           `json:"criticalPathMs"`
+	Bottlenecks    []*Bottleneck    `json:"bottlenecks,omitempty"`
+	ExecutionLanes []*ExecutionLane `json:"executionLanes,omitempty"`
 }
 
 // Bottleneck represents a performance bottleneck in the graph
@@ -928,9 +928,7 @@ func (g *AgentGraph) aggregateNodes(maxNodes int) *AgentGraph {
 			aggregated.NodeMap[combined.ID] = combined
 
 			// Map old node IDs to new combined ID
-			for _, n := range group.nodes {
-				group.combined = combined
-			}
+			group.combined = combined
 		}
 	}
 

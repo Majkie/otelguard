@@ -114,7 +114,7 @@ func (s *AgentService) GetAgentHierarchy(ctx context.Context, projectID, traceID
 // DetectAndStoreAgents detects agents from spans and stores them
 func (s *AgentService) DetectAndStoreAgents(ctx context.Context, projectID, traceID string) ([]*domain.Agent, error) {
 	// Get spans for the trace
-	spans, err := s.traceRepo.GetSpans(ctx, projectID, traceID)
+	spans, err := s.traceRepo.GetSpans(ctx, traceID)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +194,7 @@ func (s *AgentService) GetToolCallsByAgent(ctx context.Context, projectID, agent
 // DetectAndStoreToolCalls detects tool calls from spans and stores them
 func (s *AgentService) DetectAndStoreToolCalls(ctx context.Context, projectID, traceID string) ([]*domain.ToolCall, error) {
 	// Get spans for the trace
-	spans, err := s.traceRepo.GetSpans(ctx, projectID, traceID)
+	spans, err := s.traceRepo.GetSpans(ctx, traceID)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +276,7 @@ func (s *AgentService) GetToolCallStatistics(ctx context.Context, projectID stri
 // BuildAgentGraph builds an agent graph for visualization
 func (s *AgentService) BuildAgentGraph(ctx context.Context, projectID, traceID string) (*domain.AgentGraph, error) {
 	// Get spans for the trace
-	spans, err := s.traceRepo.GetSpans(ctx, projectID, traceID)
+	spans, err := s.traceRepo.GetSpans(ctx, traceID)
 	if err != nil {
 		return nil, err
 	}

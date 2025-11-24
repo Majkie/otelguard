@@ -36,7 +36,7 @@ const (
 	// Context keys
 	ContextUserID         ContextKey = "user_id"
 	ContextOrganizationID ContextKey = "organization_id"
-	ContextProjectID      ContextKey = "project_id"
+	ContextProjectID      string     = "project_id"
 	ContextEmail          ContextKey = "email"
 	ContextRole           ContextKey = "role"
 	ContextScopes         ContextKey = "scopes"

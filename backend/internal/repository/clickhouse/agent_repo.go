@@ -162,7 +162,7 @@ func (r *AgentRepository) GetAgentByID(ctx context.Context, projectID, agentID s
 		SELECT
 			id, project_id, trace_id, span_id, parent_agent_id, name,
 			agent_type, role, model, system_prompt, start_time, end_time,
-			latency_ms, total_tokens, cost, status, error_message,
+			latency_ms, total_tokens, cast(cost as Float64) as cost, status, error_message,
 			metadata, tags, created_at
 		FROM agents
 		WHERE project_id = ? AND id = ?
@@ -229,7 +229,7 @@ func (r *AgentRepository) GetAgentsByTraceID(ctx context.Context, projectID, tra
 		SELECT
 			id, project_id, trace_id, span_id, parent_agent_id, name,
 			agent_type, role, model, system_prompt, start_time, end_time,
-			latency_ms, total_tokens, cost, status, error_message,
+			latency_ms, total_tokens, cast(cost as Float64) as cost, status, error_message,
 			metadata, tags, created_at
 		FROM agents
 		WHERE project_id = ? AND trace_id = ?
@@ -322,7 +322,7 @@ func (r *AgentRepository) QueryAgents(ctx context.Context, opts *AgentQueryOptio
 		SELECT
 			id, project_id, trace_id, span_id, parent_agent_id, name,
 			agent_type, role, model, system_prompt, start_time, end_time,
-			latency_ms, total_tokens, cost, status, error_message,
+			latency_ms, total_tokens, cast(cost as Float64) as cost, status, error_message,
 			metadata, tags, created_at
 		FROM agents
 		%s
@@ -842,16 +842,16 @@ func (r *AgentRepository) GetAgentStatesByAgentID(ctx context.Context, projectID
 
 // AgentStatistics represents aggregated statistics for agents
 type AgentStatistics struct {
-	TotalAgents      int     `json:"totalAgents"`
-	OrchestratorCount int    `json:"orchestratorCount"`
-	WorkerCount      int     `json:"workerCount"`
-	ToolCallerCount  int     `json:"toolCallerCount"`
-	TotalLatencyMs   uint64  `json:"totalLatencyMs"`
-	AvgLatencyMs     float64 `json:"avgLatencyMs"`
-	TotalTokens      uint64  `json:"totalTokens"`
-	TotalCost        float64 `json:"totalCost"`
-	ErrorCount       int     `json:"errorCount"`
-	SuccessRate      float64 `json:"successRate"`
+	TotalAgents       int     `json:"totalAgents"`
+	OrchestratorCount int     `json:"orchestratorCount"`
+	WorkerCount       int     `json:"workerCount"`
+	ToolCallerCount   int     `json:"toolCallerCount"`
+	TotalLatencyMs    uint64  `json:"totalLatencyMs"`
+	AvgLatencyMs      float64 `json:"avgLatencyMs"`
+	TotalTokens       uint64  `json:"totalTokens"`
+	TotalCost         float64 `json:"totalCost"`
+	ErrorCount        int     `json:"errorCount"`
+	SuccessRate       float64 `json:"successRate"`
 }
 
 // GetAgentStatistics retrieves aggregated agent statistics for a project
@@ -865,7 +865,7 @@ func (r *AgentRepository) GetAgentStatistics(ctx context.Context, projectID stri
 			sum(latency_ms) as total_latency_ms,
 			avg(latency_ms) as avg_latency_ms,
 			sum(total_tokens) as total_tokens,
-			sum(cost) as total_cost,
+			sum(cast(cost as Float64)) as total_cost,
 			countIf(status = 'error') as error_count
 		FROM agents
 		WHERE project_id = ?
@@ -900,14 +900,14 @@ func (r *AgentRepository) GetAgentStatistics(ctx context.Context, projectID stri
 
 // ToolCallStatistics represents aggregated statistics for tool calls
 type ToolCallStatistics struct {
-	Name          string  `json:"name"`
-	CallCount     int     `json:"callCount"`
-	TotalLatencyMs uint64 `json:"totalLatencyMs"`
-	AvgLatencyMs  float64 `json:"avgLatencyMs"`
-	SuccessCount  int     `json:"successCount"`
-	ErrorCount    int     `json:"errorCount"`
-	TotalRetries  int     `json:"totalRetries"`
-	SuccessRate   float64 `json:"successRate"`
+	Name           string  `json:"name"`
+	CallCount      int     `json:"callCount"`
+	TotalLatencyMs uint64  `json:"totalLatencyMs"`
+	AvgLatencyMs   float64 `json:"avgLatencyMs"`
+	SuccessCount   int     `json:"successCount"`
+	ErrorCount     int     `json:"errorCount"`
+	TotalRetries   int     `json:"totalRetries"`
+	SuccessRate    float64 `json:"successRate"`
 }
 
 // GetToolCallStatistics retrieves aggregated tool call statistics

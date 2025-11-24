@@ -8,7 +8,10 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/google/wire"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.uber.org/zap"
+
 	"github.com/otelguard/otelguard/internal/config"
+	"github.com/otelguard/otelguard/internal/database"
 )
 
 // PostgresDB wraps the database connection with its cleanup function.
@@ -32,7 +35,7 @@ var DatabaseSet = wire.NewSet(
 )
 
 // ProvidePostgresDB creates a PostgreSQL database connection.
-func ProvidePostgresDB(cfg *config.Config) (*PostgresDB, error) {
+func ProvidePostgresDB(cfg *config.Config, logger *zap.Logger) (*PostgresDB, error) {
 	config, err := pgxpool.ParseConfig(cfg.Postgres.DSN())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse postgres config: %w", err)
@@ -53,6 +56,16 @@ func ProvidePostgresDB(cfg *config.Config) (*PostgresDB, error) {
 	if err := pool.Ping(ctx); err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("failed to ping postgres: %w", err)
+	}
+
+	// Run database migrations
+	migrateCfg := &database.MigrateConfig{
+		DatabaseURL: cfg.Postgres.MigrationDSN(),
+		Logger:      logger,
+	}
+	if err := database.RunMigrations(migrateCfg); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	return &PostgresDB{
