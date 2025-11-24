@@ -106,9 +106,9 @@ function EvaluatorsPage() {
   const createMutation = useCreateEvaluator();
   const deleteMutation = useDeleteEvaluator();
 
-  const evaluators = evaluatorsResponse?.evaluators || [];
+  const evaluators = evaluatorsResponse?.data || [];
   const templates = templatesResponse?.templates || [];
-  const total = evaluatorsResponse?.pagination.total || 0;
+  const total = evaluatorsResponse?.total || 0;
   const currentPage = Math.floor((params.offset || 0) / ITEMS_PER_PAGE) + 1;
   const totalPages = Math.ceil(total / ITEMS_PER_PAGE);
 

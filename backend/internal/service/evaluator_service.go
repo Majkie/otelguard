@@ -284,7 +284,7 @@ func (s *EvaluatorService) RunEvaluation(ctx context.Context, req *domain.RunEva
 	}
 
 	// Get the trace
-	trace, err := s.traceRepo.GetByID(ctx, evaluator.ProjectID, req.TraceID)
+	trace, err := s.traceRepo.GetByID(ctx, req.TraceID.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get trace: %w", err)
 	}
@@ -410,7 +410,7 @@ func (s *EvaluatorService) processJob(ctx context.Context, jobID uuid.UUID) {
 	// Process each target
 	for _, targetID := range job.TargetIDs {
 		// Get trace
-		trace, err := s.traceRepo.GetByID(ctx, job.ProjectID, targetID)
+		trace, err := s.traceRepo.GetByID(ctx, targetID.String())
 		if err != nil {
 			s.logger.Error("failed to get trace",
 				zap.Error(err),
@@ -512,16 +512,16 @@ func (s *EvaluatorService) executeEvaluation(
 		// Create error result
 		errMsg := err.Error()
 		errorResult := &domain.EvaluationResult{
-			ID:          uuid.New(),
-			JobID:       jobID,
-			EvaluatorID: evaluator.ID,
-			ProjectID:   evaluator.ProjectID,
-			TraceID:     trace.ID,
-			SpanID:      spanID,
-			Status:      "error",
+			ID:           uuid.New(),
+			JobID:        jobID,
+			EvaluatorID:  evaluator.ID,
+			ProjectID:    evaluator.ProjectID,
+			TraceID:      trace.ID,
+			SpanID:       spanID,
+			Status:       "error",
 			ErrorMessage: &errMsg,
-			LatencyMs:   int(time.Since(startTime).Milliseconds()),
-			CreatedAt:   time.Now(),
+			LatencyMs:    int(time.Since(startTime).Milliseconds()),
+			CreatedAt:    time.Now(),
 		}
 		if insertErr := s.resultRepo.Insert(ctx, errorResult); insertErr != nil {
 			s.logger.Error("failed to insert error result", zap.Error(insertErr))

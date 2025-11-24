@@ -108,12 +108,10 @@ export interface ListEvaluatorsParams {
 }
 
 export interface ListEvaluatorsResponse {
-  evaluators: Evaluator[];
-  pagination: {
-    total: number;
-    limit: number;
-    offset: number;
-  };
+  data: Evaluator[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface ListJobsParams {

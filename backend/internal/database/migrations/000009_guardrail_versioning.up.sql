@@ -16,7 +16,7 @@ CREATE TABLE guardrail_policy_versions (
     triggers JSONB NOT NULL DEFAULT '{}',
     rules JSONB NOT NULL DEFAULT '[]',
     change_notes TEXT,
-    created_by UUID NOT NULL REFERENCES users(id),
+    created_by UUID REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     deleted_at TIMESTAMP WITH TIME ZONE,
     UNIQUE(policy_id, version)
@@ -47,13 +47,12 @@ SELECT
                 'action', r.action,
                 'actionConfig', r.action_config,
                 'orderIndex', r.order_index
-            )
+            ) ORDER BY r.order_index
         )
         FROM guardrail_rules r
-        WHERE r.policy_id = p.id
-        ORDER BY r.order_index),
+        WHERE r.policy_id = p.id),
         '[]'::jsonb
     ),
-    p.project_id, -- Use project_id as created_by placeholder (will need proper user tracking)
+    NULL, -- No user tracking for existing policies (created_by is nullable)
     p.created_at
 FROM guardrail_policies p;
