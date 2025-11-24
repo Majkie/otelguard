@@ -25,7 +25,7 @@ CREATE TABLE user_sessions (
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token_hash VARCHAR(255) NOT NULL UNIQUE,
     user_agent VARCHAR(500),
-    ip_address INET,
+    ip_address TEXT,
     last_active_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     revoked_at TIMESTAMP WITH TIME ZONE,

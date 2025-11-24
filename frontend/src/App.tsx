@@ -23,6 +23,10 @@ import { SettingsPage } from '@/pages/settings';
 import ScoresPage from '@/pages/scores';
 import ScoreDetailPage from '@/pages/scores/detail';
 import ScoreAnalyticsPage from '@/pages/scores/analytics';
+import FeedbackPage from '@/pages/feedback';
+import FeedbackAnalyticsPage from '@/pages/feedback/analytics';
+import AnnotationsPage from '@/pages/annotations';
+import AnnotatePage from '@/pages/annotations/annotate';
 
 // Layout
 import { DashboardLayout } from '@/components/features/layout/dashboard-layout-updated';
@@ -61,7 +65,11 @@ function App() {
             <Route path="scores" element={<ScoresPage />} />
             <Route path="scores/analytics" element={<ScoreAnalyticsPage />} />
             <Route path="scores/:scoreId" element={<ScoreDetailPage />} />
+            <Route path="feedback" element={<FeedbackPage />} />
+            <Route path="feedback/analytics" element={<FeedbackAnalyticsPage />} />
             <Route path="guardrails" element={<GuardrailsPage />} />
+            <Route path="annotations" element={<AnnotationsPage />} />
+            <Route path="annotations/annotate" element={<AnnotatePage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 

@@ -7,6 +7,15 @@ import (
 	"github.com/google/uuid"
 )
 
+// MustParseUUID parses a UUID string and panics if invalid
+func MustParseUUID(s string) uuid.UUID {
+	id, err := uuid.Parse(s)
+	if err != nil {
+		panic(err)
+	}
+	return id
+}
+
 // Organization represents a top-level organization
 type Organization struct {
 	ID        uuid.UUID    `db:"id" json:"id"`
@@ -326,6 +335,19 @@ type TokenUsage struct {
 	TotalTokens      int `json:"totalTokens"`
 }
 
+// ScoreConfig represents a scoring configuration for annotations
+type ScoreConfig struct {
+	ID          uuid.UUID       `db:"id" json:"id"`
+	ProjectID   uuid.UUID       `db:"project_id" json:"projectId"`
+	Name        string          `db:"name" json:"name"`
+	DataType    string          `db:"data_type" json:"dataType"`
+	Description string          `db:"description" json:"description,omitempty"`
+	MinValue    sql.NullFloat64 `db:"min_value" json:"minValue,omitempty"`
+	MaxValue    sql.NullFloat64 `db:"max_value" json:"maxValue,omitempty"`
+	Categories  []string        `db:"categories" json:"categories"`
+	CreatedAt   time.Time       `db:"created_at" json:"createdAt"`
+}
+
 // PlaygroundExecution represents a playground execution record
 type PlaygroundExecution struct {
 	ID            uuid.UUID     `json:"id"`
@@ -338,4 +360,289 @@ type PlaygroundExecution struct {
 	ExecutionTime time.Duration `json:"executionTime"`
 	Cost          float64       `json:"cost"`
 	CreatedAt     time.Time     `json:"createdAt"`
+}
+
+// AnnotationQueue represents a queue of items to be annotated
+type AnnotationQueue struct {
+	ID                    uuid.UUID    `db:"id" json:"id"`
+	ProjectID             uuid.UUID    `db:"project_id" json:"projectId"`
+	Name                  string       `db:"name" json:"name"`
+	Description           string       `db:"description" json:"description,omitempty"`
+	ScoreConfigs          []byte       `db:"score_configs" json:"scoreConfigs"`
+	Config                []byte       `db:"config" json:"config"`
+	ItemSource            string       `db:"item_source" json:"itemSource"`
+	ItemSourceConfig      []byte       `db:"item_source_config" json:"itemSourceConfig"`
+	AssignmentStrategy    string       `db:"assignment_strategy" json:"assignmentStrategy"`
+	MaxAnnotationsPerItem int          `db:"max_annotations_per_item" json:"maxAnnotationsPerItem"`
+	Instructions          string       `db:"instructions" json:"instructions,omitempty"`
+	IsActive              bool         `db:"is_active" json:"isActive"`
+	CreatedAt             time.Time    `db:"created_at" json:"createdAt"`
+	UpdatedAt             time.Time    `db:"updated_at" json:"updatedAt"`
+	DeletedAt             sql.NullTime `db:"deleted_at" json:"-"`
+}
+
+// AnnotationQueueItem represents an item in an annotation queue
+type AnnotationQueueItem struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	QueueID        uuid.UUID `db:"queue_id" json:"queueId"`
+	ItemType       string    `db:"item_type" json:"itemType"`
+	ItemID         string    `db:"item_id" json:"itemId"`
+	ItemData       []byte    `db:"item_data" json:"itemData,omitempty"`
+	Metadata       []byte    `db:"metadata" json:"metadata"`
+	Priority       int       `db:"priority" json:"priority"`
+	MaxAnnotations int       `db:"max_annotations" json:"maxAnnotations"`
+	CreatedAt      time.Time `db:"created_at" json:"createdAt"`
+	UpdatedAt      time.Time `db:"updated_at" json:"updatedAt"`
+}
+
+// AnnotationAssignment represents the assignment of a queue item to a user
+type AnnotationAssignment struct {
+	ID          uuid.UUID    `db:"id" json:"id"`
+	QueueItemID uuid.UUID    `db:"queue_item_id" json:"queueItemId"`
+	UserID      uuid.UUID    `db:"user_id" json:"userId"`
+	Status      string       `db:"status" json:"status"`
+	AssignedAt  time.Time    `db:"assigned_at" json:"assignedAt"`
+	StartedAt   sql.NullTime `db:"started_at" json:"startedAt,omitempty"`
+	CompletedAt sql.NullTime `db:"completed_at" json:"completedAt,omitempty"`
+	SkippedAt   sql.NullTime `db:"skipped_at" json:"skippedAt,omitempty"`
+	Notes       string       `db:"notes" json:"notes,omitempty"`
+	CreatedAt   time.Time    `db:"created_at" json:"createdAt"`
+	UpdatedAt   time.Time    `db:"updated_at" json:"updatedAt"`
+}
+
+// Annotation represents a completed human annotation
+type Annotation struct {
+	ID              uuid.UUID       `db:"id" json:"id"`
+	AssignmentID    uuid.UUID       `db:"assignment_id" json:"assignmentId"`
+	QueueID         uuid.UUID       `db:"queue_id" json:"queueId"`
+	QueueItemID     uuid.UUID       `db:"queue_item_id" json:"queueItemId"`
+	UserID          uuid.UUID       `db:"user_id" json:"userId"`
+	Scores          []byte          `db:"scores" json:"scores"`
+	Labels          []string        `db:"labels" json:"labels"`
+	Notes           string          `db:"notes" json:"notes,omitempty"`
+	ConfidenceScore sql.NullFloat64 `db:"confidence_score" json:"confidenceScore,omitempty"`
+	AnnotationTime  sql.NullString  `db:"annotation_time" json:"annotationTime,omitempty"`
+	CreatedAt       time.Time       `db:"created_at" json:"createdAt"`
+	UpdatedAt       time.Time       `db:"updated_at" json:"updatedAt"`
+}
+
+// InterAnnotatorAgreement represents agreement metrics between annotators
+type InterAnnotatorAgreement struct {
+	ID              uuid.UUID       `db:"id" json:"id"`
+	QueueID         uuid.UUID       `db:"queue_id" json:"queueId"`
+	QueueItemID     uuid.UUID       `db:"queue_item_id" json:"queueItemId"`
+	ScoreConfigName string          `db:"score_config_name" json:"scoreConfigName"`
+	AgreementType   string          `db:"agreement_type" json:"agreementType"`
+	AgreementValue  sql.NullFloat64 `db:"agreement_value" json:"agreementValue,omitempty"`
+	AnnotatorCount  int             `db:"annotator_count" json:"annotatorCount"`
+	CalculatedAt    time.Time       `db:"calculated_at" json:"calculatedAt"`
+}
+
+// AnnotationQueueCreate represents data for creating a new annotation queue
+type AnnotationQueueCreate struct {
+	ProjectID             uuid.UUID              `json:"projectId" validate:"required"`
+	Name                  string                 `json:"name" validate:"required,min=1,max=255"`
+	Description           string                 `json:"description,omitempty"`
+	ScoreConfigs          []ScoreConfig          `json:"scoreConfigs,omitempty"`
+	Config                map[string]interface{} `json:"config,omitempty"`
+	ItemSource            string                 `json:"itemSource,omitempty"`
+	ItemSourceConfig      map[string]interface{} `json:"itemSourceConfig,omitempty"`
+	AssignmentStrategy    string                 `json:"assignmentStrategy,omitempty"`
+	MaxAnnotationsPerItem int                    `json:"maxAnnotationsPerItem,omitempty"`
+	Instructions          string                 `json:"instructions,omitempty"`
+}
+
+// AnnotationQueueUpdate represents data for updating an annotation queue
+type AnnotationQueueUpdate struct {
+	Name                  *string                 `json:"name,omitempty"`
+	Description           *string                 `json:"description,omitempty"`
+	ScoreConfigs          *[]ScoreConfig          `json:"scoreConfigs,omitempty"`
+	Config                *map[string]interface{} `json:"config,omitempty"`
+	ItemSource            *string                 `json:"itemSource,omitempty"`
+	ItemSourceConfig      *map[string]interface{} `json:"itemSourceConfig,omitempty"`
+	AssignmentStrategy    *string                 `json:"assignmentStrategy,omitempty"`
+	MaxAnnotationsPerItem *int                    `json:"maxAnnotationsPerItem,omitempty"`
+	Instructions          *string                 `json:"instructions,omitempty"`
+	IsActive              *bool                   `json:"isActive,omitempty"`
+}
+
+// AnnotationQueueItemCreate represents data for creating a new queue item
+type AnnotationQueueItemCreate struct {
+	QueueID        uuid.UUID              `json:"queueId" validate:"required"`
+	ItemType       string                 `json:"itemType" validate:"required"`
+	ItemID         string                 `json:"itemId" validate:"required"`
+	ItemData       map[string]interface{} `json:"itemData,omitempty"`
+	Metadata       map[string]interface{} `json:"metadata,omitempty"`
+	Priority       int                    `json:"priority,omitempty"`
+	MaxAnnotations int                    `json:"maxAnnotations,omitempty"`
+}
+
+// AnnotationAssignmentCreate represents data for creating a new assignment
+type AnnotationAssignmentCreate struct {
+	QueueItemID uuid.UUID `json:"queueItemId" validate:"required"`
+	UserID      uuid.UUID `json:"userId" validate:"required"`
+}
+
+// AnnotationCreate represents data for creating a new annotation
+type AnnotationCreate struct {
+	AssignmentID    uuid.UUID              `json:"assignmentId" validate:"required"`
+	Scores          map[string]interface{} `json:"scores,omitempty"`
+	Labels          []string               `json:"labels,omitempty"`
+	Notes           string                 `json:"notes,omitempty"`
+	ConfidenceScore *float64               `json:"confidenceScore,omitempty"`
+	AnnotationTime  *string                `json:"annotationTime,omitempty"`
+}
+
+// AnnotationAssignmentUpdate represents data for updating an assignment status
+type AnnotationAssignmentUpdate struct {
+	Status *string `json:"status,omitempty"`
+	Notes  *string `json:"notes,omitempty"`
+}
+
+// FeedbackScoreMapping represents how feedback translates to evaluation scores
+type FeedbackScoreMapping struct {
+	ID          uuid.UUID `db:"id" json:"id"`
+	ProjectID   uuid.UUID `db:"project_id" json:"projectId"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description,omitempty"`
+	ItemType    string    `db:"item_type" json:"itemType"` // 'trace', 'session', 'span', 'prompt'
+	Enabled     bool      `db:"enabled" json:"enabled"`
+	Config      []byte    `db:"config" json:"config"` // JSON configuration for mapping rules
+	CreatedAt   time.Time `db:"created_at" json:"createdAt"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updatedAt"`
+}
+
+// FeedbackScoreMappingConfig represents the configuration for feedback to score mapping
+type FeedbackScoreMappingConfig struct {
+	// Thumbs up/down to score mappings
+	ThumbsUpScore   *ScoreMapping `json:"thumbsUpScore,omitempty"`
+	ThumbsDownScore *ScoreMapping `json:"thumbsDownScore,omitempty"`
+
+	// Rating to score mappings (1-5 stars)
+	RatingScores map[int]*ScoreMapping `json:"ratingScores,omitempty"`
+
+	// Comment analysis (future: sentiment analysis, keyword matching)
+	CommentAnalysis *CommentAnalysisConfig `json:"commentAnalysis,omitempty"`
+}
+
+// ScoreMapping defines how feedback maps to a score
+type ScoreMapping struct {
+	ScoreConfigID uuid.UUID `json:"scoreConfigId"`
+	Value         float64   `json:"value"`
+	Comment       string    `json:"comment,omitempty"`
+}
+
+// CommentAnalysisConfig defines how to analyze comments for scoring
+type CommentAnalysisConfig struct {
+	Enabled         bool             `json:"enabled"`
+	SentimentScore  *ScoreMapping    `json:"sentimentScore,omitempty"`
+	KeywordMappings []KeywordMapping `json:"keywordMappings,omitempty"`
+}
+
+// KeywordMapping maps keywords to scores
+type KeywordMapping struct {
+	Keywords []string      `json:"keywords"`
+	Mapping  *ScoreMapping `json:"mapping"`
+}
+
+// FeedbackScoreMappingCreate represents data for creating a feedback score mapping
+type FeedbackScoreMappingCreate struct {
+	ProjectID   uuid.UUID                   `json:"projectId" validate:"required"`
+	Name        string                      `json:"name" validate:"required,min=1,max=255"`
+	Description string                      `json:"description,omitempty"`
+	ItemType    string                      `json:"itemType" validate:"required,oneof=trace session span prompt"`
+	Enabled     *bool                       `json:"enabled,omitempty"`
+	Config      *FeedbackScoreMappingConfig `json:"config,omitempty"`
+}
+
+// FeedbackScoreMappingUpdate represents data for updating a feedback score mapping
+type FeedbackScoreMappingUpdate struct {
+	Name        *string                     `json:"name,omitempty"`
+	Description *string                     `json:"description,omitempty"`
+	Enabled     *bool                       `json:"enabled,omitempty"`
+	Config      *FeedbackScoreMappingConfig `json:"config,omitempty"`
+}
+
+// UserFeedback represents user feedback on traces, sessions, or other items
+type UserFeedback struct {
+	ID        uuid.UUID     `db:"id" json:"id"`
+	ProjectID uuid.UUID     `db:"project_id" json:"projectId"`
+	UserID    *uuid.UUID    `db:"user_id" json:"userId,omitempty"`
+	SessionID *string       `db:"session_id" json:"sessionId,omitempty"`
+	TraceID   *string       `db:"trace_id" json:"traceId,omitempty"`
+	SpanID    *string       `db:"span_id" json:"spanId,omitempty"`
+	ItemType  string        `db:"item_type" json:"itemType"` // 'trace', 'session', 'span', 'prompt'
+	ItemID    string        `db:"item_id" json:"itemId"`
+	ThumbsUp  sql.NullBool  `db:"thumbs_up" json:"thumbsUp,omitempty"`
+	Rating    sql.NullInt32 `db:"rating" json:"rating,omitempty"` // 1-5 stars
+	Comment   string        `db:"comment" json:"comment,omitempty"`
+	Metadata  []byte        `db:"metadata" json:"metadata,omitempty"`
+	UserAgent string        `db:"user_agent" json:"userAgent,omitempty"`
+	IPAddress string        `db:"ip_address" json:"ipAddress,omitempty"`
+	CreatedAt time.Time     `db:"created_at" json:"createdAt"`
+	UpdatedAt time.Time     `db:"updated_at" json:"updatedAt"`
+}
+
+// UserFeedbackCreate represents data for creating user feedback
+type UserFeedbackCreate struct {
+	ProjectID uuid.UUID              `json:"projectId" validate:"required"`
+	UserID    *uuid.UUID             `json:"userId,omitempty"`
+	SessionID *string                `json:"sessionId,omitempty"`
+	TraceID   *string                `json:"traceId,omitempty"`
+	SpanID    *string                `json:"spanId,omitempty"`
+	ItemType  string                 `json:"itemType" validate:"required,oneof=trace session span prompt"`
+	ItemID    string                 `json:"itemId" validate:"required"`
+	ThumbsUp  *bool                  `json:"thumbsUp,omitempty"`
+	Rating    *int                   `json:"rating,omitempty" validate:"omitempty,min=1,max=5"`
+	Comment   string                 `json:"comment,omitempty"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// UserFeedbackUpdate represents data for updating user feedback
+type UserFeedbackUpdate struct {
+	ThumbsUp *bool                   `json:"thumbsUp,omitempty"`
+	Rating   *int                    `json:"rating,omitempty" validate:"omitempty,min=1,max=5"`
+	Comment  *string                 `json:"comment,omitempty"`
+	Metadata *map[string]interface{} `json:"metadata,omitempty"`
+}
+
+// FeedbackFilter represents filters for querying feedback
+type FeedbackFilter struct {
+	ProjectID string    `json:"projectId,omitempty"`
+	UserID    string    `json:"userId,omitempty"`
+	ItemType  string    `json:"itemType,omitempty"`
+	ItemID    string    `json:"itemId,omitempty"`
+	TraceID   string    `json:"traceId,omitempty"`
+	SessionID string    `json:"sessionId,omitempty"`
+	ThumbsUp  *bool     `json:"thumbsUp,omitempty"`
+	Rating    *int      `json:"rating,omitempty"`
+	StartDate time.Time `json:"startDate,omitempty"`
+	EndDate   time.Time `json:"endDate,omitempty"`
+	OrderBy   string    `json:"orderBy,omitempty"`
+	OrderDesc bool      `json:"orderDesc,omitempty"`
+	Limit     int       `json:"limit,omitempty"`
+	Offset    int       `json:"offset,omitempty"`
+}
+
+// FeedbackAnalytics represents aggregated feedback analytics
+type FeedbackAnalytics struct {
+	ProjectID       uuid.UUID       `json:"projectId"`
+	ItemType        string          `json:"itemType"`
+	TotalFeedback   int64           `json:"totalFeedback"`
+	ThumbsUpCount   int64           `json:"thumbsUpCount"`
+	ThumbsDownCount int64           `json:"thumbsDownCount"`
+	AverageRating   sql.NullFloat64 `json:"averageRating"`
+	RatingCounts    map[int]int64   `json:"ratingCounts"`
+	CommentCount    int64           `json:"commentCount"`
+	DateRange       string          `json:"dateRange"`
+	Trends          []FeedbackTrend `json:"trends,omitempty"`
+}
+
+// FeedbackTrend represents feedback trends over time
+type FeedbackTrend struct {
+	Date          string  `json:"date"`
+	TotalFeedback int64   `json:"totalFeedback"`
+	ThumbsUpRate  float64 `json:"thumbsUpRate"`
+	AverageRating float64 `json:"averageRating"`
+	CommentCount  int64   `json:"commentCount"`
 }

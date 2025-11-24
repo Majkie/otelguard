@@ -92,7 +92,6 @@ function ScoreAnalyticsPage() {
                   <SelectValue placeholder="All sources" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All sources</SelectItem>
                   <SelectItem value="api">API</SelectItem>
                   <SelectItem value="llm_judge">LLM Judge</SelectItem>
                   <SelectItem value="human">Human</SelectItem>

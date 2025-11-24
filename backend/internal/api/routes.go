@@ -15,14 +15,16 @@ import (
 
 // Handlers holds all HTTP handlers
 type Handlers struct {
-	Health    *handlers.HealthHandler
-	Auth      *handlers.AuthHandler
-	Org       *handlers.OrgHandler
-	Trace     *handlers.TraceHandler
-	OTLP      *handlers.OTLPHandler
-	Prompt    *handlers.PromptHandler
-	Guardrail *handlers.GuardrailHandler
-	LLM       *handlers.LLMHandler
+	Health     *handlers.HealthHandler
+	Auth       *handlers.AuthHandler
+	Org        *handlers.OrgHandler
+	Trace      *handlers.TraceHandler
+	OTLP       *handlers.OTLPHandler
+	Prompt     *handlers.PromptHandler
+	Guardrail  *handlers.GuardrailHandler
+	LLM        *handlers.LLMHandler
+	Annotation *handlers.AnnotationHandler
+	Feedback   *handlers.FeedbackHandler
 }
 
 // SetupRouter configures the Gin router with all routes and middleware
@@ -100,6 +102,7 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 		dashboard := v1.Group("")
 		dashboard.Use(middleware.AutoRefreshAuth(cfg.Auth.JWTSecret, 15*time.Minute)) // Refresh when < 15 minutes left
 		dashboard.Use(middleware.CSRFProtection())                                    // CSRF protection for state-changing operations
+		dashboard.Use(middleware.SetProjectContext())                                 // Extract project_id from query params
 		{
 			// User profile
 			dashboard.GET("/me", h.Auth.Me)
@@ -234,6 +237,68 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				analytics.GET("/scores/aggregations", h.Trace.GetScoreAggregations)
 				analytics.GET("/scores/trends", h.Trace.GetScoreTrends)
 				analytics.GET("/scores/comparisons", h.Trace.GetScoreComparisons)
+			}
+
+			// Annotation queues
+			annotationQueues := dashboard.Group("/annotation-queues")
+			{
+				annotationQueues.POST("", h.Annotation.CreateQueue)
+				annotationQueues.GET("/:queueId", h.Annotation.GetQueue)
+				annotationQueues.PUT("/:queueId", h.Annotation.UpdateQueue)
+				annotationQueues.DELETE("/:queueId", h.Annotation.DeleteQueue)
+				annotationQueues.GET("/:queueId/items", h.Annotation.ListQueueItems)
+				annotationQueues.POST("/:queueId/items", h.Annotation.CreateQueueItem)
+				annotationQueues.POST("/:queueId/assign", h.Annotation.AssignNextItem)
+				annotationQueues.GET("/:queueId/stats", h.Annotation.GetQueueStats)
+				annotationQueues.POST("/:queueId/items/:queueItemId/agreement", h.Annotation.CalculateAgreement)
+				annotationQueues.GET("/:queueId/agreements", h.Annotation.GetQueueAgreements)
+				annotationQueues.GET("/:queueId/agreement-stats", h.Annotation.GetQueueAgreementStats)
+				annotationQueues.GET("/:queueId/export", h.Annotation.ExportAnnotations)
+			}
+
+			// Project-specific annotation routes
+			projectRoutes := dashboard.Group("/projects")
+			{
+				projectRoutes.GET("/:projectId/annotation-queues", h.Annotation.ListQueuesByProject)
+			}
+
+			// Annotation assignments
+			assignments := dashboard.Group("/annotation-assignments")
+			{
+				assignments.POST("/:assignmentId/start", h.Annotation.StartAssignment)
+				assignments.POST("/:assignmentId/skip", h.Annotation.SkipAssignment)
+			}
+
+			// Annotations
+			annotations := dashboard.Group("/annotations")
+			{
+				annotations.POST("", h.Annotation.CreateAnnotation)
+				annotations.GET("/:annotationId", h.Annotation.GetAnnotation)
+			}
+
+			// Queue items
+			queueItems := dashboard.Group("/annotation-queue-items")
+			{
+				queueItems.GET("/:queueItemId/annotations", h.Annotation.ListAnnotationsByQueueItem)
+			}
+
+			// Feedback
+			feedback := dashboard.Group("/feedback")
+			{
+				feedback.POST("", h.Feedback.CreateFeedback)
+				feedback.GET("", h.Feedback.ListFeedback)
+				feedback.GET("/:id", h.Feedback.GetFeedback)
+				feedback.PUT("/:id", h.Feedback.UpdateFeedback)
+				feedback.DELETE("/:id", h.Feedback.DeleteFeedback)
+				feedback.GET("/analytics", h.Feedback.GetFeedbackAnalytics)
+				feedback.GET("/trends", h.Feedback.GetFeedbackTrends)
+			}
+
+			// User-specific routes
+			user := dashboard.Group("/user")
+			{
+				user.GET("/annotation-assignments", h.Annotation.ListUserAssignments)
+				user.GET("/annotation-stats", h.Annotation.GetUserStats)
 			}
 		}
 	}

@@ -73,3 +73,17 @@ export function useProjectContext() {
   }
   return context;
 }
+
+// Convenience hook that returns just the current project
+export function useProject() {
+  const { selectedProject, setSelectedProject, projects, isLoading, error, hasProjects } = useProjectContext();
+
+  return {
+    currentProject: selectedProject,
+    setCurrentProject: setSelectedProject,
+    projects,
+    isLoading,
+    error,
+    hasProjects,
+  };
+}

@@ -204,7 +204,6 @@ function ScoresPage() {
                     <SelectValue placeholder="All sources" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All sources</SelectItem>
                     <SelectItem value="api">API</SelectItem>
                     <SelectItem value="llm_judge">LLM Judge</SelectItem>
                     <SelectItem value="human">Human</SelectItem>
@@ -223,7 +222,6 @@ function ScoresPage() {
                     <SelectValue placeholder="All types" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All types</SelectItem>
                     <SelectItem value="numeric">Numeric</SelectItem>
                     <SelectItem value="boolean">Boolean</SelectItem>
                     <SelectItem value="categorical">Categorical</SelectItem>

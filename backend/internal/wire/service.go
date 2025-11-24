@@ -18,6 +18,9 @@ var ServiceSet = wire.NewSet(
 	ProvideTraceService,
 	ProvidePromptService,
 	ProvideGuardrailService,
+	ProvideAnnotationService,
+	ProvideFeedbackService,
+	ProvideFeedbackScoreMappingService,
 	ProvideBatchWriter,
 	ProvideSamplerConfig,
 	ProvideTokenizerService,
@@ -148,6 +151,37 @@ func ProvideTokenizerService() *service.TokenizerService {
 // ProvidePricingService creates a new PricingService.
 func ProvidePricingService() *service.PricingService {
 	return service.NewPricingService()
+}
+
+// ProvideAnnotationService creates a new AnnotationService.
+func ProvideAnnotationService(
+	annotationRepo *pgrepo.AnnotationRepository,
+	projectRepo *pgrepo.ProjectRepository,
+	userRepo *pgrepo.UserRepository,
+	logger *zap.Logger,
+) *service.AnnotationService {
+	return service.NewAnnotationService(annotationRepo, projectRepo, userRepo, logger)
+}
+
+// ProvideFeedbackService creates a new FeedbackService.
+func ProvideFeedbackService(
+	feedbackRepo *pgrepo.FeedbackRepository,
+	feedbackMappingSvc *service.FeedbackScoreMappingService,
+	projectRepo *pgrepo.ProjectRepository,
+	userRepo *pgrepo.UserRepository,
+	logger *zap.Logger,
+) *service.FeedbackService {
+	return service.NewFeedbackService(feedbackRepo, feedbackMappingSvc, projectRepo, userRepo, logger)
+}
+
+// ProvideFeedbackScoreMappingService creates a new FeedbackScoreMappingService.
+func ProvideFeedbackScoreMappingService(
+	feedbackMappingRepo *pgrepo.FeedbackScoreMappingRepository,
+	traceService *service.TraceService,
+	projectRepo *pgrepo.ProjectRepository,
+	logger *zap.Logger,
+) *service.FeedbackScoreMappingService {
+	return service.NewFeedbackScoreMappingService(feedbackMappingRepo, traceService, projectRepo, logger)
 }
 
 // ProvideLLMService creates a new LLMService.

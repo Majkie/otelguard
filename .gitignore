@@ -2,6 +2,7 @@
 node_modules/
 vendor/
 frontend/node_modules
+dist/
 
 # Build outputs
 /backend/bin/

@@ -172,6 +172,17 @@ func CombinedAuth(jwtSecret, apiKeySalt string, apiKeyValidator APIKeyValidator)
 	}
 }
 
+// SetProjectContext extracts project_id from query parameters and sets it in context
+func SetProjectContext() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		projectID := c.Query("projectId")
+		if projectID != "" {
+			c.Set(string(ContextProjectID), projectID)
+		}
+		c.Next()
+	}
+}
+
 // RequireScope checks if the current auth has the required scope
 func RequireScope(scope string) gin.HandlerFunc {
 	return func(c *gin.Context) {

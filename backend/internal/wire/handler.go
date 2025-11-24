@@ -20,6 +20,8 @@ var HandlerSet = wire.NewSet(
 	ProvideOTLPHandler,
 	ProvidePromptHandler,
 	ProvideGuardrailHandler,
+	ProvideAnnotationHandler,
+	ProvideFeedbackHandler,
 	ProvideLLMHandler,
 	ProvideHandlers,
 )
@@ -80,6 +82,22 @@ func ProvideGuardrailHandler(
 	return handlers.NewGuardrailHandler(guardrailService, logger)
 }
 
+// ProvideAnnotationHandler creates a new AnnotationHandler.
+func ProvideAnnotationHandler(
+	annotationService *service.AnnotationService,
+	logger *zap.Logger,
+) *handlers.AnnotationHandler {
+	return handlers.NewAnnotationHandler(annotationService, logger)
+}
+
+// ProvideFeedbackHandler creates a new FeedbackHandler.
+func ProvideFeedbackHandler(
+	feedbackService *service.FeedbackService,
+	logger *zap.Logger,
+) *handlers.FeedbackHandler {
+	return handlers.NewFeedbackHandler(feedbackService, logger)
+}
+
 // ProvideLLMHandler creates a new LLMHandler.
 func ProvideLLMHandler(
 	llmService *service.LLMServiceImpl,
@@ -99,16 +117,20 @@ func ProvideHandlers(
 	otlp *handlers.OTLPHandler,
 	prompt *handlers.PromptHandler,
 	guardrail *handlers.GuardrailHandler,
+	annotation *handlers.AnnotationHandler,
+	feedback *handlers.FeedbackHandler,
 	llm *handlers.LLMHandler,
 ) *api.Handlers {
 	return &api.Handlers{
-		Health:    health,
-		Auth:      auth,
-		Org:       org,
-		Trace:     trace,
-		OTLP:      otlp,
-		Prompt:    prompt,
-		Guardrail: guardrail,
-		LLM:       llm,
+		Health:     health,
+		Auth:       auth,
+		Org:        org,
+		Trace:      trace,
+		OTLP:       otlp,
+		Prompt:     prompt,
+		Guardrail:  guardrail,
+		Annotation: annotation,
+		Feedback:   feedback,
+		LLM:        llm,
 	}
 }

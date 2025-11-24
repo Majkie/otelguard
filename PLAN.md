@@ -251,24 +251,24 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 4.3 Human Annotation
 
-- [ ] Create annotation queue data model
-- [ ] Implement queue creation and configuration
-- [ ] Build queue item assignment logic
-- [ ] Create annotation submission endpoint
-- [ ] Implement annotation UI workflow
-- [ ] Build keyboard shortcuts for annotation
-- [ ] Create annotation progress tracking
-- [ ] Implement inter-annotator agreement metrics
-- [ ] Build annotation export functionality
+- [x] Create annotation queue data model
+- [x] Implement queue creation and configuration
+- [x] Build queue item assignment logic
+- [x] Create annotation submission endpoint
+- [x] Implement annotation UI workflow
+- [x] Build keyboard shortcuts for annotation
+- [x] Create annotation progress tracking
+- [x] Implement inter-annotator agreement metrics
+- [x] Build annotation export functionality
 
 ### 4.4 User Feedback
 
-- [ ] Design feedback data model
-- [ ] Create feedback submission endpoint (thumbs, ratings)
-- [ ] Implement feedback widget SDK
-- [ ] Build feedback analytics dashboard
-- [ ] Create feedback-to-score mapping
-- [ ] Implement feedback trend analysis
+- [x] Design feedback data model
+- [x] Create feedback submission endpoint (thumbs, ratings)
+- [x] Implement feedback widget SDK
+- [x] Build feedback analytics dashboard
+- [x] Create feedback-to-score mapping
+- [x] Implement feedback trend analysis
 
 ### 4.5 Datasets & Experiments
 

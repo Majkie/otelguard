@@ -11,6 +11,8 @@ import {
   Menu,
   MessageSquare,
   BarChart3,
+  CheckSquare,
+  Heart,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -26,6 +28,8 @@ const navigation = [
   { name: 'Users', href: '/users', icon: Users },
   { name: 'Prompts', href: '/prompts', icon: FileText },
   { name: 'Scores', href: '/scores', icon: BarChart3 },
+  { name: 'Feedback', href: '/feedback', icon: Heart },
+  { name: 'Annotations', href: '/annotations', icon: CheckSquare },
   { name: 'Guardrails', href: '/guardrails', icon: Shield },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];

@@ -16,6 +16,9 @@ var RepositorySet = wire.NewSet(
 	ProvideProjectRepository,
 	ProvidePromptRepository,
 	ProvideGuardrailRepository,
+	ProvideAnnotationRepository,
+	ProvideFeedbackRepository,
+	ProvideFeedbackScoreMappingRepository,
 	// ClickHouse repositories
 	ProvideTraceRepository,
 	ProvideGuardrailEventRepository,
@@ -46,6 +49,21 @@ func ProvidePromptRepository(db *pgxpool.Pool) *pgrepo.PromptRepository {
 // ProvideGuardrailRepository creates a new GuardrailRepository.
 func ProvideGuardrailRepository(db *pgxpool.Pool) *pgrepo.GuardrailRepository {
 	return pgrepo.NewGuardrailRepository(db)
+}
+
+// ProvideAnnotationRepository creates a new AnnotationRepository.
+func ProvideAnnotationRepository(db *pgxpool.Pool) *pgrepo.AnnotationRepository {
+	return pgrepo.NewAnnotationRepository(db)
+}
+
+// ProvideFeedbackRepository creates a new FeedbackRepository.
+func ProvideFeedbackRepository(db *pgxpool.Pool) *pgrepo.FeedbackRepository {
+	return pgrepo.NewFeedbackRepository(db)
+}
+
+// ProvideFeedbackScoreMappingRepository creates a new FeedbackScoreMappingRepository.
+func ProvideFeedbackScoreMappingRepository(db *pgxpool.Pool) *pgrepo.FeedbackScoreMappingRepository {
+	return pgrepo.NewFeedbackScoreMappingRepository(db)
 }
 
 // ClickHouse Repositories
