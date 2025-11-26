@@ -20,6 +20,7 @@ var HandlerSet = wire.NewSet(
 	ProvideOTLPHandler,
 	ProvidePromptHandler,
 	ProvideGuardrailHandler,
+	ProvideGuardrailAnalyticsHandler,
 	ProvideAnnotationHandler,
 	ProvideFeedbackHandler,
 	ProvideLLMHandler,
@@ -27,6 +28,7 @@ var HandlerSet = wire.NewSet(
 	ProvideEvaluatorHandler,
 	ProvideDatasetHandler,
 	ProvideExperimentHandler,
+	ProvideScoreAnalyticsHandler,
 	ProvideHandlers,
 )
 
@@ -144,6 +146,22 @@ func ProvideExperimentHandler(
 	return handlers.NewExperimentHandler(experimentService, logger)
 }
 
+// ProvideGuardrailAnalyticsHandler creates a new GuardrailAnalyticsHandler.
+func ProvideGuardrailAnalyticsHandler(
+	analyticsService *service.GuardrailAnalyticsService,
+	logger *zap.Logger,
+) *handlers.GuardrailAnalyticsHandler {
+	return handlers.NewGuardrailAnalyticsHandler(analyticsService, logger)
+}
+
+// ProvideScoreAnalyticsHandler creates a new ScoreAnalyticsHandler.
+func ProvideScoreAnalyticsHandler(
+	analyticsService *service.ScoreAnalyticsService,
+	logger *zap.Logger,
+) *handlers.ScoreAnalyticsHandler {
+	return handlers.NewScoreAnalyticsHandler(analyticsService, logger)
+}
+
 // ProvideHandlers creates the Handlers struct containing all handlers.
 func ProvideHandlers(
 	health *handlers.HealthHandler,
@@ -153,6 +171,7 @@ func ProvideHandlers(
 	otlp *handlers.OTLPHandler,
 	prompt *handlers.PromptHandler,
 	guardrail *handlers.GuardrailHandler,
+	guardrailAnalytics *handlers.GuardrailAnalyticsHandler,
 	annotation *handlers.AnnotationHandler,
 	feedback *handlers.FeedbackHandler,
 	llm *handlers.LLMHandler,
@@ -160,21 +179,24 @@ func ProvideHandlers(
 	evaluator *handlers.EvaluatorHandler,
 	dataset *handlers.DatasetHandler,
 	experiment *handlers.ExperimentHandler,
+	scoreAnalytics *handlers.ScoreAnalyticsHandler,
 ) *api.Handlers {
 	return &api.Handlers{
-		Health:     health,
-		Auth:       auth,
-		Org:        org,
-		Trace:      trace,
-		OTLP:       otlp,
-		Prompt:     prompt,
-		Guardrail:  guardrail,
-		Annotation: annotation,
-		Feedback:   feedback,
-		LLM:        llm,
-		Agent:      agent,
-		Evaluator:  evaluator,
-		Dataset:    dataset,
-		Experiment: experiment,
+		Health:             health,
+		Auth:               auth,
+		Org:                org,
+		Trace:              trace,
+		OTLP:               otlp,
+		Prompt:             prompt,
+		Guardrail:          guardrail,
+		GuardrailAnalytics: guardrailAnalytics,
+		Annotation:         annotation,
+		Feedback:           feedback,
+		LLM:                llm,
+		Agent:              agent,
+		Evaluator:          evaluator,
+		Dataset:            dataset,
+		Experiment:         experiment,
+		ScoreAnalytics:     scoreAnalytics,
 	}
 }
