@@ -31,6 +31,7 @@ type Handlers struct {
 	Dataset            *handlers.DatasetHandler
 	Experiment         *handlers.ExperimentHandler
 	ScoreAnalytics     *handlers.ScoreAnalyticsHandler
+	Metrics            *handlers.MetricsHandler
 }
 
 // SetupRouter configures the Gin router with all routes and middleware
@@ -283,6 +284,22 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				// Agent analytics
 				analytics.GET("/agents", h.Agent.GetAgentStatistics)
 				analytics.GET("/tool-calls", h.Agent.GetToolCallStatistics)
+			}
+
+			// Metrics (new aggregated metrics endpoints)
+			metrics := dashboard.Group("/metrics")
+			{
+				// Core metrics
+				metrics.GET("/core", h.Metrics.GetCoreMetrics)
+
+				// Time series
+				metrics.GET("/timeseries", h.Metrics.GetTimeSeries)
+
+				// Breakdowns
+				metrics.GET("/models", h.Metrics.GetModelBreakdown)
+				metrics.GET("/users", h.Metrics.GetUserBreakdown)
+				metrics.GET("/cost", h.Metrics.GetCostBreakdown)
+				metrics.GET("/quality", h.Metrics.GetQualityMetrics)
 			}
 
 			// Agents (multi-agent visualization)

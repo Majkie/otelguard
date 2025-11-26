@@ -278,7 +278,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Create experiment execution engine
 - [x] Implement experiment result storage
 - [x] Build experiment comparison (backend with statistical metrics)
-- [ ] Build experiment comparison UI (frontend)
+- [x] Build experiment comparison UI (frontend)
 - [x] Create statistical significance testing (advanced: t-tests, p-values)
 - [x] Implement experiment scheduling
 
@@ -452,10 +452,10 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 7.1 Metrics Engine
 
-- [ ] Define core metrics (latency, cost, tokens, errors)
-- [ ] Implement metric aggregation queries
-- [ ] Create time-series data generation
-- [ ] Build dimension-based breakdowns
+- [x] Define core metrics (latency, cost, tokens, errors)
+- [x] Implement metric aggregation queries
+- [x] Create time-series data generation
+- [x] Build dimension-based breakdowns
 - [ ] Implement metric caching layer
 - [ ] Create metric alerting rules
 
@@ -470,9 +470,9 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 7.3 Built-in Dashboards
 
-- [ ] Create overview dashboard
-- [ ] Build cost analytics dashboard
-- [ ] Create quality metrics dashboard
+- [x] Create overview dashboard
+- [x] Build cost analytics dashboard
+- [x] Create quality metrics dashboard
 - [ ] Build usage analytics dashboard
 - [ ] Create guardrails dashboard
 - [ ] Build prompt performance dashboard

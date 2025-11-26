@@ -34,6 +34,7 @@ var ServiceSet = wire.NewSet(
 	ProvideDatasetService,
 	ProvideExperimentService,
 	ProvideScoreAnalyticsService,
+	ProvideMetricsService,
 )
 
 // ProvideAuthService creates a new AuthService.
@@ -270,4 +271,12 @@ func ProvideScoreAnalyticsService(
 	logger *zap.Logger,
 ) *service.ScoreAnalyticsService {
 	return service.NewScoreAnalyticsService(evaluationRepo, logger)
+}
+
+// ProvideMetricsService creates a new MetricsService.
+func ProvideMetricsService(
+	clickhouse clickhouse.Conn,
+	logger *zap.Logger,
+) *service.MetricsService {
+	return service.NewMetricsService(clickhouse, logger)
 }
