@@ -17,21 +17,27 @@ import (
 
 // GuardrailService handles guardrail business logic
 type GuardrailService struct {
-	policyRepo *postgres.GuardrailRepository
-	eventRepo  *clickhouse.GuardrailEventRepository
-	logger     *zap.Logger
+	policyRepo         *postgres.GuardrailRepository
+	eventRepo          *clickhouse.GuardrailEventRepository
+	validatorService   *ValidatorService
+	remediationService *RemediationService
+	logger             *zap.Logger
 }
 
 // NewGuardrailService creates a new guardrail service
 func NewGuardrailService(
 	policyRepo *postgres.GuardrailRepository,
 	eventRepo *clickhouse.GuardrailEventRepository,
+	validatorService *ValidatorService,
+	remediationService *RemediationService,
 	logger *zap.Logger,
 ) *GuardrailService {
 	return &GuardrailService{
-		policyRepo: policyRepo,
-		eventRepo:  eventRepo,
-		logger:     logger,
+		policyRepo:         policyRepo,
+		eventRepo:          eventRepo,
+		validatorService:   validatorService,
+		remediationService: remediationService,
+		logger:             logger,
 	}
 }
 
@@ -135,33 +141,44 @@ func (s *GuardrailService) Evaluate(ctx context.Context, input *EvaluationInput)
 					Action:   rule.Action,
 				}
 
-				// Execute action based on type
-				switch rule.Action {
-				case "block":
-					violation.ActionTaken = true
-					result.Violations = append(result.Violations, violation)
-					s.logEvent(ctx, input, policy, rule, true, message)
+				// Parse action configuration
+				var remediationConfig RemediationConfig
+				if len(rule.ActionConfig) > 0 {
+					if err := json.Unmarshal(rule.ActionConfig, &remediationConfig); err != nil {
+						s.logger.Warn("failed to parse action config",
+							zap.Error(err),
+							zap.String("rule_id", rule.ID.String()),
+						)
+					}
+				}
+				remediationConfig.Action = rule.Action
 
-					// Block action stops all further evaluation
+				// Execute remediation action
+				remediationResult, err := s.remediationService.ExecuteRemediation(
+					ctx,
+					result.Output,
+					rule.Type,
+					remediationConfig,
+				)
+
+				if err != nil {
+					s.logger.Error("remediation failed",
+						zap.Error(err),
+						zap.String("action", rule.Action),
+					)
+				} else if remediationResult.Success {
+					violation.ActionTaken = true
+					result.Output = remediationResult.ModifiedText
+					result.Remediated = true
+				}
+
+				result.Violations = append(result.Violations, violation)
+				s.logEvent(ctx, input, policy, rule, true, message)
+
+				// Block action stops all further evaluation
+				if rule.Action == "block" {
 					result.LatencyMs = time.Since(start).Milliseconds()
 					return result, nil
-
-				case "sanitize":
-					// TODO: Implement sanitization logic
-					violation.ActionTaken = true
-					result.Remediated = true
-					result.Violations = append(result.Violations, violation)
-					s.logEvent(ctx, input, policy, rule, true, message)
-
-				case "alert":
-					// Continue evaluation but log the violation
-					violation.ActionTaken = true
-					result.Violations = append(result.Violations, violation)
-					s.logEvent(ctx, input, policy, rule, true, message)
-
-				default:
-					result.Violations = append(result.Violations, violation)
-					s.logEvent(ctx, input, policy, rule, true, message)
 				}
 			}
 		}
@@ -308,31 +325,57 @@ func matchPattern(pattern, str string) bool {
 
 // evaluateRule evaluates a single rule against input/output
 func (s *GuardrailService) evaluateRule(rule *domain.GuardrailRule, input, output string) (bool, string) {
-	// TODO: Implement actual rule evaluation logic
-	// This would include:
-	// - PII detection
-	// - Prompt injection detection
-	// - Toxicity detection
-	// - Custom regex patterns
-	// - Length limits
-	// etc.
+	ctx := context.Background()
+
+	// Parse rule configuration
+	var config ValidatorConfig
+	if len(rule.Config) > 0 {
+		if err := json.Unmarshal(rule.Config, &config); err != nil {
+			s.logger.Warn("failed to parse rule config",
+				zap.Error(err),
+				zap.String("rule_id", rule.ID.String()),
+			)
+			// Continue with empty config
+		}
+	}
+
+	var result ValidationResult
 
 	switch rule.Type {
+	// Input validators
 	case "pii_detection":
-		// Placeholder for PII detection
-		return false, ""
+		result = s.validatorService.ValidatePII(ctx, input, config)
 	case "prompt_injection":
-		// Placeholder for prompt injection detection
-		return false, ""
-	case "toxicity":
-		// Placeholder for toxicity detection
-		return false, ""
+		result = s.validatorService.ValidatePromptInjection(ctx, input, config)
+	case "secrets_detection":
+		result = s.validatorService.ValidateSecrets(ctx, input, config)
 	case "length_limit":
-		// Placeholder for length limit check
-		return false, ""
+		result = s.validatorService.ValidateLengthLimit(ctx, input, config)
+	case "regex_pattern":
+		result = s.validatorService.ValidateRegexPattern(ctx, input, config)
+	case "keyword_blocker":
+		result = s.validatorService.ValidateKeywordBlocker(ctx, input, config)
+	case "language_detection":
+		result = s.validatorService.ValidateLanguage(ctx, input, config)
+
+	// Output validators
+	case "toxicity":
+		result = s.validatorService.ValidateToxicity(ctx, output, config)
+	case "json_schema":
+		result = s.validatorService.ValidateJSONSchema(ctx, output, config)
+	case "format_validator":
+		result = s.validatorService.ValidateFormat(ctx, output, config)
+	case "completeness":
+		result = s.validatorService.ValidateCompleteness(ctx, output, config)
+	case "relevance":
+		result = s.validatorService.ValidateRelevance(ctx, input, output, config)
+
 	default:
+		s.logger.Warn("unknown rule type", zap.String("type", rule.Type))
 		return false, ""
 	}
+
+	return result.Triggered, result.Message
 }
 
 // List returns guardrail policies for a project

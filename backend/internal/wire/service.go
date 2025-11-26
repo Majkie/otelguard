@@ -17,6 +17,8 @@ var ServiceSet = wire.NewSet(
 	ProvideOrgService,
 	ProvideTraceService,
 	ProvidePromptService,
+	ProvideValidatorService,
+	ProvideRemediationService,
 	ProvideGuardrailService,
 	ProvideAnnotationService,
 	ProvideFeedbackService,
@@ -138,13 +140,25 @@ func ProvidePromptService(
 	return service.NewPromptService(promptRepo, logger)
 }
 
+// ProvideValidatorService creates a new ValidatorService.
+func ProvideValidatorService(logger *zap.Logger) *service.ValidatorService {
+	return service.NewValidatorService(logger)
+}
+
+// ProvideRemediationService creates a new RemediationService.
+func ProvideRemediationService(logger *zap.Logger) *service.RemediationService {
+	return service.NewRemediationService(logger)
+}
+
 // ProvideGuardrailService creates a new GuardrailService.
 func ProvideGuardrailService(
 	guardrailRepo *pgrepo.GuardrailRepository,
 	guardrailEventRepo *chrepo.GuardrailEventRepository,
+	validatorService *service.ValidatorService,
+	remediationService *service.RemediationService,
 	logger *zap.Logger,
 ) *service.GuardrailService {
-	return service.NewGuardrailService(guardrailRepo, guardrailEventRepo, logger)
+	return service.NewGuardrailService(guardrailRepo, guardrailEventRepo, validatorService, remediationService, logger)
 }
 
 // ProvideTokenizerService creates a new TokenizerService.
