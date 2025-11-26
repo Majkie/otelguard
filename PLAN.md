@@ -461,12 +461,12 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 7.2 Dashboard Framework
 
-- [ ] Design dashboard data model
-- [ ] Create dashboard CRUD endpoints
-- [ ] Implement widget system
-- [ ] Build drag-and-drop layout
-- [ ] Create dashboard sharing
-- [ ] Implement dashboard templates
+- [x] Design dashboard data model
+- [x] Create dashboard CRUD endpoints
+- [x] Implement widget system
+- [ ] Build drag-and-drop layout (frontend pending)
+- [x] Create dashboard sharing
+- [x] Implement dashboard templates
 
 ### 7.3 Built-in Dashboards
 
