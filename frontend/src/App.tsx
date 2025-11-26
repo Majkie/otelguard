@@ -19,10 +19,12 @@ import { UserDetailPage } from '@/pages/users/detail';
 import { PromptsPage } from '@/pages/prompts';
 import { PromptDetailPage } from '@/pages/prompts/detail';
 import { GuardrailsPage } from '@/pages/guardrails';
+import GuardrailAnalyticsPage from '@/pages/guardrails/analytics';
 import { SettingsPage } from '@/pages/settings';
 import ScoresPage from '@/pages/scores';
 import ScoreDetailPage from '@/pages/scores/detail';
 import ScoreAnalyticsPage from '@/pages/scores/analytics';
+import AdvancedScoreAnalyticsPage from '@/pages/scores/advanced-analytics';
 import FeedbackPage from '@/pages/feedback';
 import FeedbackAnalyticsPage from '@/pages/feedback/analytics';
 import AnnotationsPage from '@/pages/annotations';
@@ -69,10 +71,12 @@ function App() {
             <Route path="prompts/:id" element={<PromptDetailPage />} />
             <Route path="scores" element={<ScoresPage />} />
             <Route path="scores/analytics" element={<ScoreAnalyticsPage />} />
+            <Route path="scores/advanced-analytics" element={<AdvancedScoreAnalyticsPage />} />
             <Route path="scores/:scoreId" element={<ScoreDetailPage />} />
             <Route path="feedback" element={<FeedbackPage />} />
             <Route path="feedback/analytics" element={<FeedbackAnalyticsPage />} />
             <Route path="guardrails" element={<GuardrailsPage />} />
+            <Route path="guardrails/analytics" element={<GuardrailAnalyticsPage />} />
             <Route path="annotations" element={<AnnotationsPage />} />
             <Route path="annotations/annotate" element={<AnnotatePage />} />
             <Route path="agents" element={<AgentsPage />} />
