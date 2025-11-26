@@ -20,6 +20,7 @@ var ServiceSet = wire.NewSet(
 	ProvideValidatorService,
 	ProvideRemediationService,
 	ProvideGuardrailService,
+	ProvideGuardrailAnalyticsService,
 	ProvideAnnotationService,
 	ProvideFeedbackService,
 	ProvideFeedbackScoreMappingService,
@@ -32,6 +33,7 @@ var ServiceSet = wire.NewSet(
 	ProvideEvaluatorService,
 	ProvideDatasetService,
 	ProvideExperimentService,
+	ProvideScoreAnalyticsService,
 )
 
 // ProvideAuthService creates a new AuthService.
@@ -251,4 +253,21 @@ func ProvideExperimentService(
 	logger *zap.Logger,
 ) *service.ExperimentService {
 	return service.NewExperimentService(experimentRepo, datasetRepo, promptRepo, llmService, evaluatorSvc, logger)
+}
+
+// ProvideGuardrailAnalyticsService creates a new GuardrailAnalyticsService.
+func ProvideGuardrailAnalyticsService(
+	guardrailRepo *pgrepo.GuardrailRepository,
+	guardrailEventRepo *chrepo.GuardrailEventRepository,
+	logger *zap.Logger,
+) *service.GuardrailAnalyticsService {
+	return service.NewGuardrailAnalyticsService(guardrailRepo, guardrailEventRepo, logger)
+}
+
+// ProvideScoreAnalyticsService creates a new ScoreAnalyticsService.
+func ProvideScoreAnalyticsService(
+	evaluationRepo *chrepo.EvaluationResultRepository,
+	logger *zap.Logger,
+) *service.ScoreAnalyticsService {
+	return service.NewScoreAnalyticsService(evaluationRepo, logger)
 }

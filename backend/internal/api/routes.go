@@ -15,20 +15,22 @@ import (
 
 // Handlers holds all HTTP handlers
 type Handlers struct {
-	Health     *handlers.HealthHandler
-	Auth       *handlers.AuthHandler
-	Org        *handlers.OrgHandler
-	Trace      *handlers.TraceHandler
-	OTLP       *handlers.OTLPHandler
-	Prompt     *handlers.PromptHandler
-	Guardrail  *handlers.GuardrailHandler
-	LLM        *handlers.LLMHandler
-	Annotation *handlers.AnnotationHandler
-	Feedback   *handlers.FeedbackHandler
-	Agent      *handlers.AgentHandler
-	Evaluator  *handlers.EvaluatorHandler
-	Dataset    *handlers.DatasetHandler
-	Experiment *handlers.ExperimentHandler
+	Health             *handlers.HealthHandler
+	Auth               *handlers.AuthHandler
+	Org                *handlers.OrgHandler
+	Trace              *handlers.TraceHandler
+	OTLP               *handlers.OTLPHandler
+	Prompt             *handlers.PromptHandler
+	Guardrail          *handlers.GuardrailHandler
+	GuardrailAnalytics *handlers.GuardrailAnalyticsHandler
+	LLM                *handlers.LLMHandler
+	Annotation         *handlers.AnnotationHandler
+	Feedback           *handlers.FeedbackHandler
+	Agent              *handlers.AgentHandler
+	Evaluator          *handlers.EvaluatorHandler
+	Dataset            *handlers.DatasetHandler
+	Experiment         *handlers.ExperimentHandler
+	ScoreAnalytics     *handlers.ScoreAnalyticsHandler
 }
 
 // SetupRouter configures the Gin router with all routes and middleware
@@ -222,6 +224,14 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				guardrails.GET("/policies/:id/versions", h.Guardrail.ListVersions)
 				guardrails.GET("/policies/:id/versions/:version", h.Guardrail.GetVersion)
 				guardrails.POST("/policies/:id/versions/:version/restore", h.Guardrail.RestoreVersion)
+
+				// Analytics
+				guardrails.GET("/analytics/triggers", h.GuardrailAnalytics.GetTriggerStats)
+				guardrails.GET("/analytics/trends", h.GuardrailAnalytics.GetViolationTrend)
+				guardrails.GET("/analytics/remediation-success", h.GuardrailAnalytics.GetRemediationSuccessRates)
+				guardrails.GET("/analytics/policies/:policyId", h.GuardrailAnalytics.GetPolicyAnalytics)
+				guardrails.GET("/analytics/cost-impact", h.GuardrailAnalytics.GetCostImpactAnalysis)
+				guardrails.GET("/analytics/latency-impact", h.GuardrailAnalytics.GetLatencyImpact)
 			}
 
 			// LLM
