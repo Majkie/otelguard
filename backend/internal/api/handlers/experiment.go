@@ -3,10 +3,12 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/otelguard/otelguard/internal/domain"
+	"github.com/otelguard/otelguard/internal/repository/postgres"
 	"github.com/otelguard/otelguard/internal/service"
 	"go.uber.org/zap"
 )
@@ -14,13 +16,18 @@ import (
 // ExperimentHandler handles experiment-related endpoints
 type ExperimentHandler struct {
 	experimentService *service.ExperimentService
+	scheduler         *service.ExperimentScheduler
 	logger            *zap.Logger
 }
 
 // NewExperimentHandler creates a new experiment handler
-func NewExperimentHandler(experimentService *service.ExperimentService, logger *zap.Logger) *ExperimentHandler {
+func NewExperimentHandler(experimentService *service.ExperimentService, experimentRepo *postgres.ExperimentRepository, logger *zap.Logger) *ExperimentHandler {
+	scheduler := service.NewExperimentScheduler(experimentService, experimentRepo, logger)
+	scheduler.Start()
+
 	return &ExperimentHandler{
 		experimentService: experimentService,
+		scheduler:         scheduler,
 		logger:            logger,
 	}
 }
@@ -347,4 +354,278 @@ func (h *ExperimentHandler) StatisticalComparison(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, comparison)
+}
+
+// CreateScheduleRequest represents a request to schedule an experiment
+type CreateScheduleRequest struct {
+	ExperimentID string `json:"experimentId" binding:"required"`
+	ScheduleType string `json:"scheduleType" binding:"required"` // once, daily, weekly, monthly
+	ScheduleTime string `json:"scheduleTime,omitempty"`          // RFC3339 format for "once"
+	Enabled      bool   `json:"enabled"`
+}
+
+// CreateSchedule creates a new experiment schedule
+func (h *ExperimentHandler) CreateSchedule(c *gin.Context) {
+	var req CreateScheduleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	projectID := c.Query("projectId")
+	if projectID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "projectId is required",
+		})
+		return
+	}
+
+	projectUUID, err := uuid.Parse(projectID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid projectId format",
+		})
+		return
+	}
+
+	experimentID, err := uuid.Parse(req.ExperimentID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid experimentId format",
+		})
+		return
+	}
+
+	// Verify experiment exists
+	_, err = h.experimentService.Get(c.Request.Context(), experimentID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "not_found",
+			"message": "Experiment not found",
+		})
+		return
+	}
+
+	// Parse schedule time if provided
+	var scheduleTime time.Time
+	if req.ScheduleTime != "" {
+		scheduleTime, err = time.Parse(time.RFC3339, req.ScheduleTime)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":   "invalid_request",
+				"message": "invalid scheduleTime format, use RFC3339",
+			})
+			return
+		}
+	} else if req.ScheduleType == "once" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "scheduleTime is required for 'once' type",
+		})
+		return
+	}
+
+	// Create schedule
+	schedule := &service.ScheduledExperiment{
+		ID:           uuid.New(),
+		ExperimentID: experimentID,
+		ProjectID:    projectUUID,
+		ScheduleType: req.ScheduleType,
+		ScheduleTime: scheduleTime,
+		Enabled:      req.Enabled,
+		CreatedBy:    uuid.MustParse(c.GetString("user_id")), // From auth context
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}
+
+	h.scheduler.AddSchedule(schedule)
+
+	c.JSON(http.StatusCreated, gin.H{
+		"id":            schedule.ID,
+		"experiment_id": schedule.ExperimentID,
+		"schedule_type": schedule.ScheduleType,
+		"schedule_time": schedule.ScheduleTime,
+		"enabled":       schedule.Enabled,
+		"next_run_at":   schedule.NextRunAt,
+		"created_at":    schedule.CreatedAt,
+	})
+}
+
+// ListSchedules lists all schedules for a project
+func (h *ExperimentHandler) ListSchedules(c *gin.Context) {
+	projectID := c.Query("projectId")
+	if projectID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "projectId is required",
+		})
+		return
+	}
+
+	projectUUID, err := uuid.Parse(projectID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid projectId format",
+		})
+		return
+	}
+
+	schedules := h.scheduler.ListSchedules(projectUUID)
+
+	// Convert to response format
+	result := make([]gin.H, len(schedules))
+	for i, schedule := range schedules {
+		result[i] = gin.H{
+			"id":            schedule.ID,
+			"experiment_id": schedule.ExperimentID,
+			"schedule_type": schedule.ScheduleType,
+			"schedule_time": schedule.ScheduleTime,
+			"enabled":       schedule.Enabled,
+			"last_run_at":   schedule.LastRunAt,
+			"next_run_at":   schedule.NextRunAt,
+			"created_at":    schedule.CreatedAt,
+			"updated_at":    schedule.UpdatedAt,
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  result,
+		"total": len(result),
+	})
+}
+
+// GetSchedule retrieves a specific schedule
+func (h *ExperimentHandler) GetSchedule(c *gin.Context) {
+	scheduleID := c.Param("scheduleId")
+	if scheduleID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "scheduleId is required",
+		})
+		return
+	}
+
+	scheduleUUID, err := uuid.Parse(scheduleID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid scheduleId format",
+		})
+		return
+	}
+
+	schedule, exists := h.scheduler.GetSchedule(scheduleUUID)
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":   "not_found",
+			"message": "Schedule not found",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":            schedule.ID,
+		"experiment_id": schedule.ExperimentID,
+		"schedule_type": schedule.ScheduleType,
+		"schedule_time": schedule.ScheduleTime,
+		"enabled":       schedule.Enabled,
+		"last_run_at":   schedule.LastRunAt,
+		"next_run_at":   schedule.NextRunAt,
+		"created_at":    schedule.CreatedAt,
+		"updated_at":    schedule.UpdatedAt,
+	})
+}
+
+// UpdateScheduleRequest represents an update to a schedule
+type UpdateScheduleRequest struct {
+	Enabled *bool `json:"enabled"`
+}
+
+// UpdateSchedule updates a schedule
+func (h *ExperimentHandler) UpdateSchedule(c *gin.Context) {
+	scheduleID := c.Param("scheduleId")
+	if scheduleID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "scheduleId is required",
+		})
+		return
+	}
+
+	scheduleUUID, err := uuid.Parse(scheduleID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid scheduleId format",
+		})
+		return
+	}
+
+	var req UpdateScheduleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	err = h.scheduler.UpdateSchedule(scheduleUUID, func(schedule *service.ScheduledExperiment) {
+		if req.Enabled != nil {
+			schedule.Enabled = *req.Enabled
+		}
+	})
+
+	if err != nil {
+		if err == domain.ErrNotFound {
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "not_found",
+				"message": "Schedule not found",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "internal_error",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Schedule updated",
+	})
+}
+
+// DeleteSchedule deletes a schedule
+func (h *ExperimentHandler) DeleteSchedule(c *gin.Context) {
+	scheduleID := c.Param("scheduleId")
+	if scheduleID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "scheduleId is required",
+		})
+		return
+	}
+
+	scheduleUUID, err := uuid.Parse(scheduleID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error":   "invalid_request",
+			"message": "invalid scheduleId format",
+		})
+		return
+	}
+
+	h.scheduler.RemoveSchedule(scheduleUUID)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Schedule deleted",
+	})
 }
