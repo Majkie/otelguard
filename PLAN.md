@@ -280,16 +280,16 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Build experiment comparison (backend with statistical metrics)
 - [ ] Build experiment comparison UI (frontend)
 - [x] Create statistical significance testing (advanced: t-tests, p-values)
-- [ ] Implement experiment scheduling
+- [x] Implement experiment scheduling
 
 ### 4.6 Score Analytics
 
-- [ ] Build score distribution charts
-- [ ] Implement correlation analysis
-- [ ] Create score breakdown by dimensions
-- [ ] Build Cohen's Kappa calculator
-- [ ] Implement F1 score computation
-- [ ] Create score trend visualizations
+- [x] Build score distribution charts
+- [x] Implement correlation analysis
+- [x] Create score breakdown by dimensions
+- [x] Build Cohen's Kappa calculator
+- [x] Implement F1 score computation
+- [x] Create score trend visualizations
 - [ ] Build score alerting system
 
 ---
@@ -304,53 +304,53 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Build policy priority/ordering system
 - [x] Create policy versioning
 - [ ] Implement policy inheritance
-- [ ] Build policy testing framework
+- [x] Build policy testing framework
 
 ### 5.2 Built-in Validators
 
 #### Input Validators
 
-- [ ] Implement prompt injection detector
+- [x] Implement prompt injection detector
 - [ ] Create jailbreak attempt detector
-- [ ] Build PII detector (email, phone, SSN, etc.)
-- [ ] Implement secrets detector (API keys, passwords)
+- [x] Build PII detector (email, phone, SSN, etc.)
+- [x] Implement secrets detector (API keys, passwords)
 - [ ] Create topic classifier
-- [ ] Build language detector
-- [ ] Implement length/token limits
-- [ ] Create regex pattern matcher
-- [ ] Build custom keyword blocker
+- [x] Build language detector
+- [x] Implement length/token limits
+- [x] Create regex pattern matcher
+- [x] Build custom keyword blocker
 
 #### Output Validators
 
-- [ ] Implement toxicity detector
+- [x] Implement toxicity detector
 - [ ] Create hallucination detector
 - [ ] Build factual consistency checker
-- [ ] Implement JSON schema validator
-- [ ] Create format validators (email, URL, etc.)
-- [ ] Build relevance scorer
-- [ ] Implement completeness checker
+- [x] Implement JSON schema validator
+- [x] Create format validators (email, URL, etc.)
+- [x] Build relevance scorer
+- [x] Implement completeness checker
 - [ ] Create citation validator
 - [ ] Build competitor mention detector
 
 ### 5.3 Auto-Remediation Engine
 
-- [ ] Design remediation action framework
-- [ ] Implement `block` action with safe responses
-- [ ] Create `sanitize` action (PII redaction)
-- [ ] Build `retry` action with parameter modification
-- [ ] Implement `fallback` action (alternative model/response)
-- [ ] Create `alert` action (notification system)
-- [ ] Build `transform` action (output modification)
-- [ ] Implement remediation chain (multiple actions)
+- [x] Design remediation action framework
+- [x] Implement `block` action with safe responses
+- [x] Create `sanitize` action (PII redaction)
+- [x] Build `retry` action with parameter modification
+- [x] Implement `fallback` action (alternative model/response)
+- [x] Create `alert` action (notification system)
+- [x] Build `transform` action (output modification)
+- [x] Implement remediation chain (multiple actions)
 - [ ] Create remediation audit logging
 - [ ] Build remediation metrics
 
 ### 5.4 Real-Time Evaluation
 
 - [x] Create synchronous evaluation endpoint
-- [ ] Implement async evaluation with webhooks
-- [ ] Build evaluation caching
-- [ ] Create batch evaluation endpoint
+- [x] Implement async evaluation with webhooks
+- [x] Build evaluation caching
+- [x] Create batch evaluation endpoint
 - [ ] Implement evaluation timeout handling
 - [ ] Build circuit breaker for external validators
 - [ ] Create evaluation performance monitoring
@@ -371,7 +371,7 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Create policy builder UI
 - [ ] Implement rule condition builder
 - [ ] Build action configuration forms
-- [ ] Create policy testing interface
+- [x] Create policy testing interface
 - [ ] Implement policy preview
 - [ ] Build policy deployment workflow
 - [ ] Create policy monitoring dashboard
@@ -379,12 +379,12 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 5.7 Guardrails Analytics
 
-- [ ] Create guardrail trigger dashboard
-- [ ] Build violation trend analysis
-- [ ] Implement remediation success rates
-- [ ] Create per-policy analytics
-- [ ] Build cost impact analysis
-- [ ] Create latency impact monitoring
+- [x] Create guardrail trigger dashboard
+- [x] Build violation trend analysis
+- [x] Implement remediation success rates
+- [x] Create per-policy analytics
+- [x] Build cost impact analysis
+- [x] Create latency impact monitoring
 
 ---
 
