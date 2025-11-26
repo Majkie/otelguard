@@ -21,6 +21,7 @@ type GuardrailService struct {
 	eventRepo          *clickhouse.GuardrailEventRepository
 	validatorService   *ValidatorService
 	remediationService *RemediationService
+	cache              *GuardrailCache
 	logger             *zap.Logger
 }
 
@@ -32,11 +33,15 @@ func NewGuardrailService(
 	remediationService *RemediationService,
 	logger *zap.Logger,
 ) *GuardrailService {
+	// Create cache with 5 minute TTL and max 10000 entries
+	cache := NewGuardrailCache(5*time.Minute, 10000, logger)
+
 	return &GuardrailService{
 		policyRepo:         policyRepo,
 		eventRepo:          eventRepo,
 		validatorService:   validatorService,
 		remediationService: remediationService,
+		cache:              cache,
 		logger:             logger,
 	}
 }
@@ -85,6 +90,12 @@ type PolicyTriggers struct {
 
 // Evaluate evaluates content against guardrail policies
 func (s *GuardrailService) Evaluate(ctx context.Context, input *EvaluationInput) (*EvaluationResult, error) {
+	// Check cache first (if not testing mode)
+	if cached, found := s.cache.Get(ctx, input); found {
+		s.logger.Debug("returning cached evaluation result")
+		return cached, nil
+	}
+
 	start := time.Now()
 
 	// Get all enabled policies
@@ -185,6 +196,10 @@ func (s *GuardrailService) Evaluate(ctx context.Context, input *EvaluationInput)
 	}
 
 	result.LatencyMs = time.Since(start).Milliseconds()
+
+	// Cache the result
+	s.cache.Set(ctx, input, result)
+
 	return result, nil
 }
 
@@ -581,4 +596,19 @@ func (s *GuardrailService) RestoreVersion(ctx context.Context, policyID string, 
 	changeNotes := fmt.Sprintf("Restored from version %d", version)
 	_, err = s.CreateVersion(ctx, policyID, changeNotes, createdBy)
 	return err
+}
+
+// GetCacheStats returns cache statistics
+func (s *GuardrailService) GetCacheStats() map[string]interface{} {
+	return s.cache.GetStats()
+}
+
+// ClearCache clears the evaluation cache
+func (s *GuardrailService) ClearCache() {
+	s.cache.Clear()
+}
+
+// InvalidateCache invalidates cache entries for a specific project or policy
+func (s *GuardrailService) InvalidateCache(ctx context.Context, projectID string, policyID *string) int {
+	return s.cache.Invalidate(ctx, projectID, policyID)
 }

@@ -102,6 +102,9 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 
 			// Guardrail evaluation
 			sdk.POST("/guardrails/evaluate", middleware.RequireScope("guardrail:evaluate"), h.Guardrail.Evaluate)
+			sdk.POST("/guardrails/evaluate/batch", middleware.RequireScope("guardrail:evaluate"), h.Guardrail.BatchEvaluate)
+			sdk.POST("/guardrails/evaluate/async", middleware.RequireScope("guardrail:evaluate"), h.Guardrail.AsyncEvaluate)
+			sdk.GET("/guardrails/jobs/:jobId", middleware.RequireScope("guardrail:evaluate"), h.Guardrail.GetAsyncJob)
 		}
 
 		// Dashboard routes - JWT authentication with auto-refresh
@@ -224,6 +227,19 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				guardrails.GET("/policies/:id/versions", h.Guardrail.ListVersions)
 				guardrails.GET("/policies/:id/versions/:version", h.Guardrail.GetVersion)
 				guardrails.POST("/policies/:id/versions/:version/restore", h.Guardrail.RestoreVersion)
+
+				// Policy Testing
+				guardrails.POST("/policies/:id/test", h.Guardrail.TestPolicy)
+				guardrails.POST("/test", h.Guardrail.TestPolicy)
+
+				// Cache Management
+				guardrails.GET("/cache/stats", h.Guardrail.GetCacheStats)
+				guardrails.POST("/cache/clear", h.Guardrail.ClearCache)
+				guardrails.POST("/cache/invalidate", h.Guardrail.InvalidateCache)
+
+				// Async Evaluation Jobs
+				guardrails.GET("/jobs", h.Guardrail.ListAsyncJobs)
+				guardrails.GET("/jobs/:jobId", h.Guardrail.GetAsyncJob)
 
 				// Analytics
 				guardrails.GET("/analytics/triggers", h.GuardrailAnalytics.GetTriggerStats)
@@ -404,6 +420,13 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				// Comparison
 				experiments.POST("/compare", h.Experiment.CompareRuns)
 				experiments.POST("/statistical-comparison", h.Experiment.StatisticalComparison)
+
+				// Scheduling
+				experiments.POST("/schedules", h.Experiment.CreateSchedule)
+				experiments.GET("/schedules", h.Experiment.ListSchedules)
+				experiments.GET("/schedules/:scheduleId", h.Experiment.GetSchedule)
+				experiments.PUT("/schedules/:scheduleId", h.Experiment.UpdateSchedule)
+				experiments.DELETE("/schedules/:scheduleId", h.Experiment.DeleteSchedule)
 			}
 
 			// User-specific routes
