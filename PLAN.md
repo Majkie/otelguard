@@ -473,18 +473,18 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Create overview dashboard
 - [x] Build cost analytics dashboard
 - [x] Create quality metrics dashboard
-- [ ] Build usage analytics dashboard
-- [ ] Create guardrails dashboard
-- [ ] Build prompt performance dashboard
+- [x] Build usage analytics dashboard
+- [x] Create guardrails dashboard
+- [x] Build prompt performance dashboard
 
 ### 7.4 Visualization Components
 
-- [ ] Implement line charts (time series)
-- [ ] Create bar charts
-- [ ] Build pie/donut charts
-- [ ] Implement heatmaps
-- [ ] Create metric cards
-- [ ] Build data tables with sparklines
+- [x] Implement line charts (time series)
+- [x] Create bar charts
+- [x] Build pie/donut charts
+- [x] Implement heatmaps
+- [x] Create metric cards
+- [x] Build data tables with sparklines
 - [ ] Implement geographic maps (if needed)
 
 ### 7.5 Alerting System
