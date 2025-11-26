@@ -257,6 +257,12 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				analytics.GET("/scores/aggregations", h.Trace.GetScoreAggregations)
 				analytics.GET("/scores/trends", h.Trace.GetScoreTrends)
 				analytics.GET("/scores/comparisons", h.Trace.GetScoreComparisons)
+				analytics.GET("/scores/distribution", h.ScoreAnalytics.GetScoreDistribution)
+				analytics.GET("/scores/correlation", h.ScoreAnalytics.GetCorrelation)
+				analytics.GET("/scores/breakdown", h.ScoreAnalytics.GetScoreBreakdown)
+				analytics.GET("/scores/cohen-kappa", h.ScoreAnalytics.GetCohenKappa)
+				analytics.GET("/scores/f1", h.ScoreAnalytics.GetF1Score)
+				analytics.GET("/scores/trend", h.ScoreAnalytics.GetScoreTrend)
 
 				// Agent analytics
 				analytics.GET("/agents", h.Agent.GetAgentStatistics)
