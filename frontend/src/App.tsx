@@ -19,6 +19,7 @@ import { UserDetailPage } from '@/pages/users/detail';
 import { PromptsPage } from '@/pages/prompts';
 import { PromptDetailPage } from '@/pages/prompts/detail';
 import { GuardrailsPage } from '@/pages/guardrails';
+import GuardrailAnalyticsPage from '@/pages/guardrails/analytics';
 import { SettingsPage } from '@/pages/settings';
 import ScoresPage from '@/pages/scores';
 import ScoreDetailPage from '@/pages/scores/detail';
@@ -75,6 +76,7 @@ function App() {
             <Route path="feedback" element={<FeedbackPage />} />
             <Route path="feedback/analytics" element={<FeedbackAnalyticsPage />} />
             <Route path="guardrails" element={<GuardrailsPage />} />
+            <Route path="guardrails/analytics" element={<GuardrailAnalyticsPage />} />
             <Route path="annotations" element={<AnnotationsPage />} />
             <Route path="annotations/annotate" element={<AnnotatePage />} />
             <Route path="agents" element={<AgentsPage />} />
