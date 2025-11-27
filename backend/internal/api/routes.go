@@ -33,6 +33,8 @@ type Handlers struct {
 	ScoreAnalytics     *handlers.ScoreAnalyticsHandler
 	Metrics            *handlers.MetricsHandler
 	Dashboard          *handlers.DashboardHandler
+	Alert              *handlers.AlertHandler
+	WebSocket          *handlers.WebSocketHandler
 }
 
 // SetupRouter configures the Gin router with all routes and middleware
@@ -69,6 +71,9 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 	// Health check endpoints (no auth required)
 	r.GET("/health", h.Health.Health)
 	r.GET("/ready", h.Health.Ready)
+
+	// WebSocket endpoint (requires authentication via query param or header)
+	r.GET("/ws", h.WebSocket.ServeWS)
 
 	// API v1
 	v1 := r.Group("/v1")
@@ -475,6 +480,25 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				experiments.GET("/schedules/:scheduleId", h.Experiment.GetSchedule)
 				experiments.PUT("/schedules/:scheduleId", h.Experiment.UpdateSchedule)
 				experiments.DELETE("/schedules/:scheduleId", h.Experiment.DeleteSchedule)
+			}
+
+			// Alerts
+			alerts := dashboard.Group("/projects/:projectId/alerts")
+			{
+				// Alert rules
+				alerts.POST("/rules", h.Alert.CreateAlertRule)
+				alerts.GET("/rules", h.Alert.ListAlertRules)
+				alerts.GET("/rules/:ruleId", h.Alert.GetAlertRule)
+				alerts.PUT("/rules/:ruleId", h.Alert.UpdateAlertRule)
+				alerts.DELETE("/rules/:ruleId", h.Alert.DeleteAlertRule)
+
+				// Alert history
+				alerts.GET("/history", h.Alert.ListAlertHistory)
+				alerts.GET("/history/:alertId", h.Alert.GetAlertHistory)
+				alerts.POST("/history/:alertId/acknowledge", h.Alert.AcknowledgeAlert)
+
+				// Manual evaluation trigger
+				alerts.POST("/evaluate", h.Alert.EvaluateAlerts)
 			}
 
 			// User-specific routes

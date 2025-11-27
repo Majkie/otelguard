@@ -410,12 +410,12 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 6.3 Real-Time Updates
 
-- [ ] Set up WebSocket server in Go
-- [ ] Implement trace event streaming
-- [ ] Create client subscription management
-- [ ] Build incremental graph updates
-- [ ] Implement reconnection handling
-- [ ] Create event buffering for slow clients
+- [x] Set up WebSocket server in Go
+- [x] Implement trace event streaming
+- [x] Create client subscription management
+- [x] Build incremental graph updates
+- [x] Implement reconnection handling
+- [x] Create event buffering for slow clients
 
 ### 6.4 Graph Visualization UI
 
@@ -489,12 +489,12 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 7.5 Alerting System
 
-- [ ] Design alert rule schema
-- [ ] Create alert evaluation engine
-- [ ] Implement notification channels (email, Slack, webhook)
-- [ ] Build alert history and acknowledgment
+- [x] Design alert rule schema
+- [x] Create alert evaluation engine
+- [x] Implement notification channels (email, Slack, webhook)
+- [x] Build alert history and acknowledgment
 - [ ] Create alert escalation policies
-- [ ] Implement alert grouping/deduplication
+- [x] Implement alert grouping/deduplication
 
 ---
 
