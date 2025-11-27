@@ -30,6 +30,7 @@ var HandlerSet = wire.NewSet(
 	ProvideExperimentHandler,
 	ProvideScoreAnalyticsHandler,
 	ProvideMetricsHandler,
+	ProvideDashboardHandler,
 	ProvideHandlers,
 )
 
@@ -171,6 +172,14 @@ func ProvideMetricsHandler(
 	return handlers.NewMetricsHandler(metricsService, logger)
 }
 
+// ProvideDashboardHandler creates a new DashboardHandler.
+func ProvideDashboardHandler(
+	dashboardService *service.DashboardService,
+	logger *zap.Logger,
+) *handlers.DashboardHandler {
+	return handlers.NewDashboardHandler(dashboardService, logger)
+}
+
 // ProvideHandlers creates the Handlers struct containing all handlers.
 func ProvideHandlers(
 	health *handlers.HealthHandler,
@@ -190,6 +199,7 @@ func ProvideHandlers(
 	experiment *handlers.ExperimentHandler,
 	scoreAnalytics *handlers.ScoreAnalyticsHandler,
 	metrics *handlers.MetricsHandler,
+	dashboard *handlers.DashboardHandler,
 ) *api.Handlers {
 	return &api.Handlers{
 		Health:             health,
@@ -209,5 +219,6 @@ func ProvideHandlers(
 		Experiment:         experiment,
 		ScoreAnalytics:     scoreAnalytics,
 		Metrics:            metrics,
+		Dashboard:          dashboard,
 	}
 }

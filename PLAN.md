@@ -461,30 +461,30 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 7.2 Dashboard Framework
 
-- [ ] Design dashboard data model
-- [ ] Create dashboard CRUD endpoints
-- [ ] Implement widget system
-- [ ] Build drag-and-drop layout
-- [ ] Create dashboard sharing
-- [ ] Implement dashboard templates
+- [x] Design dashboard data model
+- [x] Create dashboard CRUD endpoints
+- [x] Implement widget system
+- [x] Build drag-and-drop layout (backend complete, frontend basic implementation)
+- [x] Create dashboard sharing
+- [x] Implement dashboard templates
 
 ### 7.3 Built-in Dashboards
 
 - [x] Create overview dashboard
 - [x] Build cost analytics dashboard
 - [x] Create quality metrics dashboard
-- [ ] Build usage analytics dashboard
-- [ ] Create guardrails dashboard
-- [ ] Build prompt performance dashboard
+- [x] Build usage analytics dashboard
+- [x] Create guardrails dashboard
+- [x] Build prompt performance dashboard
 
 ### 7.4 Visualization Components
 
-- [ ] Implement line charts (time series)
-- [ ] Create bar charts
-- [ ] Build pie/donut charts
-- [ ] Implement heatmaps
-- [ ] Create metric cards
-- [ ] Build data tables with sparklines
+- [x] Implement line charts (time series)
+- [x] Create bar charts
+- [x] Build pie/donut charts
+- [x] Implement heatmaps
+- [x] Create metric cards
+- [x] Build data tables with sparklines
 - [ ] Implement geographic maps (if needed)
 
 ### 7.5 Alerting System

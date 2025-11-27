@@ -34,6 +34,11 @@ import AgentGraphDetailPage from '@/pages/agents/detail';
 import EvaluatorsPage from '@/pages/evaluators';
 import EvaluatorDetailPage from '@/pages/evaluators/detail';
 import EvaluationResultsPage from '@/pages/evaluators/results';
+import { UsageAnalyticsPage } from '@/pages/dashboard/usage-analytics';
+import { GuardrailsAnalyticsPage } from '@/pages/dashboard/guardrails-analytics';
+import { PromptPerformancePage } from '@/pages/dashboard/prompt-performance';
+import { DashboardsPage } from '@/pages/dashboards';
+import { DashboardBuilderPage } from '@/pages/dashboards/builder';
 
 // Layout
 import { DashboardLayout } from '@/components/features/layout/dashboard-layout-updated';
@@ -60,6 +65,11 @@ function App() {
           >
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="dashboard/usage" element={<UsageAnalyticsPage />} />
+            <Route path="dashboard/guardrails" element={<GuardrailsAnalyticsPage />} />
+            <Route path="dashboard/prompts" element={<PromptPerformancePage />} />
+            <Route path="dashboards" element={<DashboardsPage />} />
+            <Route path="dashboards/:id" element={<DashboardBuilderPage />} />
             <Route path="traces" element={<TracesPage />} />
             <Route path="traces/compare" element={<TraceComparePage />} />
             <Route path="traces/:id" element={<TraceDetailPage />} />
