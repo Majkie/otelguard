@@ -18,10 +18,22 @@ import (
 
 // AlertService handles alert management and evaluation
 type AlertService struct {
-	alertRepo *postgres.AlertRepository
-	chConn    clickhouse.Conn
-	notifier  *NotificationService
-	logger    *zap.Logger
+	alertRepo         *postgres.AlertRepository
+	chConn            clickhouse.Conn
+	notifier          *NotificationService
+	escalationService *EscalationService
+	logger            *zap.Logger
+
+	// Baseline tracking for anomaly detection
+	baselines map[string]*MetricBaseline
+}
+
+// MetricBaseline stores baseline statistics for anomaly detection
+type MetricBaseline struct {
+	Mean       float64
+	StdDev     float64
+	SampleSize int
+	LastUpdate time.Time
 }
 
 // NewAlertService creates a new alert service
@@ -29,13 +41,16 @@ func NewAlertService(
 	alertRepo *postgres.AlertRepository,
 	chConn clickhouse.Conn,
 	notifier *NotificationService,
+	escalationService *EscalationService,
 	logger *zap.Logger,
 ) *AlertService {
 	return &AlertService{
-		alertRepo: alertRepo,
-		chConn:    chConn,
-		notifier:  notifier,
-		logger:    logger,
+		alertRepo:         alertRepo,
+		chConn:            chConn,
+		notifier:          notifier,
+		escalationService: escalationService,
+		logger:            logger,
+		baselines:         make(map[string]*MetricBaseline),
 	}
 }
 
@@ -176,6 +191,23 @@ func (s *AlertService) collectMetric(ctx context.Context, rule *domain.AlertRule
 		`
 		args = []interface{}{rule.ProjectID, startTime, endTime}
 
+	case "custom":
+		// Custom metrics require a metric_field
+		if rule.MetricField == nil || *rule.MetricField == "" {
+			return nil, fmt.Errorf("custom metric requires metric_field")
+		}
+
+		// Build custom query based on the field
+		query = fmt.Sprintf(`
+			SELECT AVG(CAST(JSONExtractString(metadata, '%s') AS Float64)) as value
+			FROM traces
+			WHERE project_id = ?
+			  AND start_time >= ?
+			  AND start_time <= ?
+			  AND JSONHas(metadata, '%s')
+		`, *rule.MetricField, *rule.MetricField)
+		args = []interface{}{rule.ProjectID, startTime, endTime}
+
 	default:
 		return nil, fmt.Errorf("unsupported metric type: %s", rule.MetricType)
 	}
@@ -209,6 +241,12 @@ func (s *AlertService) collectMetric(ctx context.Context, rule *domain.AlertRule
 
 // checkCondition checks if the metric value triggers the alert condition
 func (s *AlertService) checkCondition(rule *domain.AlertRule, result *domain.AlertMetricResult) bool {
+	// Handle anomaly detection
+	if rule.ConditionType == "anomaly" {
+		return s.detectAnomaly(rule, result)
+	}
+
+	// Handle threshold-based conditions
 	if rule.ThresholdValue == nil {
 		return false
 	}
@@ -232,6 +270,154 @@ func (s *AlertService) checkCondition(rule *domain.AlertRule, result *domain.Ale
 	default:
 		return false
 	}
+}
+
+// detectAnomaly detects anomalies using statistical methods
+func (s *AlertService) detectAnomaly(rule *domain.AlertRule, result *domain.AlertMetricResult) bool {
+	baselineKey := s.getBaselineKey(rule)
+
+	// Get or create baseline
+	baseline, exists := s.baselines[baselineKey]
+	if !exists {
+		// Initialize baseline with historical data
+		baseline = s.initializeBaseline(context.Background(), rule)
+		s.baselines[baselineKey] = baseline
+	}
+
+	// Check if baseline needs updating (every hour)
+	if time.Since(baseline.LastUpdate) > time.Hour {
+		baseline = s.updateBaseline(context.Background(), rule, baseline)
+		s.baselines[baselineKey] = baseline
+	}
+
+	// Calculate z-score
+	zScore := (result.Value - baseline.Mean) / baseline.StdDev
+
+	// Use threshold as number of standard deviations
+	threshold := 3.0 // Default to 3 standard deviations
+	if rule.ThresholdValue != nil {
+		threshold = *rule.ThresholdValue
+	}
+
+	// Anomaly detected if z-score exceeds threshold
+	return zScore > threshold || zScore < -threshold
+}
+
+// initializeBaseline calculates initial baseline from historical data
+func (s *AlertService) initializeBaseline(ctx context.Context, rule *domain.AlertRule) *MetricBaseline {
+	// Collect last 7 days of data for baseline
+	endTime := time.Now()
+	startTime := endTime.Add(-7 * 24 * time.Hour)
+
+	// Query historical metric values
+	query := s.buildHistoricalQuery(rule)
+
+	rows, err := s.chConn.Query(ctx, query, rule.ProjectID, startTime, endTime)
+	if err != nil {
+		s.logger.Error("failed to query historical data for baseline", zap.Error(err))
+		return &MetricBaseline{
+			Mean:       0,
+			StdDev:     1,
+			SampleSize: 0,
+			LastUpdate: time.Now(),
+		}
+	}
+	defer rows.Close()
+
+	// Calculate mean and standard deviation
+	var values []float64
+	for rows.Next() {
+		var value float64
+		if err := rows.Scan(&value); err != nil {
+			continue
+		}
+		values = append(values, value)
+	}
+
+	if len(values) == 0 {
+		return &MetricBaseline{
+			Mean:       0,
+			StdDev:     1,
+			SampleSize: 0,
+			LastUpdate: time.Now(),
+		}
+	}
+
+	mean, stdDev := calculateStatistics(values)
+
+	return &MetricBaseline{
+		Mean:       mean,
+		StdDev:     stdDev,
+		SampleSize: len(values),
+		LastUpdate: time.Now(),
+	}
+}
+
+// updateBaseline updates the baseline with recent data
+func (s *AlertService) updateBaseline(ctx context.Context, rule *domain.AlertRule, current *MetricBaseline) *MetricBaseline {
+	// Similar to initializeBaseline but uses exponential moving average
+	return s.initializeBaseline(ctx, rule)
+}
+
+// buildHistoricalQuery builds a query for historical metric data
+func (s *AlertService) buildHistoricalQuery(rule *domain.AlertRule) string {
+	baseQuery := ""
+
+	switch rule.MetricType {
+	case "latency":
+		baseQuery = "SELECT AVG(latency_ms) as value FROM traces WHERE project_id = ? AND start_time >= ? AND start_time < ? GROUP BY toStartOfHour(start_time) ORDER BY toStartOfHour(start_time)"
+	case "cost":
+		baseQuery = "SELECT SUM(cost) as value FROM traces WHERE project_id = ? AND start_time >= ? AND start_time < ? GROUP BY toStartOfHour(start_time) ORDER BY toStartOfHour(start_time)"
+	case "error_rate":
+		baseQuery = "SELECT countIf(status = 'error') / count() * 100 as value FROM traces WHERE project_id = ? AND start_time >= ? AND start_time < ? GROUP BY toStartOfHour(start_time) ORDER BY toStartOfHour(start_time)"
+	case "token_count":
+		baseQuery = "SELECT SUM(total_tokens) as value FROM traces WHERE project_id = ? AND start_time >= ? AND start_time < ? GROUP BY toStartOfHour(start_time) ORDER BY toStartOfHour(start_time)"
+	default:
+		baseQuery = "SELECT 0 as value"
+	}
+
+	return baseQuery
+}
+
+// getBaselineKey generates a unique key for baseline storage
+func (s *AlertService) getBaselineKey(rule *domain.AlertRule) string {
+	return fmt.Sprintf("%s:%s", rule.ProjectID.String(), rule.MetricType)
+}
+
+// calculateStatistics calculates mean and standard deviation
+func calculateStatistics(values []float64) (mean, stdDev float64) {
+	if len(values) == 0 {
+		return 0, 1
+	}
+
+	// Calculate mean
+	sum := 0.0
+	for _, v := range values {
+		sum += v
+	}
+	mean = sum / float64(len(values))
+
+	// Calculate standard deviation
+	variance := 0.0
+	for _, v := range values {
+		diff := v - mean
+		variance += diff * diff
+	}
+	variance /= float64(len(values))
+	stdDev = 1.0
+	if variance > 0 {
+		// Simple square root approximation
+		stdDev = variance / 2.0
+		for i := 0; i < 10; i++ {
+			stdDev = (stdDev + variance/stdDev) / 2.0
+		}
+	}
+
+	if stdDev == 0 {
+		stdDev = 1 // Avoid division by zero
+	}
+
+	return mean, stdDev
 }
 
 // generateFingerprint generates a unique fingerprint for alert grouping

@@ -423,3 +423,110 @@ func (r *AlertRepository) ListNotificationLogs(ctx context.Context, alertHistory
 
 	return logs, nil
 }
+
+// CreateEscalationPolicy creates a new escalation policy
+func (r *AlertRepository) CreateEscalationPolicy(ctx context.Context, policy *domain.AlertEscalationPolicy) error {
+	query := `
+		INSERT INTO alert_escalation_policies (id, project_id, name, description, steps, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`
+	_, err := r.db.Exec(ctx, query,
+		policy.ID,
+		policy.ProjectID,
+		policy.Name,
+		policy.Description,
+		policy.Steps,
+		policy.CreatedAt,
+		policy.UpdatedAt,
+	)
+	return err
+}
+
+// GetEscalationPolicyByID retrieves an escalation policy by ID
+func (r *AlertRepository) GetEscalationPolicyByID(ctx context.Context, id uuid.UUID) (*domain.AlertEscalationPolicy, error) {
+	var policy domain.AlertEscalationPolicy
+	query := `
+		SELECT id, project_id, name, description, steps, created_at, updated_at
+		FROM alert_escalation_policies
+		WHERE id = $1
+	`
+	err := pgxscan.Get(ctx, r.db, &policy, query, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrNotFound
+		}
+		return nil, err
+	}
+	return &policy, nil
+}
+
+// ListEscalationPolicies returns escalation policies for a project
+func (r *AlertRepository) ListEscalationPolicies(ctx context.Context, projectID uuid.UUID, opts *ListOptions) ([]*domain.AlertEscalationPolicy, int, error) {
+	var policies []*domain.AlertEscalationPolicy
+	var total int
+
+	limit := 50
+	offset := 0
+	if opts != nil {
+		if opts.Limit > 0 {
+			limit = opts.Limit
+		}
+		if opts.Offset > 0 {
+			offset = opts.Offset
+		}
+	}
+
+	if limit > 100 {
+		limit = 100
+	}
+
+	// Count query
+	countQuery := `SELECT COUNT(*) FROM alert_escalation_policies WHERE project_id = $1`
+	if err := pgxscan.Get(ctx, r.db, &total, countQuery, projectID); err != nil {
+		return nil, 0, err
+	}
+
+	// List query with pagination
+	listQuery := `
+		SELECT id, project_id, name, description, steps, created_at, updated_at
+		FROM alert_escalation_policies
+		WHERE project_id = $1
+		ORDER BY created_at DESC
+		LIMIT $2 OFFSET $3
+	`
+	if err := pgxscan.Select(ctx, r.db, &policies, listQuery, projectID, limit, offset); err != nil {
+		return nil, 0, err
+	}
+
+	return policies, total, nil
+}
+
+// UpdateEscalationPolicy updates an escalation policy
+func (r *AlertRepository) UpdateEscalationPolicy(ctx context.Context, policy *domain.AlertEscalationPolicy) error {
+	query := `
+		UPDATE alert_escalation_policies
+		SET name = $2, description = $3, steps = $4, updated_at = $5
+		WHERE id = $1
+	`
+	result, err := r.db.Exec(ctx, query,
+		policy.ID,
+		policy.Name,
+		policy.Description,
+		policy.Steps,
+		time.Now(),
+	)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return domain.ErrNotFound
+	}
+	return nil
+}
+
+// DeleteEscalationPolicy deletes an escalation policy
+func (r *AlertRepository) DeleteEscalationPolicy(ctx context.Context, id uuid.UUID) error {
+	query := `DELETE FROM alert_escalation_policies WHERE id = $1`
+	_, err := r.db.Exec(ctx, query, id)
+	return err
+}

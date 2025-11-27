@@ -493,8 +493,10 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 - [x] Create alert evaluation engine
 - [x] Implement notification channels (email, Slack, webhook)
 - [x] Build alert history and acknowledgment
-- [ ] Create alert escalation policies
+- [x] Create alert escalation policies (backend complete)
 - [x] Implement alert grouping/deduplication
+- [x] Add custom metric support
+- [x] Implement anomaly detection with statistical baselines
 
 ---
 
