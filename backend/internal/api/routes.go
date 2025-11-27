@@ -32,6 +32,7 @@ type Handlers struct {
 	Experiment         *handlers.ExperimentHandler
 	ScoreAnalytics     *handlers.ScoreAnalyticsHandler
 	Metrics            *handlers.MetricsHandler
+	Dashboard          *handlers.DashboardHandler
 }
 
 // SetupRouter configures the Gin router with all routes and middleware
@@ -301,6 +302,36 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				metrics.GET("/cost", h.Metrics.GetCostBreakdown)
 				metrics.GET("/quality", h.Metrics.GetQualityMetrics)
 			}
+
+			// Dashboards (custom dashboard management)
+			dashboards := dashboard.Group("/dashboards")
+			{
+				// Dashboard CRUD
+				dashboards.POST("", h.Dashboard.CreateDashboard)
+				dashboards.GET("", h.Dashboard.ListDashboards)
+				dashboards.GET("/:id", h.Dashboard.GetDashboard)
+				dashboards.PUT("/:id", h.Dashboard.UpdateDashboard)
+				dashboards.DELETE("/:id", h.Dashboard.DeleteDashboard)
+
+				// Widget management
+				dashboards.POST("/:id/widgets", h.Dashboard.AddWidget)
+				dashboards.PUT("/:dashboardId/widgets/:widgetId", h.Dashboard.UpdateWidget)
+				dashboards.DELETE("/:dashboardId/widgets/:widgetId", h.Dashboard.DeleteWidget)
+
+				// Layout management (drag-and-drop)
+				dashboards.PUT("/:id/layout", h.Dashboard.UpdateLayout)
+
+				// Dashboard sharing
+				dashboards.POST("/:id/share", h.Dashboard.CreateShare)
+				dashboards.GET("/:id/shares", h.Dashboard.ListShares)
+				dashboards.DELETE("/:dashboardId/shares/:shareId", h.Dashboard.DeleteShare)
+
+				// Dashboard cloning
+				dashboards.POST("/:id/clone", h.Dashboard.CloneDashboard)
+			}
+
+			// Shared dashboards (public access)
+			dashboard.GET("/dashboards/shared/:token", h.Dashboard.GetSharedDashboard)
 
 			// Agents (multi-agent visualization)
 			agents := dashboard.Group("/agents")

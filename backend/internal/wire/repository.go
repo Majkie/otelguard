@@ -23,6 +23,7 @@ var RepositorySet = wire.NewSet(
 	ProvideEvaluationJobRepository,
 	ProvideDatasetRepository,
 	ProvideExperimentRepository,
+	ProvideDashboardRepository,
 	// ClickHouse repositories
 	ProvideTraceRepository,
 	ProvideGuardrailEventRepository,
@@ -90,6 +91,11 @@ func ProvideDatasetRepository(db *pgxpool.Pool) *pgrepo.DatasetRepository {
 // ProvideExperimentRepository creates a new ExperimentRepository.
 func ProvideExperimentRepository(db *pgxpool.Pool) *pgrepo.ExperimentRepository {
 	return pgrepo.NewExperimentRepository(db)
+}
+
+// ProvideDashboardRepository creates a new DashboardRepository.
+func ProvideDashboardRepository(db *pgxpool.Pool) *pgrepo.DashboardRepository {
+	return pgrepo.NewDashboardRepository(db)
 }
 
 // ClickHouse Repositories
