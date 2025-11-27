@@ -357,14 +357,14 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 5.5 Guardrails SDK (In-Code)
 
-- [ ] Design SDK interface for Python
-- [ ] Implement decorator-based guards
-- [ ] Create context manager guards
+- [x] Design SDK interface for Python
+- [x] Implement decorator-based guards
+- [x] Create context manager guards
 - [ ] Build middleware for popular frameworks
-- [ ] Implement local validation (no network)
-- [ ] Create remote validation client
-- [ ] Build validation result handling
-- [ ] Implement retry logic in SDK
+- [x] Implement local validation (no network)
+- [x] Create remote validation client
+- [x] Build validation result handling
+- [x] Implement retry logic in SDK
 
 ### 5.6 No-Code Configuration UI
 
@@ -502,18 +502,18 @@ This document outlines all tasks required to build the OTelGuard LLM observabili
 
 ### 8.1 Python SDK
 
-- [ ] Create package structure
-- [ ] Implement core client class
-- [ ] Build trace context management
-- [ ] Create decorator utilities
+- [x] Create package structure
+- [x] Implement core client class
+- [x] Build trace context management
+- [x] Create decorator utilities
 - [ ] Implement OpenAI auto-instrumentation
 - [ ] Create Anthropic auto-instrumentation
 - [ ] Build LangChain integration
 - [ ] Implement LlamaIndex integration
-- [ ] Create async support
-- [ ] Build guardrails client
-- [ ] Implement prompt management client
-- [ ] Create comprehensive documentation
+- [x] Create async support
+- [x] Build guardrails client
+- [x] Implement prompt management client
+- [x] Create comprehensive documentation
 - [ ] Publish to PyPI
 
 ### 8.2 JavaScript/TypeScript SDK
