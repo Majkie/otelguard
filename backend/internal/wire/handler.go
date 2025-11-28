@@ -8,6 +8,7 @@ import (
 	"github.com/otelguard/otelguard/internal/api"
 	"github.com/otelguard/otelguard/internal/api/handlers"
 	"github.com/otelguard/otelguard/internal/config"
+	"github.com/otelguard/otelguard/internal/repository/postgres"
 	"github.com/otelguard/otelguard/internal/service"
 )
 
@@ -143,9 +144,10 @@ func ProvideDatasetHandler(
 // ProvideExperimentHandler creates a new ExperimentHandler.
 func ProvideExperimentHandler(
 	experimentService *service.ExperimentService,
+	experimentRepo *postgres.ExperimentRepository,
 	logger *zap.Logger,
 ) *handlers.ExperimentHandler {
-	return handlers.NewExperimentHandler(experimentService, logger)
+	return handlers.NewExperimentHandler(experimentService, experimentRepo, logger)
 }
 
 // ProvideGuardrailAnalyticsHandler creates a new GuardrailAnalyticsHandler.

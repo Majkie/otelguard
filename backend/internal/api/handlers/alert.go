@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -207,7 +208,7 @@ func (h *AlertHandler) ListAlertRules(c *gin.Context) {
 
 	c.JSON(http.StatusOK, ListResponse{
 		Data:   rules,
-		Total:  total,
+		Total:  int64(total),
 		Limit:  query.Limit,
 		Offset: query.Offset,
 	})
@@ -464,7 +465,7 @@ func (h *AlertHandler) ListAlertHistory(c *gin.Context) {
 
 	c.JSON(http.StatusOK, ListResponse{
 		Data:   history,
-		Total:  total,
+		Total:  int64(total),
 		Limit:  query.Limit,
 		Offset: query.Offset,
 	})

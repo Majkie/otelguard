@@ -77,7 +77,7 @@ func InitializeApplication(cfg *config.Config) (*wire.Application, error) {
 	datasetHandler := wire.ProvideDatasetHandler(datasetService, logger)
 	experimentRepository := wire.ProvideExperimentRepository(pool)
 	experimentService := wire.ProvideExperimentService(experimentRepository, datasetRepository, promptRepository, llmServiceImpl, evaluatorService, logger)
-	experimentHandler := wire.ProvideExperimentHandler(experimentService, logger)
+	experimentHandler := wire.ProvideExperimentHandler(experimentService, experimentRepository, logger)
 	scoreAnalyticsService := wire.ProvideScoreAnalyticsService(evaluationResultRepository, logger)
 	scoreAnalyticsHandler := wire.ProvideScoreAnalyticsHandler(scoreAnalyticsService, logger)
 	metricsService := wire.ProvideMetricsService(conn, logger)

@@ -21,7 +21,7 @@ type GuardrailService struct {
 	eventRepo          *clickhouse.GuardrailEventRepository
 	validatorService   *ValidatorService
 	remediationService *RemediationService
-	cache              *GuardrailCache
+	cache              *EvaluationCache
 	logger             *zap.Logger
 }
 
@@ -34,7 +34,11 @@ func NewGuardrailService(
 	logger *zap.Logger,
 ) *GuardrailService {
 	// Create cache with 5 minute TTL and max 10000 entries
-	cache := NewGuardrailCache(5*time.Minute, 10000, logger)
+	cache := NewEvaluationCache(CacheConfig{
+		TTL:             5 * time.Minute,
+		MaxSize:         10000,
+		CleanupInterval: 1 * time.Minute,
+	}, logger)
 
 	return &GuardrailService{
 		policyRepo:         policyRepo,
@@ -599,16 +603,16 @@ func (s *GuardrailService) RestoreVersion(ctx context.Context, policyID string, 
 }
 
 // GetCacheStats returns cache statistics
-func (s *GuardrailService) GetCacheStats() map[string]interface{} {
+func (s *GuardrailService) GetCacheStats() *CacheStats {
 	return s.cache.GetStats()
 }
 
 // ClearCache clears the evaluation cache
 func (s *GuardrailService) ClearCache() {
-	s.cache.Clear()
+	s.cache.InvalidateAll()
 }
 
 // InvalidateCache invalidates cache entries for a specific project or policy
 func (s *GuardrailService) InvalidateCache(ctx context.Context, projectID string, policyID *string) int {
-	return s.cache.Invalidate(ctx, projectID, policyID)
+	return s.cache.Invalidate(projectID, policyID)
 }

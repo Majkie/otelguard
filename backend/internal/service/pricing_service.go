@@ -165,7 +165,7 @@ func (s *PricingService) FormatCost(cost float64, currency string) string {
 }
 
 // GetCostBreakdown returns detailed cost breakdown
-func (s *PricingService) GetCostBreakdown(provider, model string, inputTokens, outputTokens int) (*CostBreakdown, error) {
+func (s *PricingService) GetCostBreakdown(provider, model string, inputTokens, outputTokens int) (*PricingBreakdown, error) {
 	pricing, err := s.GetPricing(provider, model)
 	if err != nil {
 		return nil, err
@@ -175,7 +175,7 @@ func (s *PricingService) GetCostBreakdown(provider, model string, inputTokens, o
 	outputCost := float64(outputTokens) / 1000.0 * pricing.OutputTokens
 	totalCost := inputCost + outputCost
 
-	return &CostBreakdown{
+	return &PricingBreakdown{
 		InputTokens:  inputTokens,
 		OutputTokens: outputTokens,
 		InputCost:    inputCost,
@@ -187,8 +187,8 @@ func (s *PricingService) GetCostBreakdown(provider, model string, inputTokens, o
 	}, nil
 }
 
-// CostBreakdown provides detailed cost information
-type CostBreakdown struct {
+// PricingBreakdown provides detailed cost information for a single request
+type PricingBreakdown struct {
 	InputTokens  int     `json:"inputTokens"`
 	OutputTokens int     `json:"outputTokens"`
 	InputCost    float64 `json:"inputCost"`

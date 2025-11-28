@@ -39,7 +39,7 @@ func (h *ScoreAnalyticsHandler) GetScoreDistribution(c *gin.Context) {
 		return
 	}
 
-	startTime, endTime := parseTimeRange(c)
+	startTime, endTime := parseTimeRangeSimple(c)
 
 	distribution, err := h.analyticsService.GetScoreDistribution(
 		c.Request.Context(),
@@ -74,7 +74,7 @@ func (h *ScoreAnalyticsHandler) GetCorrelation(c *gin.Context) {
 		return
 	}
 
-	startTime, endTime := parseTimeRange(c)
+	startTime, endTime := parseTimeRangeSimple(c)
 
 	correlation, err := h.analyticsService.GetCorrelation(
 		c.Request.Context(),
@@ -110,7 +110,7 @@ func (h *ScoreAnalyticsHandler) GetScoreBreakdown(c *gin.Context) {
 		return
 	}
 
-	startTime, endTime := parseTimeRange(c)
+	startTime, endTime := parseTimeRangeSimple(c)
 
 	breakdown, err := h.analyticsService.GetScoreBreakdown(
 		c.Request.Context(),
@@ -159,7 +159,7 @@ func (h *ScoreAnalyticsHandler) GetCohenKappa(c *gin.Context) {
 		return
 	}
 
-	startTime, endTime := parseTimeRange(c)
+	startTime, endTime := parseTimeRangeSimple(c)
 
 	kappa, err := h.analyticsService.CalculateCohenKappa(
 		c.Request.Context(),
@@ -203,7 +203,7 @@ func (h *ScoreAnalyticsHandler) GetF1Score(c *gin.Context) {
 		return
 	}
 
-	startTime, endTime := parseTimeRange(c)
+	startTime, endTime := parseTimeRangeSimple(c)
 
 	f1Result, err := h.analyticsService.CalculateF1Score(
 		c.Request.Context(),
@@ -240,7 +240,7 @@ func (h *ScoreAnalyticsHandler) GetScoreTrend(c *gin.Context) {
 		return
 	}
 
-	startTime, endTime := parseTimeRange(c)
+	startTime, endTime := parseTimeRangeSimple(c)
 
 	// Parse interval
 	interval := 24 * time.Hour // Default: 1 day
@@ -278,7 +278,7 @@ func (h *ScoreAnalyticsHandler) GetScoreTrend(c *gin.Context) {
 }
 
 // Helper function to parse time range from query parameters
-func parseTimeRange(c *gin.Context) (time.Time, time.Time) {
+func parseTimeRangeSimple(c *gin.Context) (time.Time, time.Time) {
 	// Default: last 7 days
 	endTime := time.Now()
 	startTime := endTime.Add(-7 * 24 * time.Hour)
