@@ -177,6 +177,27 @@ func SetupRouter(handlers *Handlers, cfg *config.Config) *gin.Engine {
 }
 ```
 
+### Project Context Handling
+
+The OTelGuard API uses two methods for passing project context:
+
+1. **Query Parameters** (Dashboard/UI routes):
+   - Most dashboard endpoints accept `projectId` as a query parameter
+   - Example: `GET /v1/dashboards?projectId=<uuid>&includeTemplates=false`
+   - Example: `GET /v1/analytics/overview?projectId=<uuid>&startTime=...&endTime=...`
+   - **Important**: Always use the full UUID for `projectId`, never use placeholder values like "test-project"
+
+2. **Context Middleware** (Protected routes):
+   - The `SetProjectContext()` middleware extracts `project_id` from query params and sets it in the Gin context
+   - Handlers can then access it via `c.GetString("project_id")`
+   - This is used for routes that need automatic project validation
+
+**Best Practices:**
+- Frontend should always pass the actual project UUID from the current user session
+- Never hardcode project IDs like "test-project" in API calls
+- Use the project context from the authenticated user's selected project
+- For API endpoints that accept `projectId` as a query param, validate it's a valid UUID
+
 ### Handler Pattern
 
 ```go

@@ -556,7 +556,7 @@ func (r *TraceRepository) ListSessions(ctx context.Context, opts *SessionQueryOp
 			count() as trace_count,
 			sum(latency_ms) as total_latency_ms,
 			sum(total_tokens) as total_tokens,
-			sum(cost) as total_cost,
+			toFloat64(sum(cost)) as total_cost,
 			countIf(status = 'success') as success_count,
 			countIf(status = 'error') as error_count,
 			min(start_time) as first_trace_time,
@@ -634,7 +634,7 @@ func (r *TraceRepository) GetSessionByID(ctx context.Context, sessionID string) 
 			count() as trace_count,
 			sum(latency_ms) as total_latency_ms,
 			sum(total_tokens) as total_tokens,
-			sum(cost) as total_cost,
+			toFloat64(sum(cost)) as total_cost,
 			countIf(status = 'success') as success_count,
 			countIf(status = 'error') as error_count,
 			min(start_time) as first_trace_time,
@@ -1009,9 +1009,9 @@ func (r *TraceRepository) GetOverviewMetrics(ctx context.Context, opts *Analytic
 			avg(latency_ms) as avg_latency_ms,
 			countIf(status = 'success') as success_count,
 			countIf(status = 'error') as error_count,
-			if(count() > 0, countIf(status = 'error') / count(), 0) as error_rate,
-			uniqExact(ifNull(user_id, '')) as unique_users,
-			uniqExact(ifNull(session_id, '')) as unique_sessions
+			if(count() > 0, toFloat64(countIf(status = 'error')) / toFloat64(count()), 0.0) as error_rate,
+			uniqExactIf(user_id, user_id IS NOT NULL AND user_id != '') as unique_users,
+			uniqExactIf(session_id, session_id IS NOT NULL AND session_id != '') as unique_sessions
 		FROM traces
 		WHERE 1=1
 	`
