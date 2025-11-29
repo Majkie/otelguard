@@ -15,6 +15,8 @@ import {
   Heart,
   Network,
   FlaskConical,
+  Bell,
+  PanelTop,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -25,6 +27,7 @@ import { ProjectSelector } from '@/components/features/projects/project-selector
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+  { name: 'Dashboards', href: '/dashboards', icon: PanelTop },
   { name: 'Traces', href: '/traces', icon: Activity },
   { name: 'Agent Graphs', href: '/agents', icon: Network },
   { name: 'Sessions', href: '/sessions', icon: MessageSquare },
@@ -35,6 +38,7 @@ const navigation = [
   { name: 'Annotations', href: '/annotations', icon: CheckSquare },
   { name: 'Evaluators', href: '/evaluators', icon: FlaskConical },
   { name: 'Guardrails', href: '/guardrails', icon: Shield },
+  { name: 'Alerts', href: '/alerts/rules', icon: Bell },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 

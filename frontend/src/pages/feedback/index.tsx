@@ -8,7 +8,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { ThumbsUp, ThumbsDown, Star, MessageSquare, BarChart3, Plus, Search, Filter } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { ThumbsUp, ThumbsDown, Star, MessageSquare, BarChart3, Plus, Search, Filter, Trash2 } from 'lucide-react';
 
 function FeedbackPage() {
   const [filters, setFilters] = useState<FeedbackFilter>({
@@ -18,6 +28,8 @@ function FeedbackPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedFeedback, setSelectedFeedback] = useState<any>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [feedbackToDelete, setFeedbackToDelete] = useState<string | null>(null);
 
   const { data, isLoading } = useFeedbackList(filters);
   const deleteFeedback = useDeleteFeedback();
@@ -43,9 +55,16 @@ function FeedbackPage() {
     }));
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm('Are you sure you want to delete this feedback?')) {
-      await deleteFeedback.mutateAsync(id);
+  const handleDeleteClick = (id: string) => {
+    setFeedbackToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (feedbackToDelete) {
+      await deleteFeedback.mutateAsync(feedbackToDelete);
+      setDeleteDialogOpen(false);
+      setFeedbackToDelete(null);
     }
   };
 
@@ -327,10 +346,10 @@ function FeedbackPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDelete(feedback.id)}
+                            onClick={() => handleDeleteClick(feedback.id)}
                             disabled={deleteFeedback.isPending}
                           >
-                            Delete
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -371,6 +390,26 @@ function FeedbackPage() {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Feedback</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this feedback? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteFeedback.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

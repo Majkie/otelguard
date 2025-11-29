@@ -14,6 +14,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Label } from '@/components/ui/label';
 import { Plus, LayoutDashboard, Share2, Copy, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -33,6 +43,11 @@ interface Dashboard {
 
 export function DashboardsPage() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
+  const [dashboardToDelete, setDashboardToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [dashboardToClone, setDashboardToClone] = useState<{ id: string; name: string } | null>(null);
+  const [cloneName, setCloneName] = useState('');
   const [newDashboard, setNewDashboard] = useState({
     name: '',
     description: '',
@@ -128,16 +143,31 @@ export function DashboardsPage() {
     });
   };
 
-  const handleDelete = (id: string, name: string) => {
-    if (confirm(`Are you sure you want to delete "${name}"?`)) {
-      deleteMutation.mutate(id);
+  const handleDeleteClick = (id: string, name: string) => {
+    setDashboardToDelete({ id, name });
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (dashboardToDelete) {
+      deleteMutation.mutate(dashboardToDelete.id);
+      setDeleteDialogOpen(false);
+      setDashboardToDelete(null);
     }
   };
 
-  const handleClone = (id: string, name: string) => {
-    const cloneName = prompt(`Enter name for cloned dashboard:`, `${name} (Copy)`);
-    if (cloneName) {
-      cloneMutation.mutate({ id, name: cloneName });
+  const handleCloneClick = (id: string, name: string) => {
+    setDashboardToClone({ id, name });
+    setCloneName(`${name} (Copy)`);
+    setCloneDialogOpen(true);
+  };
+
+  const handleCloneConfirm = () => {
+    if (dashboardToClone && cloneName.trim()) {
+      cloneMutation.mutate({ id: dashboardToClone.id, name: cloneName });
+      setCloneDialogOpen(false);
+      setDashboardToClone(null);
+      setCloneName('');
     }
   };
 
@@ -227,7 +257,7 @@ export function DashboardsPage() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => handleClone(dashboard.id, dashboard.name)}
+                      onClick={() => handleCloneClick(dashboard.id, dashboard.name)}
                       title="Clone dashboard"
                     >
                       <Copy className="h-4 w-4" />
@@ -236,7 +266,7 @@ export function DashboardsPage() {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => handleDelete(dashboard.id, dashboard.name)}
+                      onClick={() => handleDeleteClick(dashboard.id, dashboard.name)}
                       title="Delete dashboard"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -286,6 +316,61 @@ export function DashboardsPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Dashboard</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;{dashboardToDelete?.name}&quot;? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Clone Dashboard Dialog */}
+      <Dialog open={cloneDialogOpen} onOpenChange={setCloneDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clone Dashboard</DialogTitle>
+            <DialogDescription>
+              Create a copy of &quot;{dashboardToClone?.name}&quot;
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="clone-name">Dashboard Name</Label>
+              <Input
+                id="clone-name"
+                value={cloneName}
+                onChange={(e) => setCloneName(e.target.value)}
+                placeholder="Enter dashboard name"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCloneDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCloneConfirm}
+              disabled={!cloneName.trim() || cloneMutation.isPending}
+            >
+              {cloneMutation.isPending ? 'Cloning...' : 'Clone'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
