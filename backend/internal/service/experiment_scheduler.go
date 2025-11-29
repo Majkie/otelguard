@@ -202,7 +202,10 @@ func (s *ExperimentScheduler) executeScheduledExperiment(schedule *ScheduledExpe
 	}
 
 	// Execute experiment
-	_, err = s.experimentService.Execute(ctx, schedule.ExperimentID)
+	_, err = s.experimentService.Execute(ctx, &domain.ExperimentExecute{
+		ExperimentID: schedule.ExperimentID,
+		Async:        false,
+	})
 	if err != nil {
 		s.logger.Error("failed to execute scheduled experiment",
 			zap.String("schedule_id", schedule.ID.String()),

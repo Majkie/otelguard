@@ -8,8 +8,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/anthropics/anthropic-sdk-go"
-	"github.com/google/generative-ai-go/genai"
-	"github.com/ollama/ollama/api"
+	// "github.com/google/generative-ai-go/genai"
+	// "github.com/ollama/ollama/api"
 	openai "github.com/sashabaranov/go-openai"
 )
 
@@ -43,8 +43,8 @@ type LLMServiceImpl struct {
 	// Provider clients
 	openaiClient    *openai.Client
 	anthropicClient anthropic.Client
-	googleClient    *genai.Client
-	ollamaClient    *api.Client
+	// googleClient    *genai.Client
+	// ollamaClient    *api.Client
 
 	// Available models cache
 	models []domain.LLMModel

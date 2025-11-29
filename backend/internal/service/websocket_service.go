@@ -41,13 +41,13 @@ type WebSocketHub struct {
 	clients map[uuid.UUID]map[string]*Client
 
 	// Register requests from clients
-	register chan *Client
+	Register chan *Client
 
 	// Unregister requests from clients
-	unregister chan *Client
+	Unregister chan *Client
 
 	// Broadcast events
-	broadcast chan *WebSocketEvent
+	Broadcast chan *WebSocketEvent
 
 	// Mutex for thread-safe operations
 	mu sync.RWMutex
@@ -59,9 +59,9 @@ type WebSocketHub struct {
 func NewWebSocketHub(logger *zap.Logger) *WebSocketHub {
 	return &WebSocketHub{
 		clients:    make(map[uuid.UUID]map[string]*Client),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		broadcast:  make(chan *WebSocketEvent, 256),
+		Register:   make(chan *Client),
+		Unregister: make(chan *Client),
+		Broadcast:  make(chan *WebSocketEvent, 256),
 		logger:     logger,
 	}
 }
@@ -73,13 +73,13 @@ func (h *WebSocketHub) Run(ctx context.Context) {
 
 	for {
 		select {
-		case client := <-h.register:
+		case client := <-h.Register:
 			h.registerClient(client)
 
-		case client := <-h.unregister:
+		case client := <-h.Unregister:
 			h.unregisterClient(client)
 
-		case event := <-h.broadcast:
+		case event := <-h.Broadcast:
 			h.broadcastEvent(event)
 
 		case <-ticker.C:
@@ -213,7 +213,7 @@ func (h *WebSocketHub) closeAllConnections() {
 // BroadcastEvent broadcasts an event to all clients in a project
 func (h *WebSocketHub) BroadcastEvent(event *WebSocketEvent) {
 	select {
-	case h.broadcast <- event:
+	case h.Broadcast <- event:
 		// Event queued successfully
 	default:
 		// Broadcast channel is full
@@ -286,7 +286,7 @@ func (c *Client) WritePump() {
 // ReadPump pumps messages from the websocket connection to the hub
 func (c *Client) ReadPump() {
 	defer func() {
-		c.Hub.unregister <- c
+		c.Hub.Unregister <- c
 		c.Conn.Close()
 	}()
 

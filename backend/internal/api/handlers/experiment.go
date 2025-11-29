@@ -403,7 +403,7 @@ func (h *ExperimentHandler) CreateSchedule(c *gin.Context) {
 	}
 
 	// Verify experiment exists
-	_, err = h.experimentService.Get(c.Request.Context(), experimentID)
+	_, err = h.experimentService.GetByID(c.Request.Context(), experimentID.String())
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error":   "not_found",

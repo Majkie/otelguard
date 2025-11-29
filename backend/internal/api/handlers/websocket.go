@@ -75,7 +75,7 @@ func (h *WebSocketHandler) ServeWS(c *gin.Context) {
 	client.InitSubscriptions()
 
 	// Register client
-	h.hub.register <- client
+	h.hub.Register <- client
 
 	// Start goroutines for reading and writing
 	go client.WritePump()
