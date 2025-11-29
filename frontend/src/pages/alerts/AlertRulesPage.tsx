@@ -2,17 +2,28 @@ import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useAlertRules, useDeleteAlertRule } from '@/api/alerts';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { AlertRuleDialog } from './components/AlertRuleDialog';
 import { AlertRulesTable } from './components/AlertRulesTable';
+import { useProject } from '@/contexts/project-context';
 
-interface AlertRulesPageProps {
-  projectId: string;
-}
-
-export function AlertRulesPage({ projectId }: AlertRulesPageProps) {
+export function AlertRulesPage() {
+  const { currentProject } = useProject();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedRuleId, setSelectedRuleId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [ruleToDelete, setRuleToDelete] = useState<string | null>(null);
 
+  const projectId = currentProject?.id || '';
   const { data, isLoading } = useAlertRules(projectId);
   const deleteMutation = useDeleteAlertRule(projectId);
 
@@ -21,9 +32,16 @@ export function AlertRulesPage({ projectId }: AlertRulesPageProps) {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (ruleId: string) => {
-    if (confirm('Are you sure you want to delete this alert rule?')) {
-      await deleteMutation.mutateAsync(ruleId);
+  const handleDeleteClick = (ruleId: string) => {
+    setRuleToDelete(ruleId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (ruleToDelete) {
+      await deleteMutation.mutateAsync(ruleToDelete);
+      setDeleteDialogOpen(false);
+      setRuleToDelete(null);
     }
   };
 
@@ -51,7 +69,7 @@ export function AlertRulesPage({ projectId }: AlertRulesPageProps) {
         rules={data?.data || []}
         isLoading={isLoading}
         onEdit={handleEdit}
-        onDelete={handleDelete}
+        onDelete={handleDeleteClick}
       />
 
       <AlertRuleDialog
@@ -60,6 +78,26 @@ export function AlertRulesPage({ projectId }: AlertRulesPageProps) {
         open={isDialogOpen}
         onClose={handleCloseDialog}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Alert Rule</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this alert rule? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

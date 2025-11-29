@@ -39,6 +39,8 @@ import { GuardrailsAnalyticsPage } from '@/pages/dashboard/guardrails-analytics'
 import { PromptPerformancePage } from '@/pages/dashboard/prompt-performance';
 import { DashboardsPage } from '@/pages/dashboards';
 import { DashboardBuilderPage } from '@/pages/dashboards/builder';
+import { AlertRulesPage } from '@/pages/alerts/AlertRulesPage';
+import { AlertHistoryPage } from '@/pages/alerts/AlertHistoryPage';
 
 // Layout
 import { DashboardLayout } from '@/components/features/layout/dashboard-layout-updated';
@@ -94,6 +96,8 @@ function App() {
             <Route path="evaluators" element={<EvaluatorsPage />} />
             <Route path="evaluators/results" element={<EvaluationResultsPage />} />
             <Route path="evaluators/:id" element={<EvaluatorDetailPage />} />
+            <Route path="alerts/rules" element={<AlertRulesPage />} />
+            <Route path="alerts/history" element={<AlertHistoryPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
 

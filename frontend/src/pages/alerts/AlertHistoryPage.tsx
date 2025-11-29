@@ -11,13 +11,15 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Check } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
+import { useProject } from '@/contexts/project-context';
+import { useAuth } from '@/hooks/use-auth';
 
-interface AlertHistoryPageProps {
-  projectId: string;
-  userId: string;
-}
+export function AlertHistoryPage() {
+  const { currentProject } = useProject();
+  const { user } = useAuth();
+  const projectId = currentProject?.id || '';
+  const userId = user?.id || '';
 
-export function AlertHistoryPage({ projectId, userId }: AlertHistoryPageProps) {
   const { data, isLoading } = useAlertHistory(projectId);
   const acknowledgeMutation = useAcknowledgeAlert(projectId);
 

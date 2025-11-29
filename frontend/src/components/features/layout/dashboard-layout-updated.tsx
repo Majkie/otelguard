@@ -1,9 +1,8 @@
-import { Outlet, NavLink } from 'react-router-dom';
+import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Activity,
   Users,
-  User,
   FileText,
   Shield,
   Settings,
@@ -15,32 +14,112 @@ import {
   Heart,
   Network,
   FlaskConical,
+  Bell,
+  PanelTop,
+  ChevronDown,
+  Eye,
+  Target,
+  Cog,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { useAuth } from '@/hooks/use-auth';
 import { ProjectSelector } from '@/components/features/projects/project-selector';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Traces', href: '/traces', icon: Activity },
-  { name: 'Agent Graphs', href: '/agents', icon: Network },
-  { name: 'Sessions', href: '/sessions', icon: MessageSquare },
-  { name: 'Users', href: '/users', icon: Users },
-  { name: 'Prompts', href: '/prompts', icon: FileText },
-  { name: 'Scores', href: '/scores', icon: BarChart3 },
-  { name: 'Feedback', href: '/feedback', icon: Heart },
-  { name: 'Annotations', href: '/annotations', icon: CheckSquare },
-  { name: 'Evaluators', href: '/evaluators', icon: FlaskConical },
-  { name: 'Guardrails', href: '/guardrails', icon: Shield },
-  { name: 'Settings', href: '/settings', icon: Settings },
+// Navigation structure with sections
+const navigationSections = [
+  {
+    id: 'overview',
+    name: 'Overview',
+    items: [
+      { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { name: 'Dashboards', href: '/dashboards', icon: PanelTop },
+    ],
+  },
+  {
+    id: 'observability',
+    name: 'Observability',
+    icon: Eye,
+    collapsible: true,
+    items: [
+      { name: 'Traces', href: '/traces', icon: Activity },
+      { name: 'Agent Graphs', href: '/agents', icon: Network },
+      { name: 'Sessions', href: '/sessions', icon: MessageSquare },
+      { name: 'Users', href: '/users', icon: Users },
+    ],
+  },
+  {
+    id: 'evaluation',
+    name: 'Evaluation',
+    icon: Target,
+    collapsible: true,
+    items: [
+      { name: 'Scores', href: '/scores', icon: BarChart3 },
+      { name: 'Evaluators', href: '/evaluators', icon: FlaskConical },
+      { name: 'Feedback', href: '/feedback', icon: Heart },
+      { name: 'Annotations', href: '/annotations', icon: CheckSquare },
+    ],
+  },
+  {
+    id: 'management',
+    name: 'Management',
+    icon: Cog,
+    collapsible: true,
+    items: [
+      { name: 'Prompts', href: '/prompts', icon: FileText },
+      { name: 'Guardrails', href: '/guardrails', icon: Shield },
+      { name: 'Alerts', href: '/alerts/rules', icon: Bell },
+    ],
+  },
+  {
+    id: 'settings',
+    name: 'Settings',
+    items: [
+      { name: 'Settings', href: '/settings', icon: Settings },
+    ],
+  },
 ];
 
 export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, logout } = useAuth();
+  const location = useLocation();
+
+  // Track which sections are open (default to open)
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    navigationSections.forEach(section => {
+      if (section.collapsible) {
+        initial[section.id] = true; // Default all sections to open
+      }
+    });
+    return initial;
+  });
+
+  // Auto-expand section if current route is in it
+  useEffect(() => {
+    navigationSections.forEach(section => {
+      if (section.collapsible) {
+        const hasActiveItem = section.items.some(item =>
+          location.pathname.startsWith(item.href)
+        );
+        if (hasActiveItem && !openSections[section.id]) {
+          setOpenSections(prev => ({ ...prev, [section.id]: true }));
+        }
+      }
+    });
+  }, [location.pathname]);
+
+  const toggleSection = (sectionId: string) => {
+    setOpenSections(prev => ({ ...prev, [sectionId]: !prev[sectionId] }));
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -69,24 +148,76 @@ export function DashboardLayout() {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 space-y-1 px-3 py-4">
-            {navigation.map((item) => (
-              <NavLink
-                key={item.name}
-                to={item.href}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                  )
-                }
-              >
-                <item.icon className="h-5 w-5" />
-                {item.name}
-              </NavLink>
-            ))}
+          <nav className="flex-1 overflow-y-auto px-3 py-4">
+            <div className="space-y-4">
+              {navigationSections.map((section) => (
+                <div key={section.id}>
+                  {section.collapsible ? (
+                    <Collapsible
+                      open={openSections[section.id]}
+                      onOpenChange={() => toggleSection(section.id)}
+                    >
+                      <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm font-semibold text-foreground hover:bg-muted transition-colors">
+                        <div className="flex items-center gap-2">
+                          {section.icon && <section.icon className="h-4 w-4" />}
+                          <span>{section.name}</span>
+                        </div>
+                        <ChevronDown
+                          className={cn(
+                            'h-4 w-4 transition-transform',
+                            openSections[section.id] ? 'rotate-180' : ''
+                          )}
+                        />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="space-y-1 pt-1">
+                        {section.items.map((item) => (
+                          <NavLink
+                            key={item.href}
+                            to={item.href}
+                            className={({ isActive }) =>
+                              cn(
+                                'flex items-center gap-3 rounded-lg px-3 py-2 pl-9 text-sm font-medium transition-colors',
+                                isActive
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                              )
+                            }
+                          >
+                            <item.icon className="h-4 w-4" />
+                            {item.name}
+                          </NavLink>
+                        ))}
+                      </CollapsibleContent>
+                    </Collapsible>
+                  ) : (
+                    <div className="space-y-1">
+                      {section.name !== 'Overview' && section.name !== 'Settings' && (
+                        <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          {section.name}
+                        </div>
+                      )}
+                      {section.items.map((item) => (
+                        <NavLink
+                          key={item.href}
+                          to={item.href}
+                          className={({ isActive }) =>
+                            cn(
+                              'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                              isActive
+                                ? 'bg-primary text-primary-foreground'
+                                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                            )
+                          }
+                        >
+                          <item.icon className="h-5 w-5" />
+                          {item.name}
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </nav>
 
           {/* User section */}
