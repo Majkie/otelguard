@@ -379,9 +379,9 @@ export function TracesPage() {
                         </Link>
                         {trace.tags?.length > 0 && (
                           <div className="flex gap-1 mt-1">
-                            {trace.tags.slice(0, 3).map((tag) => (
+                            {trace.tags.slice(0, 3).map((tag, index) => (
                               <span
-                                key={tag}
+                                key={`${tag}-${index}`}
                                 className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium"
                               >
                                 {tag}
