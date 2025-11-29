@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
   Sheet,
@@ -71,7 +71,7 @@ function EvaluationResultsPage() {
   const { data: costsResponse } = useEvaluationCosts();
 
   const results = resultsResponse?.results || [];
-  const evaluators = evaluatorsResponse?.evaluators || [];
+  const evaluators = evaluatorsResponse?.data || [];
   const costs = costsResponse?.costs || [];
   const total = resultsResponse?.pagination.total || 0;
   const currentPage = Math.floor((params.offset || 0) / ITEMS_PER_PAGE) + 1;

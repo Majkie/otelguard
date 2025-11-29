@@ -14,6 +14,7 @@ import {
   CheckSquare,
   Heart,
   Network,
+  FlaskConical,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -32,6 +33,7 @@ const navigation = [
   { name: 'Scores', href: '/scores', icon: BarChart3 },
   { name: 'Feedback', href: '/feedback', icon: Heart },
   { name: 'Annotations', href: '/annotations', icon: CheckSquare },
+  { name: 'Evaluators', href: '/evaluators', icon: FlaskConical },
   { name: 'Guardrails', href: '/guardrails', icon: Shield },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];

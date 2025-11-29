@@ -111,7 +111,6 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 			sdk.POST("/guardrails/evaluate", middleware.RequireScope("guardrail:evaluate"), h.Guardrail.Evaluate)
 			sdk.POST("/guardrails/evaluate/batch", middleware.RequireScope("guardrail:evaluate"), h.Guardrail.BatchEvaluate)
 			sdk.POST("/guardrails/evaluate/async", middleware.RequireScope("guardrail:evaluate"), h.Guardrail.AsyncEvaluate)
-			sdk.GET("/guardrails/jobs/:jobId", middleware.RequireScope("guardrail:evaluate"), h.Guardrail.GetAsyncJob)
 		}
 
 		// Dashboard routes - JWT authentication with auto-refresh
@@ -314,25 +313,25 @@ func SetupRouter(h *Handlers, cfg *config.Config, logger *zap.Logger, apiKeyVali
 				// Dashboard CRUD
 				dashboards.POST("", h.Dashboard.CreateDashboard)
 				dashboards.GET("", h.Dashboard.ListDashboards)
-				dashboards.GET("/:id", h.Dashboard.GetDashboard)
-				dashboards.PUT("/:id", h.Dashboard.UpdateDashboard)
-				dashboards.DELETE("/:id", h.Dashboard.DeleteDashboard)
+				dashboards.GET("/:dashboardId", h.Dashboard.GetDashboard)
+				dashboards.PUT("/:dashboardId", h.Dashboard.UpdateDashboard)
+				dashboards.DELETE("/:dashboardId", h.Dashboard.DeleteDashboard)
 
 				// Widget management
-				dashboards.POST("/:id/widgets", h.Dashboard.AddWidget)
+				dashboards.POST("/:dashboardId/widgets", h.Dashboard.AddWidget)
 				dashboards.PUT("/:dashboardId/widgets/:widgetId", h.Dashboard.UpdateWidget)
 				dashboards.DELETE("/:dashboardId/widgets/:widgetId", h.Dashboard.DeleteWidget)
 
 				// Layout management (drag-and-drop)
-				dashboards.PUT("/:id/layout", h.Dashboard.UpdateLayout)
+				dashboards.PUT("/:dashboardId/layout", h.Dashboard.UpdateLayout)
 
 				// Dashboard sharing
-				dashboards.POST("/:id/share", h.Dashboard.CreateShare)
-				dashboards.GET("/:id/shares", h.Dashboard.ListShares)
+				dashboards.POST("/:dashboardId/share", h.Dashboard.CreateShare)
+				dashboards.GET("/:dashboardId/shares", h.Dashboard.ListShares)
 				dashboards.DELETE("/:dashboardId/shares/:shareId", h.Dashboard.DeleteShare)
 
 				// Dashboard cloning
-				dashboards.POST("/:id/clone", h.Dashboard.CloneDashboard)
+				dashboards.POST("/:dashboardId/clone", h.Dashboard.CloneDashboard)
 			}
 
 			// Shared dashboards (public access)

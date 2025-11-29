@@ -81,7 +81,7 @@ function EvaluatorDetailPage() {
   const runMutation = useRunEvaluation();
 
   const results = resultsData?.results || [];
-  const traces = tracesData?.traces || [];
+  const traces = tracesData?.data || [];
   const stats = statsData;
 
   const handleStartEdit = () => {
@@ -399,11 +399,11 @@ function EvaluatorDetailPage() {
                       <Label className="text-muted-foreground">Model</Label>
                       <p className="font-mono text-sm">{evaluator.model}</p>
                     </div>
-                    <div>
+                    <div className="flex flex-col gap-1 items-start">
                       <Label className="text-muted-foreground">Output Type</Label>
                       <Badge variant="outline">{evaluator.outputType}</Badge>
                     </div>
-                    <div>
+                    <div className="flex flex-col gap-1 items-start">
                       <Label className="text-muted-foreground">Status</Label>
                       <Badge variant={evaluator.enabled ? 'default' : 'secondary'}>
                         {evaluator.enabled ? 'Enabled' : 'Disabled'}

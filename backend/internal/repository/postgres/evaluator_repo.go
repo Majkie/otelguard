@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -36,6 +37,15 @@ func (r *EvaluatorRepository) Create(ctx context.Context, evaluator *domain.Eval
 		)
 	`
 
+	// Convert pointers to sql.NullFloat64 for database
+	var minValue, maxValue sql.NullFloat64
+	if evaluator.MinValue != nil {
+		minValue = sql.NullFloat64{Float64: *evaluator.MinValue, Valid: true}
+	}
+	if evaluator.MaxValue != nil {
+		maxValue = sql.NullFloat64{Float64: *evaluator.MaxValue, Valid: true}
+	}
+
 	_, err := r.db.Exec(ctx, query,
 		evaluator.ID,
 		evaluator.ProjectID,
@@ -47,8 +57,8 @@ func (r *EvaluatorRepository) Create(ctx context.Context, evaluator *domain.Eval
 		evaluator.Template,
 		evaluator.Config,
 		evaluator.OutputType,
-		evaluator.MinValue,
-		evaluator.MaxValue,
+		minValue,
+		maxValue,
 		evaluator.Categories,
 		evaluator.Enabled,
 		evaluator.CreatedAt,
@@ -68,6 +78,7 @@ func (r *EvaluatorRepository) GetByID(ctx context.Context, id uuid.UUID) (*domai
 	`
 
 	var evaluator domain.Evaluator
+	var minValue, maxValue sql.NullFloat64
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&evaluator.ID,
 		&evaluator.ProjectID,
@@ -79,8 +90,8 @@ func (r *EvaluatorRepository) GetByID(ctx context.Context, id uuid.UUID) (*domai
 		&evaluator.Template,
 		&evaluator.Config,
 		&evaluator.OutputType,
-		&evaluator.MinValue,
-		&evaluator.MaxValue,
+		&minValue,
+		&maxValue,
 		&evaluator.Categories,
 		&evaluator.Enabled,
 		&evaluator.CreatedAt,
@@ -92,6 +103,15 @@ func (r *EvaluatorRepository) GetByID(ctx context.Context, id uuid.UUID) (*domai
 	if err != nil {
 		return nil, err
 	}
+
+	// Convert nullable fields to pointers
+	if minValue.Valid {
+		evaluator.MinValue = &minValue.Float64
+	}
+	if maxValue.Valid {
+		evaluator.MaxValue = &maxValue.Float64
+	}
+
 	return &evaluator, nil
 }
 
@@ -114,6 +134,15 @@ func (r *EvaluatorRepository) Update(ctx context.Context, evaluator *domain.Eval
 		WHERE id = $1 AND deleted_at IS NULL
 	`
 
+	// Convert pointers to sql.NullFloat64 for database
+	var minValue, maxValue sql.NullFloat64
+	if evaluator.MinValue != nil {
+		minValue = sql.NullFloat64{Float64: *evaluator.MinValue, Valid: true}
+	}
+	if evaluator.MaxValue != nil {
+		maxValue = sql.NullFloat64{Float64: *evaluator.MaxValue, Valid: true}
+	}
+
 	result, err := r.db.Exec(ctx, query,
 		evaluator.ID,
 		evaluator.Name,
@@ -123,8 +152,8 @@ func (r *EvaluatorRepository) Update(ctx context.Context, evaluator *domain.Eval
 		evaluator.Template,
 		evaluator.Config,
 		evaluator.OutputType,
-		evaluator.MinValue,
-		evaluator.MaxValue,
+		minValue,
+		maxValue,
 		evaluator.Categories,
 		evaluator.Enabled,
 		evaluator.UpdatedAt,
@@ -234,6 +263,7 @@ func (r *EvaluatorRepository) List(ctx context.Context, filter *domain.Evaluator
 	var evaluators []*domain.Evaluator
 	for rows.Next() {
 		var evaluator domain.Evaluator
+		var minValue, maxValue sql.NullFloat64
 		if err := rows.Scan(
 			&evaluator.ID,
 			&evaluator.ProjectID,
@@ -245,8 +275,8 @@ func (r *EvaluatorRepository) List(ctx context.Context, filter *domain.Evaluator
 			&evaluator.Template,
 			&evaluator.Config,
 			&evaluator.OutputType,
-			&evaluator.MinValue,
-			&evaluator.MaxValue,
+			&minValue,
+			&maxValue,
 			&evaluator.Categories,
 			&evaluator.Enabled,
 			&evaluator.CreatedAt,
@@ -254,6 +284,15 @@ func (r *EvaluatorRepository) List(ctx context.Context, filter *domain.Evaluator
 		); err != nil {
 			return nil, 0, err
 		}
+
+		// Convert nullable fields to pointers
+		if minValue.Valid {
+			evaluator.MinValue = &minValue.Float64
+		}
+		if maxValue.Valid {
+			evaluator.MaxValue = &maxValue.Float64
+		}
+
 		evaluators = append(evaluators, &evaluator)
 	}
 

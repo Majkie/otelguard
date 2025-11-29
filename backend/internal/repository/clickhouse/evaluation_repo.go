@@ -2,6 +2,7 @@ package clickhouse
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -227,27 +228,58 @@ func (r *EvaluationResultRepository) List(ctx context.Context, filter *domain.Ev
 	var results []*domain.EvaluationResult
 	for rows.Next() {
 		var result domain.EvaluationResult
+		var jobID, spanID sql.NullString
+		var stringValue, reasoning, errorMessage sql.NullString
+
 		if err := rows.Scan(
 			&result.ID,
-			&result.JobID,
+			&jobID,
 			&result.EvaluatorID,
 			&result.ProjectID,
 			&result.TraceID,
-			&result.SpanID,
+			&spanID,
 			&result.Score,
-			&result.StringValue,
-			&result.Reasoning,
+			&stringValue,
+			&reasoning,
 			&result.RawResponse,
 			&result.PromptTokens,
 			&result.CompletionTokens,
 			&result.Cost,
 			&result.LatencyMs,
 			&result.Status,
-			&result.ErrorMessage,
+			&errorMessage,
 			&result.CreatedAt,
 		); err != nil {
 			return nil, 0, err
 		}
+
+		// Convert nullable fields to pointers
+		if jobID.Valid && jobID.String != "" {
+			parsedJobID, err := uuid.Parse(jobID.String)
+			if err == nil {
+				result.JobID = &parsedJobID
+			}
+		}
+
+		if spanID.Valid && spanID.String != "" {
+			parsedSpanID, err := uuid.Parse(spanID.String)
+			if err == nil {
+				result.SpanID = &parsedSpanID
+			}
+		}
+
+		if stringValue.Valid {
+			result.StringValue = &stringValue.String
+		}
+
+		if reasoning.Valid {
+			result.Reasoning = &reasoning.String
+		}
+
+		if errorMessage.Valid {
+			result.ErrorMessage = &errorMessage.String
+		}
+
 		results = append(results, &result)
 	}
 
@@ -275,27 +307,58 @@ func (r *EvaluationResultRepository) GetByTrace(ctx context.Context, projectID, 
 	var results []*domain.EvaluationResult
 	for rows.Next() {
 		var result domain.EvaluationResult
+		var jobID, spanID sql.NullString
+		var stringValue, reasoning, errorMessage sql.NullString
+
 		if err := rows.Scan(
 			&result.ID,
-			&result.JobID,
+			&jobID,
 			&result.EvaluatorID,
 			&result.ProjectID,
 			&result.TraceID,
-			&result.SpanID,
+			&spanID,
 			&result.Score,
-			&result.StringValue,
-			&result.Reasoning,
+			&stringValue,
+			&reasoning,
 			&result.RawResponse,
 			&result.PromptTokens,
 			&result.CompletionTokens,
 			&result.Cost,
 			&result.LatencyMs,
 			&result.Status,
-			&result.ErrorMessage,
+			&errorMessage,
 			&result.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
+
+		// Convert nullable fields to pointers
+		if jobID.Valid && jobID.String != "" {
+			parsedJobID, err := uuid.Parse(jobID.String)
+			if err == nil {
+				result.JobID = &parsedJobID
+			}
+		}
+
+		if spanID.Valid && spanID.String != "" {
+			parsedSpanID, err := uuid.Parse(spanID.String)
+			if err == nil {
+				result.SpanID = &parsedSpanID
+			}
+		}
+
+		if stringValue.Valid {
+			result.StringValue = &stringValue.String
+		}
+
+		if reasoning.Valid {
+			result.Reasoning = &reasoning.String
+		}
+
+		if errorMessage.Valid {
+			result.ErrorMessage = &errorMessage.String
+		}
+
 		results = append(results, &result)
 	}
 
@@ -329,27 +392,54 @@ func (r *EvaluationResultRepository) GetStats(ctx context.Context, projectID uui
 
 	query := fmt.Sprintf(`
 		SELECT
+			evaluator_id,
 			count() as total_evaluations,
-			sum(cost) as total_cost,
+			countIf(status = 'success') as success_count,
+			countIf(status = 'error') as error_count,
+			ifNull(avg(score), 0) as avg_score,
+			ifNull(min(score), 0) as min_score,
+			ifNull(max(score), 0) as max_score,
+			ifNull(sum(cost), 0) as total_cost,
 			sum(prompt_tokens + completion_tokens) as total_tokens,
-			avg(score) as average_score,
-			avg(latency_ms) as average_latency,
-			countIf(status = 'success') / count() * 100 as success_rate
+			ifNull(avg(latency_ms), 0) as avg_latency_ms
 		FROM evaluation_results
 		WHERE %s
+		GROUP BY evaluator_id
 	`, whereClause)
 
 	var stats domain.EvaluationStats
 	row := r.conn.QueryRow(ctx, query, args...)
 	err := row.Scan(
+		&stats.EvaluatorID,
 		&stats.TotalEvaluations,
+		&stats.SuccessCount,
+		&stats.ErrorCount,
+		&stats.AvgScore,
+		&stats.MinScore,
+		&stats.MaxScore,
 		&stats.TotalCost,
 		&stats.TotalTokens,
-		&stats.AverageScore,
-		&stats.AverageLatency,
-		&stats.SuccessRate,
+		&stats.AvgLatencyMs,
 	)
 	if err != nil {
+		// If no rows found, return empty stats with evaluatorID if provided
+		if err.Error() == "EOF" || strings.Contains(err.Error(), "no rows") {
+			emptyStats := &domain.EvaluationStats{
+				TotalEvaluations: 0,
+				SuccessCount:     0,
+				ErrorCount:       0,
+				AvgScore:         0,
+				MinScore:         0,
+				MaxScore:         0,
+				TotalCost:        0,
+				TotalTokens:      0,
+				AvgLatencyMs:     0,
+			}
+			if evaluatorID != nil {
+				emptyStats.EvaluatorID = *evaluatorID
+			}
+			return emptyStats, nil
+		}
 		return nil, err
 	}
 

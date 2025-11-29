@@ -169,12 +169,8 @@ func (s *EvaluatorService) CreateEvaluator(ctx context.Context, create *domain.E
 		evaluator.Enabled = *create.Enabled
 	}
 
-	if create.MinValue != nil {
-		evaluator.MinValue = sql.NullFloat64{Float64: *create.MinValue, Valid: true}
-	}
-	if create.MaxValue != nil {
-		evaluator.MaxValue = sql.NullFloat64{Float64: *create.MaxValue, Valid: true}
-	}
+	evaluator.MinValue = create.MinValue
+	evaluator.MaxValue = create.MaxValue
 
 	if create.Config != nil {
 		configJSON, err := json.Marshal(create.Config)
@@ -224,10 +220,10 @@ func (s *EvaluatorService) UpdateEvaluator(ctx context.Context, id uuid.UUID, up
 		evaluator.OutputType = *update.OutputType
 	}
 	if update.MinValue != nil {
-		evaluator.MinValue = sql.NullFloat64{Float64: *update.MinValue, Valid: true}
+		evaluator.MinValue = update.MinValue
 	}
 	if update.MaxValue != nil {
-		evaluator.MaxValue = sql.NullFloat64{Float64: *update.MaxValue, Valid: true}
+		evaluator.MaxValue = update.MaxValue
 	}
 	if update.Categories != nil {
 		evaluator.Categories = *update.Categories
@@ -773,11 +769,11 @@ func (s *EvaluatorService) parseEvaluationResponse(
 	}
 
 	// Validate score is within range
-	if evaluator.MinValue.Valid && score < evaluator.MinValue.Float64 {
-		score = evaluator.MinValue.Float64
+	if evaluator.MinValue != nil && score < *evaluator.MinValue {
+		score = *evaluator.MinValue
 	}
-	if evaluator.MaxValue.Valid && score > evaluator.MaxValue.Float64 {
-		score = evaluator.MaxValue.Float64
+	if evaluator.MaxValue != nil && score > *evaluator.MaxValue {
+		score = *evaluator.MaxValue
 	}
 
 	return score, stringValue, reasoning, nil

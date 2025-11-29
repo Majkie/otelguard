@@ -10,6 +10,7 @@ import {
   LogOut,
   Menu,
   MessageSquare,
+  FlaskConical,
 } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -23,6 +24,7 @@ const navigation = [
   { name: 'Sessions', href: '/sessions', icon: MessageSquare },
   { name: 'Users', href: '/users', icon: Users },
   { name: 'Prompts', href: '/prompts', icon: FileText },
+  { name: 'Evaluators', href: '/evaluators', icon: FlaskConical },
   { name: 'Guardrails', href: '/guardrails', icon: Shield },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];

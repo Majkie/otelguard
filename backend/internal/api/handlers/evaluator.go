@@ -418,10 +418,12 @@ func (h *EvaluatorHandler) ListJobs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":   jobs,
-		"total":  total,
-		"limit":  filter.Limit,
-		"offset": filter.Offset,
+		"jobs": jobs,
+		"pagination": gin.H{
+			"total":  total,
+			"limit":  filter.Limit,
+			"offset": filter.Offset,
+		},
 	})
 }
 
@@ -474,10 +476,12 @@ func (h *EvaluatorHandler) GetResults(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":   results,
-		"total":  total,
-		"limit":  filter.Limit,
-		"offset": filter.Offset,
+		"results": results,
+		"pagination": gin.H{
+			"total":  total,
+			"limit":  filter.Limit,
+			"offset": filter.Offset,
+		},
 	})
 }
 
