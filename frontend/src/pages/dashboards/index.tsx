@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api } from '@/api/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +28,7 @@ import { Label } from '@/components/ui/label';
 import { Plus, LayoutDashboard, Share2, Copy, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import {useProjectContext} from "@/contexts/project-context.tsx";
 
 interface Dashboard {
   id: string;
@@ -52,13 +53,15 @@ export function DashboardsPage() {
     name: '',
     description: '',
   });
-  const projectId = 'test-project'; // TODO: Get from context
+  const { selectedProject } = useProjectContext();
+  const projectId = selectedProject?.id;
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Fetch dashboards
   const { data: dashboardsData, isLoading } = useQuery({
     queryKey: ['dashboards', projectId],
+    enabled: !!projectId,
     queryFn: () =>
       api.get<{ data: Dashboard[] }>('/v1/dashboards', {
         params: { projectId, includeTemplates: false },

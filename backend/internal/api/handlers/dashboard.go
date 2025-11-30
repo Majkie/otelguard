@@ -129,7 +129,7 @@ func (h *DashboardHandler) CreateDashboard(c *gin.Context) {
 // GetDashboard retrieves a dashboard by ID
 // GET /v1/dashboards/:id
 func (h *DashboardHandler) GetDashboard(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
+	id, err := uuid.Parse(c.Param("dashboardId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid_id",
@@ -202,7 +202,7 @@ func (h *DashboardHandler) ListDashboards(c *gin.Context) {
 // UpdateDashboard updates a dashboard
 // PUT /v1/dashboards/:id
 func (h *DashboardHandler) UpdateDashboard(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
+	id, err := uuid.Parse(c.Param("dashboardId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid_id",
@@ -245,7 +245,7 @@ func (h *DashboardHandler) UpdateDashboard(c *gin.Context) {
 // DeleteDashboard deletes a dashboard
 // DELETE /v1/dashboards/:id
 func (h *DashboardHandler) DeleteDashboard(c *gin.Context) {
-	id, err := uuid.Parse(c.Param("id"))
+	id, err := uuid.Parse(c.Param("dashboardId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid_id",
@@ -279,7 +279,7 @@ func (h *DashboardHandler) DeleteDashboard(c *gin.Context) {
 // AddWidget adds a widget to a dashboard
 // POST /v1/dashboards/:id/widgets
 func (h *DashboardHandler) AddWidget(c *gin.Context) {
-	dashboardID, err := uuid.Parse(c.Param("id"))
+	dashboardID, err := uuid.Parse(c.Param("dashboardId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid_id",
@@ -438,7 +438,7 @@ func (h *DashboardHandler) UpdateLayout(c *gin.Context) {
 // CreateShare creates a shareable link for a dashboard
 // POST /v1/dashboards/:id/share
 func (h *DashboardHandler) CreateShare(c *gin.Context) {
-	dashboardID, err := uuid.Parse(c.Param("id"))
+	dashboardID, err := uuid.Parse(c.Param("dashboardId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid_id",
@@ -532,7 +532,7 @@ func (h *DashboardHandler) GetSharedDashboard(c *gin.Context) {
 // ListShares lists all shares for a dashboard
 // GET /v1/dashboards/:id/shares
 func (h *DashboardHandler) ListShares(c *gin.Context) {
-	dashboardID, err := uuid.Parse(c.Param("id"))
+	dashboardID, err := uuid.Parse(c.Param("dashboardId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid_id",
@@ -593,7 +593,7 @@ func (h *DashboardHandler) DeleteShare(c *gin.Context) {
 // CloneDashboard clones a dashboard
 // POST /v1/dashboards/:id/clone
 func (h *DashboardHandler) CloneDashboard(c *gin.Context) {
-	sourceID, err := uuid.Parse(c.Param("id"))
+	sourceID, err := uuid.Parse(c.Param("dashboardId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "invalid_id",

@@ -522,18 +522,18 @@ func (r *TraceRepository) GetByID(ctx context.Context, id string) (*domain.Trace
 
 // Session represents aggregated session data
 type Session struct {
-	SessionID      string   `json:"sessionId"`
-	ProjectID      string   `json:"projectId"`
-	UserID         string   `json:"userId,omitempty"`
-	TraceCount     int      `json:"traceCount"`
-	TotalLatencyMs int      `json:"totalLatencyMs"`
-	TotalTokens    int      `json:"totalTokens"`
-	TotalCost      float64  `json:"totalCost"`
-	SuccessCount   int      `json:"successCount"`
-	ErrorCount     int      `json:"errorCount"`
-	FirstTraceTime string   `json:"firstTraceTime"`
-	LastTraceTime  string   `json:"lastTraceTime"`
-	Models         []string `json:"models,omitempty"`
+	SessionID      string    `json:"sessionId"`
+	ProjectID      string    `json:"projectId"`
+	UserID         string    `json:"userId,omitempty"`
+	TraceCount     uint64    `json:"traceCount"`
+	TotalLatencyMs uint64    `json:"totalLatencyMs"`
+	TotalTokens    uint64    `json:"totalTokens"`
+	TotalCost      float64   `json:"totalCost"`
+	SuccessCount   uint64    `json:"successCount"`
+	ErrorCount     uint64    `json:"errorCount"`
+	FirstTraceTime time.Time `json:"firstTraceTime"`
+	LastTraceTime  time.Time `json:"lastTraceTime"`
+	Models         []string  `json:"models,omitempty"`
 }
 
 // SessionQueryOptions contains options for querying sessions
@@ -552,7 +552,7 @@ func (r *TraceRepository) ListSessions(ctx context.Context, opts *SessionQueryOp
 		SELECT
 			session_id,
 			project_id,
-			any(user_id) as user_id,
+			any(user_id) as session_user_id,
 			count() as trace_count,
 			sum(latency_ms) as total_latency_ms,
 			sum(total_tokens) as total_tokens,
@@ -1006,7 +1006,7 @@ func (r *TraceRepository) GetOverviewMetrics(ctx context.Context, opts *Analytic
 			count() as total_traces,
 			sum(total_tokens) as total_tokens,
 			toFloat64(sum(cost)) as total_cost,
-			avg(latency_ms) as avg_latency_ms,
+			if(count() > 0, avg(latency_ms), 0.0) as avg_latency_ms,
 			countIf(status = 'success') as success_count,
 			countIf(status = 'error') as error_count,
 			if(count() > 0, toFloat64(countIf(status = 'error')) / toFloat64(count()), 0.0) as error_rate,

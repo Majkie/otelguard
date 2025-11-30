@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { api } from '@/api/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LineChart, BarChart, PieChart, MetricCard } from '@/components/charts';
 import { Activity, Users, Zap, TrendingUp } from 'lucide-react';
-import { format, subDays, subHours, subMonths } from 'date-fns';
+import { format, subDays, subHours } from 'date-fns';
+import {useProjectContext} from "@/contexts/project-context.tsx";
 
 interface TimeRange {
   label: string;
@@ -43,8 +44,9 @@ const TIME_RANGES: TimeRange[] = [
 ];
 
 export function UsageAnalyticsPage() {
+  const { selectedProject } = useProjectContext();
   const [timeRange, setTimeRange] = useState<TimeRange>(TIME_RANGES[1]);
-  const projectId = 'test-project'; // TODO: Get from context
+  const projectId = selectedProject;
 
   // Fetch core metrics
   const { data: coreMetrics, isLoading: coreLoading } = useQuery({
