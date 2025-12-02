@@ -57,7 +57,7 @@ func (r *DatasetRepository) GetByID(ctx context.Context, id string) (*domain.Dat
 
 // List returns datasets for a project with pagination
 func (r *DatasetRepository) List(ctx context.Context, projectID string, opts *ListOptions) ([]*domain.Dataset, int, error) {
-	var datasets []*domain.Dataset
+	datasets := make([]*domain.Dataset, 0)
 	var total int
 
 	// Use default values if opts is nil
@@ -164,7 +164,7 @@ func (r *DatasetRepository) GetItemByID(ctx context.Context, id string) (*domain
 
 // ListItems returns items for a dataset with pagination
 func (r *DatasetRepository) ListItems(ctx context.Context, datasetID string, opts *ListOptions) ([]*domain.DatasetItem, int, error) {
-	var items []*domain.DatasetItem
+	items := make([]*domain.DatasetItem, 0)
 	var total int
 
 	// Use default values if opts is nil

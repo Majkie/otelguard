@@ -97,6 +97,7 @@ export function PromptDetailPage() {
   const [newLabels, setNewLabels] = useState<string[]>([]);
   const [copied, setCopied] = useState(false);
   const [playgroundOpen, setPlaygroundOpen] = useState(false);
+  const [playgroundContent, setPlaygroundContent] = useState('');
 
   // Load the latest version content when versions are loaded
   useEffect(() => {
@@ -723,7 +724,10 @@ Please help them with: {{user_query}}"
               </p>
               <Button
                 className="w-full"
-                onClick={() => setPlaygroundOpen(true)}
+                onClick={() => {
+                  setPlaygroundOpen(true);
+                  setPlaygroundContent(content);
+                }}
                 disabled={!content}
               >
                 <Play className="h-4 w-4 mr-2" />
@@ -859,7 +863,7 @@ Please help them with: {{user_query}}"
       {/* Prompt Playground */}
       <PromptPlayground
         promptId={id || ''}
-        content={content}
+        content={playgroundContent}
         open={playgroundOpen}
         onOpenChange={setPlaygroundOpen}
       />

@@ -54,7 +54,7 @@ class ApiClient {
     }
 
     // Get CSRF token from cookie for state-changing operations
-    let headers: Record<string, string> = {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...fetchOptions.headers,
     };

@@ -20,6 +20,7 @@ import {
   Eye,
   Target,
   Cog,
+  Database,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -63,6 +64,7 @@ const navigationSections = [
     items: [
       { name: 'Scores', href: '/scores', icon: BarChart3 },
       { name: 'Evaluators', href: '/evaluators', icon: FlaskConical },
+      { name: 'Datasets', href: '/datasets', icon: Database },
       { name: 'Feedback', href: '/feedback', icon: Heart },
       { name: 'Annotations', href: '/annotations', icon: CheckSquare },
     ],

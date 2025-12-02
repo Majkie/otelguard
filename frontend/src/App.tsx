@@ -34,6 +34,8 @@ import AgentGraphDetailPage from '@/pages/agents/detail';
 import EvaluatorsPage from '@/pages/evaluators';
 import EvaluatorDetailPage from '@/pages/evaluators/detail';
 import EvaluationResultsPage from '@/pages/evaluators/results';
+import { DatasetsPage } from '@/pages/datasets';
+import { DatasetDetailPage } from '@/pages/datasets/detail';
 import { UsageAnalyticsPage } from '@/pages/dashboard/usage-analytics';
 import { GuardrailsAnalyticsPage } from '@/pages/dashboard/guardrails-analytics';
 import { PromptPerformancePage } from '@/pages/dashboard/prompt-performance';
@@ -96,6 +98,8 @@ function App() {
             <Route path="evaluators" element={<EvaluatorsPage />} />
             <Route path="evaluators/results" element={<EvaluationResultsPage />} />
             <Route path="evaluators/:id" element={<EvaluatorDetailPage />} />
+            <Route path="datasets" element={<DatasetsPage />} />
+            <Route path="datasets/:id" element={<DatasetDetailPage />} />
             <Route path="alerts/rules" element={<AlertRulesPage />} />
             <Route path="alerts/history" element={<AlertHistoryPage />} />
             <Route path="settings" element={<SettingsPage />} />
