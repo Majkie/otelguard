@@ -363,24 +363,93 @@ func (h *AuthHandler) DeleteProject(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{"error": "not_implemented"})
 }
 
+// CreateAPIKeyRequest represents the request to create an API key
+type CreateAPIKeyRequest struct {
+	Name      string   `json:"name" binding:"required"`
+	Scopes    []string `json:"scopes"`
+	ExpiresAt *string  `json:"expiresAt"`
+}
+
 func (h *AuthHandler) ListAPIKeys(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"data": []interface{}{}, "total": 0})
+	projectIDStr := c.Param("projectId")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project ID"})
+		return
+	}
+
+	apiKeys, err := h.authService.ListAPIKeys(c.Request.Context(), projectID)
+	if err != nil {
+		h.logger.Error("failed to list API keys", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to list API keys"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  apiKeys,
+		"total": len(apiKeys),
+	})
 }
 
 func (h *AuthHandler) CreateAPIKey(c *gin.Context) {
-	// Generate a new API key
-	keyID := uuid.New()
-	rawKey := uuid.New().String() // In production, use crypto/rand
+	projectIDStr := c.Param("projectId")
+	projectID, err := uuid.Parse(projectIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid project ID"})
+		return
+	}
+
+	var req CreateAPIKeyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Default scopes if not provided
+	if len(req.Scopes) == 0 {
+		req.Scopes = []string{"trace:write", "prompt:read", "guardrail:evaluate"}
+	}
+
+	// Parse expiration time if provided
+	var expiresAt *time.Time
+	if req.ExpiresAt != nil && *req.ExpiresAt != "" {
+		t, err := time.Parse(time.RFC3339, *req.ExpiresAt)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid expiration time format"})
+			return
+		}
+		expiresAt = &t
+	}
+
+	apiKey, rawKey, err := h.authService.CreateAPIKey(c.Request.Context(), projectID, req.Name, req.Scopes, expiresAt)
+	if err != nil {
+		h.logger.Error("failed to create API key", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create API key"})
+		return
+	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"id":        keyID.String(),
+		"id":        apiKey.ID.String(),
 		"key":       rawKey, // Only shown once
-		"keyPrefix": rawKey[:8],
+		"keyPrefix": apiKey.KeyPrefix,
 		"message":   "Save this key securely. It will not be shown again.",
 	})
 }
 
 func (h *AuthHandler) RevokeAPIKey(c *gin.Context) {
+	keyIDStr := c.Param("keyId")
+	keyID, err := uuid.Parse(keyIDStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid key ID"})
+		return
+	}
+
+	if err := h.authService.RevokeAPIKey(c.Request.Context(), keyID); err != nil {
+		h.logger.Error("failed to revoke API key", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to revoke API key"})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{"message": "API key revoked"})
 }
 

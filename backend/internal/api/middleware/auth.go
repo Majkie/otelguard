@@ -144,7 +144,7 @@ func APIKeyAuth(salt string, validator APIKeyValidator) gin.HandlerFunc {
 		}
 
 		// Set claims in context
-		c.Set(string(ContextProjectID), claims.ProjectID.String())
+		c.Set(ContextProjectID, claims.ProjectID.String())
 		c.Set(string(ContextScopes), claims.Scopes)
 		c.Set(string(ContextAuthType), AuthTypeAPIKey)
 
@@ -177,7 +177,7 @@ func SetProjectContext() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		projectID := c.Query("projectId")
 		if projectID != "" {
-			c.Set(string(ContextProjectID), projectID)
+			c.Set(ContextProjectID, projectID)
 		}
 		c.Next()
 	}

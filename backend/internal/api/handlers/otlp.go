@@ -13,6 +13,7 @@ import (
 	"github.com/otelguard/otelguard/internal/api/middleware"
 	"github.com/otelguard/otelguard/internal/domain"
 	"github.com/otelguard/otelguard/internal/service"
+	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 )
 
@@ -147,7 +148,7 @@ const (
 // Supports both JSON and Protobuf (with Content-Type header)
 // POST /v1/traces (OTLP standard endpoint)
 func (h *OTLPHandler) IngestTraces(c *gin.Context) {
-	projectID := c.GetString(string(middleware.ContextProjectID))
+	projectID := c.GetString(middleware.ContextProjectID)
 	if projectID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "missing_project",
@@ -323,7 +324,7 @@ func (h *OTLPHandler) convertOTLPToTraces(projectID uuid.UUID, req *OTLPTraceReq
 						TotalTokens:      uint32(totalTokens),
 						PromptTokens:     uint32(promptTokens),
 						CompletionTokens: uint32(completionTokens),
-						Cost:             cost,
+						Cost:             decimal.NewFromFloat(cost),
 						Model:            model,
 						Status:           status,
 						ErrorMessage:     errorMsg,

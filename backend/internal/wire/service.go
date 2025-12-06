@@ -41,10 +41,11 @@ var ServiceSet = wire.NewSet(
 // ProvideAuthService creates a new AuthService.
 func ProvideAuthService(
 	userRepo *pgrepo.UserRepository,
+	apiKeyRepo *pgrepo.APIKeyRepository,
 	logger *zap.Logger,
 	cfg *config.Config,
 ) *service.AuthService {
-	return service.NewAuthService(userRepo, logger, cfg.Auth.BcryptCost)
+	return service.NewAuthService(userRepo, apiKeyRepo, logger, cfg.Auth.BcryptCost, cfg.Auth.APIKeySalt)
 }
 
 // ProvideOrgService creates a new OrgService.

@@ -28,7 +28,8 @@ func InitializeApplication(cfg *config.Config) (*wire.Application, error) {
 	pool := postgresDB.DB
 	healthHandler := wire.ProvideHealthHandler(pool, logger)
 	userRepository := wire.ProvideUserRepository(pool)
-	authService := wire.ProvideAuthService(userRepository, logger, cfg)
+	apiKeyRepository := wire.ProvideAPIKeyRepository(pool)
+	authService := wire.ProvideAuthService(userRepository, apiKeyRepository, logger, cfg)
 	organizationRepository := wire.ProvideOrganizationRepository(pool)
 	projectRepository := wire.ProvideProjectRepository(pool)
 	orgService := wire.ProvideOrgService(organizationRepository, projectRepository, userRepository, logger, cfg)

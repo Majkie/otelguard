@@ -4,19 +4,108 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Copy, Plus } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Copy, Plus, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useProjectContext } from '@/contexts/project-context';
+import { useAPIKeys, useCreateAPIKey, useRevokeAPIKey } from '@/api/api-keys';
 
 export function SettingsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [apiKeys] = useState<Array<{ id: string; name: string; prefix: string; createdAt: string }>>([]);
+  const { selectedProject } = useProjectContext();
+
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [createdKey, setCreatedKey] = useState<string | null>(null);
+  const [showKey, setShowKey] = useState(false);
+  const [keyToRevoke, setKeyToRevoke] = useState<{ id: string; name: string } | null>(null);
+
+  const { data: apiKeysData, isLoading } = useAPIKeys(selectedProject?.id || '');
+  const createAPIKey = useCreateAPIKey(selectedProject?.id || '');
+  const revokeAPIKey = useRevokeAPIKey(selectedProject?.id || '');
+
+  const apiKeys = apiKeysData?.data || [];
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({
       title: 'Copied to clipboard',
     });
+  };
+
+  const handleCreateKey = async () => {
+    if (!newKeyName.trim()) {
+      toast({
+        title: 'Error',
+        description: 'Please enter a name for the API key',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      const result = await createAPIKey.mutateAsync({
+        name: newKeyName,
+        scopes: ['trace:write', 'prompt:read', 'guardrail:evaluate'],
+      });
+
+      setCreatedKey(result.key);
+      setNewKeyName('');
+      toast({
+        title: 'API Key Created',
+        description: 'Save this key securely. It will not be shown again.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to create API key',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleCloseCreateDialog = () => {
+    setCreateDialogOpen(false);
+    setCreatedKey(null);
+    setNewKeyName('');
+    setShowKey(false);
+  };
+
+  const handleRevoke = async () => {
+    if (!keyToRevoke) return;
+
+    try {
+      await revokeAPIKey.mutateAsync(keyToRevoke.id);
+      toast({
+        title: 'API Key Revoked',
+        description: `API key "${keyToRevoke.name}" has been revoked`,
+      });
+      setKeyToRevoke(null);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to revoke API key',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -58,14 +147,18 @@ export function SettingsPage() {
                 Manage API keys for SDK authentication
               </CardDescription>
             </div>
-            <Button>
+            <Button onClick={() => setCreateDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Create API Key
             </Button>
           </div>
         </CardHeader>
         <CardContent>
-          {apiKeys.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>Loading API keys...</p>
+            </div>
+          ) : apiKeys.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <p>No API keys yet</p>
               <p className="text-sm mt-1">
@@ -79,21 +172,31 @@ export function SettingsPage() {
                   key={key.id}
                   className="flex items-center justify-between border rounded-lg p-4"
                 >
-                  <div>
+                  <div className="flex-1">
                     <p className="font-medium">{key.name}</p>
                     <p className="text-sm text-muted-foreground font-mono">
-                      {key.prefix}...
+                      {key.keyPrefix}...
                     </p>
+                    {key.lastUsedAt && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Last used: {new Date(key.lastUsedAt).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleCopy(key.prefix)}
+                      onClick={() => handleCopy(key.keyPrefix)}
+                      title="Copy prefix"
                     >
                       <Copy className="h-4 w-4" />
                     </Button>
-                    <Button variant="destructive" size="sm">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setKeyToRevoke({ id: key.id, name: key.name })}
+                    >
                       Revoke
                     </Button>
                   </div>
@@ -161,6 +264,124 @@ export function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Create API Key Dialog */}
+      <Dialog open={createDialogOpen} onOpenChange={handleCloseCreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {createdKey ? 'API Key Created' : 'Create API Key'}
+            </DialogTitle>
+            <DialogDescription>
+              {createdKey
+                ? 'Save this key securely. It will not be shown again.'
+                : 'Create a new API key to authenticate your SDK requests.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {createdKey ? (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Your API Key</Label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    readOnly
+                    type={showKey ? 'text' : 'password'}
+                    value={createdKey}
+                    className="font-mono text-sm"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowKey(!showKey)}
+                    title={showKey ? 'Hide key' : 'Show key'}
+                  >
+                    {showKey ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleCopy(createdKey)}
+                    title="Copy key"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  ⚠️ Make sure to copy your API key now. You won't be able to see it again!
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="key-name">Key Name</Label>
+                <Input
+                  id="key-name"
+                  placeholder="e.g., Production API Key"
+                  value={newKeyName}
+                  onChange={(e) => setNewKeyName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleCreateKey();
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            {createdKey ? (
+              <Button onClick={handleCloseCreateDialog}>Done</Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={handleCloseCreateDialog}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleCreateKey}
+                  disabled={createAPIKey.isPending}
+                >
+                  {createAPIKey.isPending ? 'Creating...' : 'Create Key'}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Revoke API Key Confirmation Dialog */}
+      <AlertDialog open={!!keyToRevoke} onOpenChange={() => setKeyToRevoke(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revoke API Key?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to revoke the API key "{keyToRevoke?.name}"?
+              This action cannot be undone and any applications using this key will
+              lose access immediately.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleRevoke}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {revokeAPIKey.isPending ? 'Revoking...' : 'Revoke Key'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

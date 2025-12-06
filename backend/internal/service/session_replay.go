@@ -7,6 +7,7 @@ import (
 
 	"github.com/otelguard/otelguard/internal/domain"
 	"github.com/otelguard/otelguard/internal/repository/clickhouse"
+	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 )
 
@@ -31,7 +32,7 @@ type ReplayStep struct {
 	SpanTree         *domain.SpanTree `json:"spanTree,omitempty"`
 	TimeSinceStart   time.Duration    `json:"timeSinceStart"`
 	DeltaFromPrev    time.Duration    `json:"deltaFromPrev"`
-	CumulativeCost   float64          `json:"cumulativeCost"`
+	CumulativeCost   string           `json:"cumulativeCost"` // string representation of decimal
 	CumulativeTokens uint32           `json:"cumulativeTokens"`
 }
 
@@ -41,7 +42,7 @@ type SessionReplay struct {
 	UserID        string        `json:"userId,omitempty"`
 	TotalSteps    int           `json:"totalSteps"`
 	TotalDuration time.Duration `json:"totalDuration"`
-	TotalCost     float64       `json:"totalCost"`
+	TotalCost     string        `json:"totalCost"` // string representation of decimal
 	TotalTokens   uint32        `json:"totalTokens"`
 	StartTime     time.Time     `json:"startTime"`
 	EndTime       time.Time     `json:"endTime"`
@@ -89,7 +90,7 @@ func (s *SessionReplayService) GetSessionReplay(ctx context.Context, sessionID s
 
 	// Build replay steps
 	var prevEndTime time.Time
-	var cumulativeCost float64
+	cumulativeCost := decimal.Zero
 	var cumulativeTokens uint32
 	modelSet := make(map[string]bool)
 
@@ -115,7 +116,7 @@ func (s *SessionReplayService) GetSessionReplay(ctx context.Context, sessionID s
 		}
 
 		timeSinceStart := trace.StartTime.Sub(replay.StartTime)
-		cumulativeCost += trace.Cost
+		cumulativeCost = cumulativeCost.Add(trace.Cost)
 		cumulativeTokens += trace.TotalTokens
 
 		// Track models
@@ -129,7 +130,7 @@ func (s *SessionReplayService) GetSessionReplay(ctx context.Context, sessionID s
 			SpanTree:         spanTree,
 			TimeSinceStart:   timeSinceStart,
 			DeltaFromPrev:    deltaFromPrev,
-			CumulativeCost:   cumulativeCost,
+			CumulativeCost:   cumulativeCost.String(),
 			CumulativeTokens: cumulativeTokens,
 		}
 
@@ -138,7 +139,7 @@ func (s *SessionReplayService) GetSessionReplay(ctx context.Context, sessionID s
 
 	// Calculate totals
 	replay.TotalDuration = replay.EndTime.Sub(replay.StartTime)
-	replay.TotalCost = cumulativeCost
+	replay.TotalCost = cumulativeCost.String()
 	replay.TotalTokens = cumulativeTokens
 
 	for model := range modelSet {
@@ -181,7 +182,7 @@ type TimelineEvent struct {
 	Status        string        `json:"status"`
 	Model         string        `json:"model,omitempty"`
 	Tokens        uint32        `json:"tokens"`
-	Cost          float64       `json:"cost"`
+	Cost          string        `json:"cost"` // string representation of decimal
 }
 
 // GetReplayTimeline returns the timeline visualization data
@@ -223,7 +224,7 @@ func (s *SessionReplayService) GetReplayTimeline(ctx context.Context, sessionID 
 			Status:        step.Trace.Status,
 			Model:         step.Trace.Model,
 			Tokens:        step.Trace.TotalTokens,
-			Cost:          step.Trace.Cost,
+			Cost:          step.Trace.Cost.String(),
 		}
 	}
 

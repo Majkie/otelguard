@@ -14,6 +14,7 @@ var RepositorySet = wire.NewSet(
 	ProvideUserRepository,
 	ProvideOrganizationRepository,
 	ProvideProjectRepository,
+	ProvideAPIKeyRepository,
 	ProvidePromptRepository,
 	ProvideGuardrailRepository,
 	ProvideAnnotationRepository,
@@ -46,6 +47,11 @@ func ProvideOrganizationRepository(db *pgxpool.Pool) *pgrepo.OrganizationReposit
 // ProvideProjectRepository creates a new ProjectRepository.
 func ProvideProjectRepository(db *pgxpool.Pool) *pgrepo.ProjectRepository {
 	return pgrepo.NewProjectRepository(db)
+}
+
+// ProvideAPIKeyRepository creates a new APIKeyRepository.
+func ProvideAPIKeyRepository(db *pgxpool.Pool) *pgrepo.APIKeyRepository {
+	return pgrepo.NewAPIKeyRepository(db)
 }
 
 // ProvidePromptRepository creates a new PromptRepository.

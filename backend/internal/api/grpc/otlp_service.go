@@ -3,18 +3,30 @@ package grpc
 import (
 	"context"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/otelguard/otelguard/internal/domain"
 	"github.com/otelguard/otelguard/internal/service"
+	"github.com/shopspring/decimal"
 	collectortrace "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	v1 "go.opentelemetry.io/proto/otlp/common/v1"
 	tracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
+
+type ChatMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
+}
 
 // OTLPTraceService implements the OTLP gRPC trace collector service
 type OTLPTraceService struct {
@@ -33,6 +45,10 @@ func NewOTLPTraceService(traceService *service.TraceService, logger *zap.Logger)
 
 // Export implements the OTLP TraceService Export RPC
 func (s *OTLPTraceService) Export(ctx context.Context, req *collectortrace.ExportTraceServiceRequest) (*collectortrace.ExportTraceServiceResponse, error) {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		s.logger.Info("incoming metadata", zap.Any("md", md))
+	}
+
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "request is nil")
 	}
@@ -117,8 +133,17 @@ func (s *OTLPTraceService) convertSpanToTrace(span *tracev1.Span, resourceAttrs 
 
 	// Extract LLM-specific attributes
 	model := getAttrString(attrs, "gen_ai.request.model", "llm.model", "model")
-	input := getAttrString(attrs, "gen_ai.prompt", "langfuse.input", "llm.input", "input")
-	output := getAttrString(attrs, "gen_ai.completion", "langfuse.output", "llm.output", "output")
+	input := getMessageList(attrs, "gen_ai.prompt", "langfuse.input", "llm.input", "input")
+	output := getMessageList(attrs, "gen_ai.completion", "langfuse.output", "llm.output", "output")
+
+	inputJSON, err := json.Marshal(map[string]any{"messages": input})
+	if err != nil {
+		inputJSON = []byte(`{"messages":[]}`)
+	}
+	outputJSON, err := json.Marshal(map[string]any{"messages": output})
+	if err != nil {
+		outputJSON = []byte(`{"messages":[]}`)
+	}
 
 	// Extract token counts
 	promptTokens := getAttrInt(attrs, "gen_ai.usage.prompt_tokens", "llm.prompt_tokens", "prompt_tokens")
@@ -160,8 +185,8 @@ func (s *OTLPTraceService) convertSpanToTrace(span *tracev1.Span, resourceAttrs 
 		ID:               id,
 		ProjectID:        projectUUID,
 		Name:             span.GetName(),
-		Input:            truncateString(input, 500000),
-		Output:           truncateString(output, 500000),
+		Input:            truncateString(string(inputJSON), 500000),
+		Output:           truncateString(string(outputJSON), 500000),
 		Metadata:         metadata,
 		StartTime:        startTime,
 		EndTime:          endTime,
@@ -169,7 +194,7 @@ func (s *OTLPTraceService) convertSpanToTrace(span *tracev1.Span, resourceAttrs 
 		TotalTokens:      uint32(totalTokens),
 		PromptTokens:     uint32(promptTokens),
 		CompletionTokens: uint32(completionTokens),
-		Cost:             cost,
+		Cost:             decimal.NewFromFloat(cost),
 		Model:            model,
 		Tags:             tags,
 		Status:           traceStatus,
@@ -200,15 +225,22 @@ func extractAttributes(attrs []*v1.KeyValue) map[string]string {
 		case *v1.AnyValue_StringValue:
 			result[key] = v.StringValue
 		case *v1.AnyValue_IntValue:
-			result[key] = string(rune(v.IntValue))
+			result[key] = strconv.FormatInt(v.IntValue, 10)
 		case *v1.AnyValue_DoubleValue:
-			result[key] = string(rune(int(v.DoubleValue)))
+			// use 'g' to avoid trailing zeros, or 'f' with precision if needed
+			result[key] = strconv.FormatFloat(v.DoubleValue, 'g', -1, 64)
 		case *v1.AnyValue_BoolValue:
 			if v.BoolValue {
 				result[key] = "true"
 			} else {
 				result[key] = "false"
 			}
+		case *v1.AnyValue_BytesValue:
+			// encode bytes as hex/base64 if you want; here use hex:
+			result[key] = fmt.Sprintf("%x", v.BytesValue)
+		default:
+			// fallback: try to stringify
+			result[key] = fmt.Sprintf("%v", v)
 		}
 	}
 	return result
@@ -267,13 +299,13 @@ func parseIntFromString(s string, result *int) (bool, error) {
 // parseFloatFromString parses a float from a string
 func parseFloatFromString(s string, result *float64) (bool, error) {
 	var f float64
-	var decimal bool
-	var decimalPlace float64 = 0.1
+	var isDecimal bool
+	var decimalPlace = 0.1
 	for _, c := range s {
 		if c == '.' {
-			decimal = true
+			isDecimal = true
 		} else if c >= '0' && c <= '9' {
-			if decimal {
+			if isDecimal {
 				f += float64(c-'0') * decimalPlace
 				decimalPlace *= 0.1
 			} else {
@@ -287,46 +319,110 @@ func parseFloatFromString(s string, result *float64) (bool, error) {
 	return true, nil
 }
 
+func getMessageList(attrs map[string]string, prefixes ...string) []ChatMessage {
+	type partial struct {
+		Role    string
+		Content string
+	}
+
+	messages := map[int]*partial{}
+
+	// 1) Structured keys e.g. gen_ai.prompt.0.content
+	for _, p := range prefixes {
+		prefix := p + "."
+		for key, val := range attrs {
+			if !strings.HasPrefix(key, prefix) {
+				continue
+			}
+
+			rest := strings.TrimPrefix(key, prefix)
+			parts := strings.Split(rest, ".")
+
+			// Accept formats like:
+			//   0.content           -> parts == ["0","content"]
+			//   0.content.value     -> parts == ["0","content","value"]  (we take first and last)
+			if len(parts) < 2 {
+				continue
+			}
+
+			// parse index (first element)
+			idx, err := strconv.Atoi(parts[0])
+			if err != nil {
+				continue
+			}
+
+			// field is the last element (handles both 2 and 3+ parts)
+			field := parts[len(parts)-1]
+
+			if _, ok := messages[idx]; !ok {
+				messages[idx] = &partial{}
+			}
+
+			switch field {
+			case "content":
+				messages[idx].Content = val
+			case "role":
+				messages[idx].Role = val
+			default:
+				// ignore other fields (finish_reason, name, etc.) for now
+			}
+		}
+	}
+
+	// If structured messages found, build ordered slice
+	if len(messages) > 0 {
+		keys := make([]int, 0, len(messages))
+		for k := range messages {
+			keys = append(keys, k)
+		}
+		sort.Ints(keys)
+
+		out := make([]ChatMessage, 0, len(keys))
+		for _, i := range keys {
+			m := messages[i]
+			if m == nil || m.Content == "" {
+				// skip empty content entries
+				continue
+			}
+			role := m.Role
+			if role == "" {
+				role = "user"
+			}
+			out = append(out, ChatMessage{
+				Role:    role,
+				Content: m.Content,
+			})
+		}
+		// ensure we return a non-nil slice (could be empty)
+		if out == nil {
+			return []ChatMessage{}
+		}
+		return out
+	}
+
+	// 2) Fallback single-string attributes: e.g. "gen_ai.prompt" or "llm.input"
+	for _, p := range prefixes {
+		if v, ok := attrs[p]; ok && v != "" {
+			return []ChatMessage{{Role: "user", Content: v}}
+		}
+	}
+
+	// nothing found — return empty slice (not nil) so JSON becomes [] not null
+	return []ChatMessage{}
+}
+
 // buildMetadataJSON builds a JSON string from attributes
 func buildMetadataJSON(attrs map[string]string, spanID string) string {
-	// Simple JSON builder without external dependency
-	result := `{"span_id":"` + spanID + `"`
+	m := map[string]string{"span_id": spanID}
 	for k, v := range attrs {
-		// Skip large or processed attributes
 		if k == "gen_ai.prompt" || k == "gen_ai.completion" ||
 			k == "langfuse.input" || k == "langfuse.output" {
 			continue
 		}
-		result += `,"` + k + `":"` + escapeJSON(v) + `"`
+		m[k] = v
 	}
-	result += "}"
-	return result
-}
-
-// escapeJSON escapes a string for JSON
-func escapeJSON(s string) string {
-	var result []byte
-	for _, c := range s {
-		switch c {
-		case '"':
-			result = append(result, '\\', '"')
-		case '\\':
-			result = append(result, '\\', '\\')
-		case '\n':
-			result = append(result, '\\', 'n')
-		case '\r':
-			result = append(result, '\\', 'r')
-		case '\t':
-			result = append(result, '\\', 't')
-		default:
-			if c < 0x20 {
-				result = append(result, ' ')
-			} else {
-				result = append(result, byte(c))
-			}
-		}
-	}
-	return string(result)
+	b, _ := json.Marshal(m)
+	return string(b)
 }
 
 // extractTags extracts tags from attributes

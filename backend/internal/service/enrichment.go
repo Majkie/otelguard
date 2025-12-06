@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/otelguard/otelguard/internal/domain"
+	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 )
 
@@ -68,7 +69,7 @@ func (p *TraceEnrichmentPipeline) EnrichTrace(ctx context.Context, trace *domain
 	}
 
 	// Cost calculation
-	if p.config.EnableCostCalculation && trace.Cost == 0 && trace.TotalTokens > 0 {
+	if p.config.EnableCostCalculation && trace.Cost.IsZero() && trace.TotalTokens > 0 {
 		trace.Cost = calculateCost(trace.Model, trace.PromptTokens, trace.CompletionTokens)
 	}
 
@@ -121,7 +122,9 @@ func (p *TraceEnrichmentPipeline) EnrichSpan(ctx context.Context, span *domain.S
 	// Cost calculation
 	if p.config.EnableCostCalculation && span.Cost == 0 && span.Tokens > 0 && span.Model != nil {
 		// Assume roughly 50/50 split for prompt/completion if not known
-		span.Cost = calculateCost(*span.Model, span.Tokens/2, span.Tokens/2)
+		cost := calculateCost(*span.Model, span.Tokens/2, span.Tokens/2)
+		costFloat, _ := cost.Float64()
+		span.Cost = costFloat
 	}
 
 	// Set default status if not provided
@@ -190,16 +193,16 @@ var modelPricing = map[string][2]float64{
 }
 
 // calculateCost calculates the cost based on model and tokens
-func calculateCost(model string, promptTokens, completionTokens uint32) float64 {
+func calculateCost(model string, promptTokens, completionTokens uint32) decimal.Decimal {
 	pricing, ok := modelPricing[normalizeModelName(model)]
 	if !ok {
-		return 0
+		return decimal.Zero
 	}
 
-	inputCost := float64(promptTokens) / 1000 * pricing[0]
-	outputCost := float64(completionTokens) / 1000 * pricing[1]
+	inputCost := decimal.NewFromInt(int64(promptTokens)).Div(decimal.NewFromInt(1000)).Mul(decimal.NewFromFloat(pricing[0]))
+	outputCost := decimal.NewFromInt(int64(completionTokens)).Div(decimal.NewFromInt(1000)).Mul(decimal.NewFromFloat(pricing[1]))
 
-	return inputCost + outputCost
+	return inputCost.Add(outputCost)
 }
 
 // hasPII checks if text contains potential PII

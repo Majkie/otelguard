@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/otelguard/otelguard/internal/domain"
+	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 )
 
@@ -220,9 +221,12 @@ func (s *TraceSampler) samplePriority(trace *domain.Trace) bool {
 	}
 
 	// Higher cost increases priority
-	if trace.Cost > 0.01 {
+	costThreshold01 := decimal.NewFromFloat(0.01)
+	costThreshold001 := decimal.NewFromFloat(0.001)
+
+	if trace.Cost.GreaterThan(costThreshold01) {
 		priority += 0.3
-	} else if trace.Cost > 0.001 {
+	} else if trace.Cost.GreaterThan(costThreshold001) {
 		priority += 0.1
 	}
 

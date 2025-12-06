@@ -4,29 +4,30 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 // Trace represents a complete trace/request in the system
 type Trace struct {
-	ID               uuid.UUID `ch:"id" json:"id"`
-	ProjectID        uuid.UUID `ch:"project_id" json:"projectId"`
-	SessionID        *string   `ch:"session_id" json:"sessionId,omitempty"`
-	UserID           *string   `ch:"user_id" json:"userId,omitempty"`
-	Name             string    `ch:"name" json:"name"`
-	Input            string    `ch:"input" json:"input"`
-	Output           string    `ch:"output" json:"output"`
-	Metadata         string    `ch:"metadata" json:"metadata,omitempty"`
-	StartTime        time.Time `ch:"start_time" json:"startTime"`
-	EndTime          time.Time `ch:"end_time" json:"endTime"`
-	LatencyMs        uint32    `ch:"latency_ms" json:"latencyMs"`
-	TotalTokens      uint32    `ch:"total_tokens" json:"totalTokens"`
-	PromptTokens     uint32    `ch:"prompt_tokens" json:"promptTokens"`
-	CompletionTokens uint32    `ch:"completion_tokens" json:"completionTokens"`
-	Cost             float64   `ch:"cost" json:"cost"`
-	Model            string    `ch:"model" json:"model"`
-	Tags             []string  `ch:"tags" json:"tags,omitempty"`
-	Status           string    `ch:"status" json:"status"`
-	ErrorMessage     *string   `ch:"error_message" json:"errorMessage,omitempty"`
+	ID               uuid.UUID       `ch:"id" json:"id"`
+	ProjectID        uuid.UUID       `ch:"project_id" json:"projectId"`
+	SessionID        *string         `ch:"session_id" json:"sessionId,omitempty"`
+	UserID           *string         `ch:"user_id" json:"userId,omitempty"`
+	Name             string          `ch:"name" json:"name"`
+	Input            string          `ch:"input" json:"input"`
+	Output           string          `ch:"output" json:"output"`
+	Metadata         string          `ch:"metadata" json:"metadata,omitempty"`
+	StartTime        time.Time       `ch:"start_time" json:"startTime"`
+	EndTime          time.Time       `ch:"end_time" json:"endTime"`
+	LatencyMs        uint32          `ch:"latency_ms" json:"latencyMs"`
+	TotalTokens      uint32          `ch:"total_tokens" json:"totalTokens"`
+	PromptTokens     uint32          `ch:"prompt_tokens" json:"promptTokens"`
+	CompletionTokens uint32          `ch:"completion_tokens" json:"completionTokens"`
+	Cost             decimal.Decimal `ch:"cost" json:"cost"`
+	Model            string          `ch:"model" json:"model"`
+	Tags             []string        `ch:"tags" json:"tags,omitempty"`
+	Status           string          `ch:"status" json:"status"`
+	ErrorMessage     *string         `ch:"error_message" json:"errorMessage,omitempty"`
 	// Prompt linking fields
 	PromptID      *uuid.UUID `ch:"prompt_id" json:"promptId,omitempty"`
 	PromptVersion *int       `ch:"prompt_version" json:"promptVersion,omitempty"`

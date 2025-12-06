@@ -71,6 +71,7 @@ services:
       API_KEY_SALT: dev-salt-change-in-production
     ports:
       - "8080:8080"
+      - "4317:4317"
     volumes:
       - ./backend:/app
       - go_mod_cache:/go/pkg/mod

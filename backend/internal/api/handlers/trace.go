@@ -13,6 +13,7 @@ import (
 	"github.com/otelguard/otelguard/internal/repository/clickhouse"
 	"github.com/otelguard/otelguard/internal/service"
 	"github.com/otelguard/otelguard/pkg/validator"
+	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 )
 
@@ -84,6 +85,74 @@ type IngestTraceResponse struct {
 	Timestamp string `json:"timestamp"`
 }
 
+// TraceResponse represents a trace in API responses
+type TraceResponse struct {
+	ID               string    `json:"id"`
+	ProjectID        string    `json:"projectId"`
+	SessionID        *string   `json:"sessionId,omitempty"`
+	UserID           *string   `json:"userId,omitempty"`
+	Name             string    `json:"name"`
+	Input            string    `json:"input"`
+	Output           string    `json:"output"`
+	Metadata         string    `json:"metadata,omitempty"`
+	StartTime        time.Time `json:"startTime"`
+	EndTime          time.Time `json:"endTime"`
+	LatencyMs        uint32    `json:"latencyMs"`
+	TotalTokens      uint32    `json:"totalTokens"`
+	PromptTokens     uint32    `json:"promptTokens"`
+	CompletionTokens uint32    `json:"completionTokens"`
+	Cost             float64   `json:"cost"`
+	Model            string    `json:"model"`
+	Tags             []string  `json:"tags,omitempty"`
+	Status           string    `json:"status"`
+	ErrorMessage     *string   `json:"errorMessage,omitempty"`
+	PromptID         *string   `json:"promptId,omitempty"`
+	PromptVersion    *int      `json:"promptVersion,omitempty"`
+}
+
+// toTraceResponse converts a domain.Trace to TraceResponse
+func toTraceResponse(trace *domain.Trace) *TraceResponse {
+	cost, _ := trace.Cost.Float64()
+	resp := &TraceResponse{
+		ID:               trace.ID.String(),
+		ProjectID:        trace.ProjectID.String(),
+		SessionID:        trace.SessionID,
+		UserID:           trace.UserID,
+		Name:             trace.Name,
+		Input:            trace.Input,
+		Output:           trace.Output,
+		Metadata:         trace.Metadata,
+		StartTime:        trace.StartTime,
+		EndTime:          trace.EndTime,
+		LatencyMs:        trace.LatencyMs,
+		TotalTokens:      trace.TotalTokens,
+		PromptTokens:     trace.PromptTokens,
+		CompletionTokens: trace.CompletionTokens,
+		Cost:             cost,
+		Model:            trace.Model,
+		Tags:             trace.Tags,
+		Status:           trace.Status,
+		ErrorMessage:     trace.ErrorMessage,
+	}
+	if trace.PromptID != nil {
+		promptID := trace.PromptID.String()
+		resp.PromptID = &promptID
+	}
+	if trace.PromptVersion != nil {
+		resp.PromptVersion = trace.PromptVersion
+	}
+	return resp
+}
+
+// toTraceResponses converts a slice of domain.Trace to TraceResponse
+func toTraceResponses(traces []*domain.Trace) []*TraceResponse {
+	responses := make([]*TraceResponse, len(traces))
+	for i, trace := range traces {
+		responses[i] = toTraceResponse(trace)
+	}
+	return responses
+}
+
 // IngestTrace handles single trace ingestion
 func (h *TraceHandler) IngestTrace(c *gin.Context) {
 	var req IngestTraceRequest
@@ -104,7 +173,7 @@ func (h *TraceHandler) IngestTrace(c *gin.Context) {
 		return
 	}
 
-	projectID := c.GetString(string(middleware.ContextProjectID))
+	projectID := c.GetString(middleware.ContextProjectID)
 	if projectID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":   "missing_project",
@@ -152,7 +221,7 @@ func (h *TraceHandler) IngestTrace(c *gin.Context) {
 		TotalTokens:      req.TotalTokens,
 		PromptTokens:     req.PromptTokens,
 		CompletionTokens: req.CompletionTokens,
-		Cost:             req.Cost,
+		Cost:             decimal.NewFromFloat(req.Cost),
 		Model:            req.Model,
 		Tags:             req.Tags,
 		Status:           req.Status,
@@ -209,7 +278,7 @@ func (h *TraceHandler) IngestBatch(c *gin.Context) {
 		return
 	}
 
-	projectID := c.GetString(string(middleware.ContextProjectID))
+	projectID := c.GetString(middleware.ContextProjectID)
 	projectUUID, _ := uuid.Parse(projectID)
 
 	traces := make([]*domain.Trace, 0, len(req.Traces))
@@ -236,7 +305,7 @@ func (h *TraceHandler) IngestBatch(c *gin.Context) {
 			TotalTokens:      r.TotalTokens,
 			PromptTokens:     r.PromptTokens,
 			CompletionTokens: r.CompletionTokens,
-			Cost:             r.Cost,
+			Cost:             decimal.NewFromFloat(r.Cost),
 			Model:            r.Model,
 			Tags:             r.Tags,
 			Status:           domain.StatusSuccess,
@@ -911,7 +980,7 @@ func (h *TraceHandler) ListTraces(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"data":   traces,
+		"data":   toTraceResponses(traces),
 		"total":  total,
 		"limit":  limit,
 		"offset": offset,
@@ -950,7 +1019,7 @@ func (h *TraceHandler) GetTrace(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, trace)
+	c.JSON(http.StatusOK, toTraceResponse(trace))
 }
 
 // GetSpans returns spans for a trace
