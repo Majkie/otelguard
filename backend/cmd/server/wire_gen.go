@@ -21,7 +21,7 @@ func InitializeApplication(cfg *config.Config) (*wire.Application, error) {
 	if err != nil {
 		return nil, err
 	}
-	clickHouseDB, err := wire.ProvideClickHouseConn(cfg)
+	clickHouseDB, err := wire.ProvideClickHouseConn(cfg, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,9 @@ func InitializeApplication(cfg *config.Config) (*wire.Application, error) {
 	samplerConfig := wire.ProvideSamplerConfig(cfg)
 	traceService := wire.ProvideTraceService(traceRepository, batchWriterResult, samplerConfig, cfg, logger)
 	traceHandler := wire.ProvideTraceHandler(traceService, logger)
-	otlpHandler := wire.ProvideOTLPHandler(traceService, logger)
+	agentRepository := wire.ProvideAgentRepository(conn)
+	agentService := wire.ProvideAgentService(agentRepository, traceRepository, logger)
+	otlpHandler := wire.ProvideOTLPHandler(traceService, agentService, logger)
 	promptRepository := wire.ProvidePromptRepository(pool)
 	promptService := wire.ProvidePromptService(promptRepository, logger)
 	promptHandler := wire.ProvidePromptHandler(promptService, traceService, logger)
@@ -65,8 +67,6 @@ func InitializeApplication(cfg *config.Config) (*wire.Application, error) {
 	pricingService := wire.ProvidePricingService()
 	llmServiceImpl := wire.ProvideLLMService(logger, tokenizerService, pricingService)
 	llmHandler := wire.ProvideLLMHandler(llmServiceImpl, tokenizerService, pricingService, logger)
-	agentRepository := wire.ProvideAgentRepository(conn)
-	agentService := wire.ProvideAgentService(agentRepository, traceRepository, logger)
 	agentHandler := wire.ProvideAgentHandler(agentService, logger)
 	evaluatorRepository := wire.ProvideEvaluatorRepository(pool)
 	evaluationJobRepository := wire.ProvideEvaluationJobRepository(pool)
@@ -88,7 +88,7 @@ func InitializeApplication(cfg *config.Config) (*wire.Application, error) {
 	dashboardHandler := wire.ProvideDashboardHandler(dashboardService, logger)
 	handlers := wire.ProvideHandlers(healthHandler, authHandler, orgHandler, traceHandler, otlpHandler, promptHandler, guardrailHandler, guardrailAnalyticsHandler, annotationHandler, feedbackHandler, llmHandler, agentHandler, evaluatorHandler, datasetHandler, experimentHandler, scoreAnalyticsHandler, metricsHandler, dashboardHandler)
 	engine := wire.ProvideRouter(handlers, cfg, logger)
-	grpcComponents := wire.ProvideGRPCComponents(traceService, cfg, logger)
+	grpcComponents := wire.ProvideGRPCComponents(traceService, agentService, cfg, logger)
 	application := wire.ProvideApplication(cfg, logger, postgresDB, clickHouseDB, engine, handlers, traceService, evaluatorService, experimentService, batchWriterResult, grpcComponents)
 	return application, nil
 }

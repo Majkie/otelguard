@@ -59,7 +59,7 @@ func (c PostgresConfig) MigrationDSN() string {
 type ClickHouseConfig struct {
 	Host        string        `envconfig:"CLICKHOUSE_HOST" default:"localhost"`
 	Port        int           `envconfig:"CLICKHOUSE_PORT" default:"9000"`
-	Database    string        `envconfig:"CLICKHOUSE_DB" default:"default"`
+	Database    string        `envconfig:"CLICKHOUSE_DB" default:"otelguard"`
 	User        string        `envconfig:"CLICKHOUSE_USER" default:"default"`
 	Password    string        `envconfig:"CLICKHOUSE_PASSWORD" default:""`
 	DialTimeout time.Duration `envconfig:"CLICKHOUSE_DIAL_TIMEOUT" default:"5s"`
@@ -72,6 +72,15 @@ type ClickHouseConfig struct {
 	MaxRetries    int           `envconfig:"CLICKHOUSE_MAX_RETRIES" default:"3"`
 	RetryDelay    time.Duration `envconfig:"CLICKHOUSE_RETRY_DELAY" default:"1s"`
 	AsyncWrite    bool          `envconfig:"CLICKHOUSE_ASYNC_WRITE" default:"true"`
+}
+
+// MigrationDSN returns the ClickHouse connection URL for golang-migrate
+func (c ClickHouseConfig) MigrationDSN() string {
+	// golang-migrate clickhouse driver format: clickhouse://host:port/database?query_params
+	return fmt.Sprintf(
+		"clickhouse://%s:%d/%s?username=%s&password=%s&x-multi-statement=true",
+		c.Host, c.Port, c.Database, c.User, c.Password,
+	)
 }
 
 // AuthConfig holds authentication configuration

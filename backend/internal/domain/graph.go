@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 // AgentGraph represents a directed graph of agent interactions
@@ -21,23 +22,23 @@ type AgentGraph struct {
 
 // GraphNode represents a node in the agent graph
 type GraphNode struct {
-	ID            uuid.UUID     `json:"id"`
-	Type          NodeType      `json:"type"`
-	Label         string        `json:"label"`
-	AgentID       *uuid.UUID    `json:"agentId,omitempty"`
-	SpanID        *uuid.UUID    `json:"spanId,omitempty"`
-	ToolCallID    *uuid.UUID    `json:"toolCallId,omitempty"`
-	StartTime     time.Time     `json:"startTime"`
-	EndTime       time.Time     `json:"endTime"`
-	LatencyMs     uint32        `json:"latencyMs"`
-	Status        string        `json:"status"`
-	Tokens        uint32        `json:"tokens,omitempty"`
-	Cost          float64       `json:"cost,omitempty"`
-	Model         *string       `json:"model,omitempty"`
-	Depth         int           `json:"depth"`         // Depth in the graph
-	ParallelGroup int           `json:"parallelGroup"` // Group of parallel nodes
-	Metadata      string        `json:"metadata,omitempty"`
-	Position      *NodePosition `json:"position,omitempty"` // For visualization
+	ID            uuid.UUID       `json:"id"`
+	Type          NodeType        `json:"type"`
+	Label         string          `json:"label"`
+	AgentID       *uuid.UUID      `json:"agentId,omitempty"`
+	SpanID        *uuid.UUID      `json:"spanId,omitempty"`
+	ToolCallID    *uuid.UUID      `json:"toolCallId,omitempty"`
+	StartTime     time.Time       `json:"startTime"`
+	EndTime       time.Time       `json:"endTime"`
+	LatencyMs     uint32          `json:"latencyMs"`
+	Status        string          `json:"status"`
+	Tokens        uint32          `json:"tokens,omitempty"`
+	Cost          decimal.Decimal `json:"cost,omitempty"`
+	Model         *string         `json:"model,omitempty"`
+	Depth         int             `json:"depth"`         // Depth in the graph
+	ParallelGroup int             `json:"parallelGroup"` // Group of parallel nodes
+	Metadata      string          `json:"metadata,omitempty"`
+	Position      *NodePosition   `json:"position,omitempty"` // For visualization
 }
 
 // NodePosition represents the visual position of a node
@@ -902,14 +903,14 @@ func (g *AgentGraph) aggregateNodes(maxNodes int) *AgentGraph {
 			// Aggregate metrics
 			var totalLatency uint32
 			var totalTokens uint32
-			var totalCost float64
+			var totalCost decimal.Decimal
 			minStart := group.nodes[0].StartTime
 			maxEnd := group.nodes[0].EndTime
 
 			for _, n := range group.nodes {
 				totalLatency += n.LatencyMs
 				totalTokens += n.Tokens
-				totalCost += n.Cost
+				totalCost.Add(n.Cost)
 				if n.StartTime.Before(minStart) {
 					minStart = n.StartTime
 				}
@@ -1017,7 +1018,7 @@ func (g *AgentGraph) ToJSON() map[string]interface{} {
 		if node.Tokens > 0 {
 			nodes[i]["tokens"] = node.Tokens
 		}
-		if node.Cost > 0 {
+		if node.Cost.GreaterThan(decimal.Zero) {
 			nodes[i]["cost"] = node.Cost
 		}
 		if node.Position != nil {

@@ -5,30 +5,32 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 // Agent represents an identified agent within a multi-agent system
 type Agent struct {
-	ID           uuid.UUID  `ch:"id" json:"id"`
-	ProjectID    uuid.UUID  `ch:"project_id" json:"projectId"`
-	TraceID      uuid.UUID  `ch:"trace_id" json:"traceId"`
-	SpanID       uuid.UUID  `ch:"span_id" json:"spanId"`                          // The span that represents this agent's execution
-	ParentAgent  *uuid.UUID `ch:"parent_agent_id" json:"parentAgentId,omitempty"` // Parent agent if delegated
-	Name         string     `ch:"name" json:"name"`
-	Type         string     `ch:"agent_type" json:"agentType"` // orchestrator, worker, tool_caller, planner, executor, custom
-	Role         string     `ch:"role" json:"role"`            // Human-readable role description
-	Model        *string    `ch:"model" json:"model,omitempty"`
-	SystemPrompt *string    `ch:"system_prompt" json:"systemPrompt,omitempty"`
-	StartTime    time.Time  `ch:"start_time" json:"startTime"`
-	EndTime      time.Time  `ch:"end_time" json:"endTime"`
-	LatencyMs    uint32     `ch:"latency_ms" json:"latencyMs"`
-	TotalTokens  uint32     `ch:"total_tokens" json:"totalTokens"`
-	Cost         float64    `ch:"cost" json:"cost"`
-	Status       string     `ch:"status" json:"status"` // running, success, error, timeout
-	ErrorMessage *string    `ch:"error_message" json:"errorMessage,omitempty"`
-	Metadata     string     `ch:"metadata" json:"metadata,omitempty"` // JSON metadata
-	Tags         []string   `ch:"tags" json:"tags,omitempty"`
-	CreatedAt    time.Time  `ch:"created_at" json:"createdAt"`
+	ID           uuid.UUID       `ch:"id" json:"id"`
+	ProjectID    uuid.UUID       `ch:"project_id" json:"projectId"`
+	TraceID      uuid.UUID       `ch:"trace_id" json:"traceId"`
+	SpanID       uuid.UUID       `ch:"span_id" json:"spanId"`                          // The span that represents this agent's execution
+	ParentSpanID *uuid.UUID      `ch:"parent_span_id" json:"parentSpanId,omitempty"`   // The parent span UUID (if any)
+	ParentAgent  *uuid.UUID      `ch:"parent_agent_id" json:"parentAgentId,omitempty"` // Parent agent if delegated
+	Name         string          `ch:"name" json:"name"`
+	Type         string          `ch:"agent_type" json:"agentType"` // orchestrator, worker, tool_caller, planner, executor, custom
+	Role         string          `ch:"role" json:"role"`            // Human-readable role description
+	Model        *string         `ch:"model" json:"model,omitempty"`
+	SystemPrompt *string         `ch:"system_prompt" json:"systemPrompt,omitempty"`
+	StartTime    time.Time       `ch:"start_time" json:"startTime"`
+	EndTime      time.Time       `ch:"end_time" json:"endTime"`
+	LatencyMs    uint32          `ch:"latency_ms" json:"latencyMs"`
+	TotalTokens  uint32          `ch:"total_tokens" json:"totalTokens"`
+	Cost         decimal.Decimal `ch:"cost" json:"cost"`
+	Status       string          `ch:"status" json:"status"` // running, success, error, timeout
+	ErrorMessage *string         `ch:"error_message" json:"errorMessage,omitempty"`
+	Metadata     string          `ch:"metadata" json:"metadata,omitempty"` // JSON metadata
+	Tags         []string        `ch:"tags" json:"tags,omitempty"`
+	CreatedAt    time.Time       `ch:"created_at" json:"createdAt"`
 }
 
 // AgentType constants
@@ -293,8 +295,11 @@ func DetectAgentHierarchyFromSpans(spans []*Span) []*Agent {
 	// First pass: identify all agent spans
 	for _, span := range spans {
 		if span.Type == SpanTypeAgent {
+			// Deterministic ID generation from SpanID
+			agentID := uuid.NewSHA1(uuid.NameSpaceOID, span.ID[:])
+
 			agent := &Agent{
-				ID:           uuid.New(),
+				ID:           agentID,
 				ProjectID:    span.ProjectID,
 				TraceID:      span.TraceID,
 				SpanID:       span.ID,
@@ -421,8 +426,11 @@ func ExtractToolCallsFromSpans(spans []*Span, agentMap map[uuid.UUID]*Agent) []*
 
 	for _, span := range spans {
 		if span.Type == SpanTypeTool {
+			// Deterministic ID generation from SpanID
+			toolCallID := uuid.NewSHA1(uuid.NameSpaceOID, span.ID[:])
+
 			toolCall := &ToolCall{
-				ID:           uuid.New(),
+				ID:           toolCallID,
 				ProjectID:    span.ProjectID,
 				TraceID:      span.TraceID,
 				SpanID:       span.ID,

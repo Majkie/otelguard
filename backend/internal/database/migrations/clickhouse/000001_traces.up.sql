@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS traces (
     ENGINE = MergeTree()
     PARTITION BY toYYYYMM(start_time)
     ORDER BY (project_id, start_time, id)
-    TTL toDateTime(start_time) + INTERVAL 90 DAY DELETE
+    TTL toDate(start_time) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- ============================================
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS spans (
                                      parent_span_id Nullable(UUID),
     project_id UUID,
     name String,
-    span_type String,  -- renamed from `type` to avoid any ambiguity; values: 'llm','retrieval','tool','agent','embedding','custom'
+    span_type String,
     input String,
     output String,
     metadata String DEFAULT '{}',
@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS spans (
     ENGINE = MergeTree()
     PARTITION BY toYYYYMM(start_time)
     ORDER BY (project_id, trace_id, start_time, id)
-    TTL toDateTime(start_time) + INTERVAL 90 DAY DELETE
+    TTL toDate(start_time) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- ============================================
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS scores (
     ENGINE = MergeTree()
     PARTITION BY toYYYYMM(created_at)
     ORDER BY (project_id, trace_id, created_at, id)
-    TTL toDateTime(created_at) + INTERVAL 90 DAY DELETE
+    TTL toDate(created_at) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- ============================================
@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS guardrail_events (
     policy_id UUID,
     rule_id UUID,
     rule_type String,
-    triggered UInt8 DEFAULT 0, -- use UInt8 instead of Bool for better index behavior; 0/1 values
+    triggered UInt8 DEFAULT 0, -- use UInt8 instead of Bool for better index behavior 0/1 values
     action String,
     action_taken UInt8 DEFAULT 0,
     input_text String,
@@ -116,12 +116,12 @@ CREATE TABLE IF NOT EXISTS guardrail_events (
 
     INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 4,
     INDEX idx_policy_id policy_id TYPE bloom_filter(0.01) GRANULARITY 4,
-    INDEX idx_triggered triggered TYPE minmax() GRANULARITY 4
+    INDEX idx_triggered triggered TYPE minmax GRANULARITY 4
     )
     ENGINE = MergeTree()
     PARTITION BY toYYYYMM(created_at)
     ORDER BY (project_id, created_at, id)
-    TTL toDateTime(created_at) + INTERVAL 90 DAY DELETE
+    TTL toDate(created_at) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- ============================================
@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS metrics (
     ENGINE = MergeTree()
     PARTITION BY toYYYYMM(created_at)
     ORDER BY (project_id, name, created_at, id)
-    TTL toDateTime(created_at) + INTERVAL 90 DAY DELETE
+    TTL toDate(created_at) + INTERVAL 90 DAY
 SETTINGS index_granularity = 8192;
 
 -- ============================================
@@ -192,7 +192,7 @@ GROUP BY project_id, hour, model;
 CREATE MATERIALIZED VIEW IF NOT EXISTS session_stats
 ENGINE = SummingMergeTree()
 PARTITION BY toYYYYMM(first_seen)
-ORDER BY (project_id, assumeNotNull(session_id))
+ORDER BY (project_id, ifNull(session_id, ''))
 AS
 SELECT
     project_id,
@@ -210,7 +210,7 @@ GROUP BY project_id, session_id;
 CREATE MATERIALIZED VIEW IF NOT EXISTS user_stats
 ENGINE = SummingMergeTree()
 PARTITION BY toYYYYMM(first_seen)
-ORDER BY (project_id, assumeNotNull(user_id))
+ORDER BY (project_id, ifNull(user_id, ''))
 AS
 SELECT
     project_id,

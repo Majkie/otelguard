@@ -22,6 +22,8 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:24-alpine
     container_name: otelguard-clickhouse
+    restart: always
+    user: "101:101"
     environment:
       CLICKHOUSE_DB: otelguard
       CLICKHOUSE_USER: default
@@ -44,10 +46,11 @@ services:
     security_opt:
       - seccomp:unconfined
     healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
-      interval: 10s
+      test: wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 1s
     networks:
       - otelguard
 
@@ -66,7 +69,7 @@ services:
       POSTGRES_DB: otelguard
       CLICKHOUSE_HOST: clickhouse
       CLICKHOUSE_PORT: 9000
-      CLICKHOUSE_DB: default
+      CLICKHOUSE_DB: otelguard
       JWT_SECRET: dev-secret-change-in-production
       API_KEY_SALT: dev-salt-change-in-production
     ports:

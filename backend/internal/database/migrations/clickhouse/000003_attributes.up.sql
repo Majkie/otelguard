@@ -10,13 +10,15 @@ CREATE TABLE IF NOT EXISTS trace_attributes (
     float_value Float64 DEFAULT 0,
     bool_value UInt8 DEFAULT 0,
     timestamp DateTime64(3),
+    sampling_rate Float64 DEFAULT 1.0,
 
     INDEX idx_key key TYPE bloom_filter(0.01) GRANULARITY 4,
-    INDEX idx_value_type value_type TYPE bloom_filter(0.01) GRANULARITY 4
+    INDEX idx_value_type value_type TYPE bloom_filter(0.01) GRANULARITY 4,
+    INDEX idx_sampled sampling_rate TYPE minmax GRANULARITY 4
     )
     ENGINE = MergeTree()
     PARTITION BY toYYYYMM(timestamp)
-    ORDER BY (project_id, trace_id, key, timestamp)
+    ORDER BY (project_id, key, trace_id, timestamp)
     TTL toDateTime(timestamp) + INTERVAL 90 DAY DELETE
 SETTINGS index_granularity = 8192;
 

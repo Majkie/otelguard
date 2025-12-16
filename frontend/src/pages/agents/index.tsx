@@ -51,9 +51,10 @@ function formatLatency(ms: number): string {
   return `${(ms / 60000).toFixed(1)}m`;
 }
 
-function formatCost(cost: number): string {
-  if (cost < 0.01) return `$${cost.toFixed(4)}`;
-  return `$${cost.toFixed(2)}`;
+function formatCost(cost: number | string | undefined | null): string {
+  const val = Number(cost) || 0;
+  if (val < 0.01) return `$${val.toFixed(4)}`;
+  return `$${val.toFixed(2)}`;
 }
 
 // Page showing agents and their traces
@@ -63,7 +64,7 @@ export function AgentsPage() {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'startTime', desc: true }]);
 
   // Get agents data
-  const { data: agentsData, isLoading: agentsLoading } = useAgents({ 
+  const { data: agentsData, isLoading: agentsLoading } = useAgents({
     limit: 100,
     sortBy: 'start_time',
     sortOrder: 'DESC',
@@ -170,13 +171,13 @@ export function AgentsPage() {
             className={cn(
               'capitalize',
               row.original.status === 'success' &&
-                'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+              'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
               row.original.status === 'error' &&
-                'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+              'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
               row.original.status === 'running' &&
-                'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+              'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
               row.original.status === 'timeout' &&
-                'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
+              'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200'
             )}
           >
             {row.original.status}
@@ -336,11 +337,11 @@ export function AgentsPage() {
             <CardTitle className="text-2xl">
               {agentsData?.data && agentsData.data.length > 0
                 ? formatLatency(
-                    Math.round(
-                      agentsData.data.reduce((acc, a) => acc + a.latencyMs, 0) /
-                        agentsData.data.length
-                    )
+                  Math.round(
+                    agentsData.data.reduce((acc, a) => acc + a.latencyMs, 0) /
+                    agentsData.data.length
                   )
+                )
                 : '—'}
             </CardTitle>
           </CardHeader>
@@ -350,7 +351,7 @@ export function AgentsPage() {
             <CardDescription>Total Cost</CardDescription>
             <CardTitle className="text-2xl">
               {agentsData?.data
-                ? formatCost(agentsData.data.reduce((acc, a) => acc + a.cost, 0))
+                ? formatCost(agentsData.data.reduce((acc, a) => acc + (Number(a.cost) || 0), 0))
                 : '$0.00'}
             </CardTitle>
           </CardHeader>
@@ -369,9 +370,9 @@ export function AgentsPage() {
                       {header.isPlaceholder
                         ? null
                         : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext()
-                          )}
+                          header.column.columnDef.header,
+                          header.getContext()
+                        )}
                     </TableHead>
                   ))}
                 </TableRow>

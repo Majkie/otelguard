@@ -120,11 +120,9 @@ func (p *TraceEnrichmentPipeline) EnrichSpan(ctx context.Context, span *domain.S
 	}
 
 	// Cost calculation
-	if p.config.EnableCostCalculation && span.Cost == 0 && span.Tokens > 0 && span.Model != nil {
+	if p.config.EnableCostCalculation && span.Cost.Equal(decimal.Zero) && span.Tokens > 0 && span.Model != nil {
 		// Assume roughly 50/50 split for prompt/completion if not known
-		cost := calculateCost(*span.Model, span.Tokens/2, span.Tokens/2)
-		costFloat, _ := cost.Float64()
-		span.Cost = costFloat
+		span.Cost = calculateCost(*span.Model, span.Tokens/2, span.Tokens/2)
 	}
 
 	// Set default status if not provided

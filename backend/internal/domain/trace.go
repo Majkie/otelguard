@@ -35,23 +35,23 @@ type Trace struct {
 
 // Span represents a single operation within a trace
 type Span struct {
-	ID           uuid.UUID  `ch:"id" json:"id"`
-	TraceID      uuid.UUID  `ch:"trace_id" json:"traceId"`
-	ParentSpanID *uuid.UUID `ch:"parent_span_id" json:"parentSpanId,omitempty"`
-	ProjectID    uuid.UUID  `ch:"project_id" json:"projectId"`
-	Name         string     `ch:"name" json:"name"`
-	Type         string     `ch:"type" json:"type"` // llm, retrieval, tool, agent, embedding, custom
-	Input        string     `ch:"input" json:"input"`
-	Output       string     `ch:"output" json:"output"`
-	Metadata     string     `ch:"metadata" json:"metadata,omitempty"`
-	StartTime    time.Time  `ch:"start_time" json:"startTime"`
-	EndTime      time.Time  `ch:"end_time" json:"endTime"`
-	LatencyMs    uint32     `ch:"latency_ms" json:"latencyMs"`
-	Tokens       uint32     `ch:"tokens" json:"tokens"`
-	Cost         float64    `ch:"cost" json:"cost"`
-	Model        *string    `ch:"model" json:"model,omitempty"`
-	Status       string     `ch:"status" json:"status"`
-	ErrorMessage *string    `ch:"error_message" json:"errorMessage,omitempty"`
+	ID           uuid.UUID       `ch:"id" json:"id"`
+	TraceID      uuid.UUID       `ch:"trace_id" json:"traceId"`
+	ParentSpanID *uuid.UUID      `ch:"parent_span_id" json:"parentSpanId,omitempty"`
+	ProjectID    uuid.UUID       `ch:"project_id" json:"projectId"`
+	Name         string          `ch:"name" json:"name"`
+	Type         string          `ch:"span_type" json:"type"` // llm, retrieval, tool, agent, embedding, custom
+	Input        string          `ch:"input" json:"input"`
+	Output       string          `ch:"output" json:"output"`
+	Metadata     string          `ch:"metadata" json:"metadata,omitempty"`
+	StartTime    time.Time       `ch:"start_time" json:"startTime"`
+	EndTime      time.Time       `ch:"end_time" json:"endTime"`
+	LatencyMs    uint32          `ch:"latency_ms" json:"latencyMs"`
+	Tokens       uint32          `ch:"tokens" json:"tokens"`
+	Cost         decimal.Decimal `ch:"cost" json:"cost"`
+	Model        *string         `ch:"model" json:"model,omitempty"`
+	Status       string          `ch:"status" json:"status"`
+	ErrorMessage *string         `ch:"error_message" json:"errorMessage,omitempty"`
 }
 
 // Score represents an evaluation score for a trace or span

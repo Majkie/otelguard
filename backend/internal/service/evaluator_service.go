@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 
@@ -426,7 +427,7 @@ func (s *EvaluatorService) processJob(ctx context.Context, jobID uuid.UUID) {
 			job.Failed++
 		} else {
 			job.Completed++
-			job.TotalCost += result.Cost
+			job.TotalCost += result.Cost.InexactFloat64()
 			job.TotalTokens += result.PromptTokens + result.CompletionTokens
 		}
 
@@ -568,7 +569,7 @@ func (s *EvaluatorService) executeEvaluation(
 		RawResponse:      llmResp.Text,
 		PromptTokens:     llmResp.Usage.PromptTokens,
 		CompletionTokens: llmResp.Usage.CompletionTokens,
-		Cost:             cost,
+		Cost:             decimal.NewFromFloat(cost),
 		LatencyMs:        int(time.Since(startTime).Milliseconds()),
 		Status:           "success",
 		CreatedAt:        time.Now(),

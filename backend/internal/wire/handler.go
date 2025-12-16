@@ -69,9 +69,10 @@ func ProvideTraceHandler(
 // ProvideOTLPHandler creates a new OTLPHandler.
 func ProvideOTLPHandler(
 	traceService *service.TraceService,
+	agentService *service.AgentService,
 	logger *zap.Logger,
 ) *handlers.OTLPHandler {
-	return handlers.NewOTLPHandler(traceService, logger)
+	return handlers.NewOTLPHandler(traceService, agentService, logger)
 }
 
 // ProvidePromptHandler creates a new PromptHandler.

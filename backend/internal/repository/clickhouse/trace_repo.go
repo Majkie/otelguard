@@ -135,7 +135,7 @@ func (r *TraceRepository) Insert(ctx context.Context, traces []*domain.Trace) er
 func (r *TraceRepository) InsertSpan(ctx context.Context, span *domain.Span) error {
 	query := `
 		INSERT INTO spans (
-			id, trace_id, parent_span_id, project_id, name, type,
+			id, trace_id, parent_span_id, project_id, name, span_type,
 			input, output, metadata, start_time, end_time,
 			latency_ms, tokens, cost, model, status, error_message
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -237,13 +237,6 @@ func (r *TraceRepository) Query(ctx context.Context, opts *QueryOptions) ([]*dom
 		WHERE 1=1
 	`
 
-	// Test with minimal query first
-	testQuery := `SELECT id, project_id FROM traces LIMIT 1`
-	var testID uuid.UUID
-	var testProjectID uuid.UUID
-	if err := r.conn.QueryRow(ctx, testQuery).Scan(&testID, &testProjectID); err != nil {
-		return nil, 0, fmt.Errorf("minimal query test failed: %w", err)
-	}
 	countQuery := `SELECT COUNT(*) FROM traces WHERE 1=1`
 	args := make([]interface{}, 0)
 	countArgs := make([]interface{}, 0)

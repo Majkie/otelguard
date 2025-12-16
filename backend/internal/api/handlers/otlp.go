@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -20,13 +21,15 @@ import (
 // OTLPHandler handles OpenTelemetry Protocol trace ingestion
 type OTLPHandler struct {
 	traceService *service.TraceService
+	agentService *service.AgentService
 	logger       *zap.Logger
 }
 
 // NewOTLPHandler creates a new OTLP handler
-func NewOTLPHandler(traceService *service.TraceService, logger *zap.Logger) *OTLPHandler {
+func NewOTLPHandler(traceService *service.TraceService, agentService *service.AgentService, logger *zap.Logger) *OTLPHandler {
 	return &OTLPHandler{
 		traceService: traceService,
+		agentService: agentService,
 		logger:       logger,
 	}
 }
@@ -230,14 +233,10 @@ func (h *OTLPHandler) IngestTraces(c *gin.Context) {
 		}
 	}
 
-	h.logger.Info("ingested OTLP traces",
-		zap.Int("trace_count", len(traces)),
-		zap.Int("span_count", len(spans)),
-		zap.String("project_id", projectID),
-	)
+	// Extract and Ingest Agents & Tool Calls
+	h.extractAndIngestAgentsAndTools(c.Request.Context(), projectUUID, &req, spans)
 
-	// OTLP exporters expect an empty response on success
-	c.Status(http.StatusOK)
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "traces": len(traces), "spans": len(spans)})
 }
 
 // convertOTLPToTraces converts OTLP spans to our domain traces and spans
@@ -285,7 +284,7 @@ func (h *OTLPHandler) convertOTLPToTraces(projectID uuid.UUID, req *OTLPTraceReq
 					totalTokens = promptTokens + completionTokens
 				}
 
-				cost := h.getFloatAttr(spanAttrs, AttrLangfuseCost)
+				cost := h.getDecimalAttr(spanAttrs, AttrLangfuseCost)
 
 				// Extract session and user IDs
 				sessionID := h.getStringAttr(spanAttrs, AttrLangfuseSessionId)
@@ -324,7 +323,7 @@ func (h *OTLPHandler) convertOTLPToTraces(projectID uuid.UUID, req *OTLPTraceReq
 						TotalTokens:      uint32(totalTokens),
 						PromptTokens:     uint32(promptTokens),
 						CompletionTokens: uint32(completionTokens),
-						Cost:             decimal.NewFromFloat(cost),
+						Cost:             cost,
 						Model:            model,
 						Status:           status,
 						ErrorMessage:     errorMsg,
@@ -533,6 +532,36 @@ func (h *OTLPHandler) getFloatAttr(attrs map[string]interface{}, keys ...string)
 	return 0
 }
 
+func (h *OTLPHandler) getDecimalAttr(attrs map[string]interface{}, keys ...string) decimal.Decimal {
+	for _, key := range keys {
+		if val, ok := attrs[key]; ok {
+			switch v := val.(type) {
+			case decimal.Decimal:
+				return v
+			case float64:
+				return decimal.NewFromFloat(v)
+			case float32:
+				return decimal.NewFromFloat(float64(v))
+			case int:
+				return decimal.NewFromInt(int64(v))
+			case int64:
+				return decimal.NewFromInt(v)
+			case int32:
+				return decimal.NewFromInt(int64(v))
+			case json.Number:
+				if d, err := decimal.NewFromString(v.String()); err == nil {
+					return d
+				}
+			case string:
+				if d, err := decimal.NewFromString(v); err == nil {
+					return d
+				}
+			}
+		}
+	}
+	return decimal.Zero
+}
+
 // buildMetadata builds metadata JSON from attributes
 func (h *OTLPHandler) buildMetadata(attrs map[string]interface{}, scope InstrumentationScope) string {
 	metadata := make(map[string]interface{})
@@ -570,4 +599,170 @@ func (h *OTLPHandler) buildMetadata(attrs map[string]interface{}, scope Instrume
 		return "{}"
 	}
 	return string(jsonBytes)
+}
+
+// extractAndIngestAgentsAndTools helper to process agents and tool calls
+func (h *OTLPHandler) extractAndIngestAgentsAndTools(
+	ctx context.Context,
+	projectID uuid.UUID,
+	req *OTLPTraceRequest,
+	spans []*domain.Span,
+) {
+	// Create lookup maps
+	spanMap := make(map[uuid.UUID]*domain.Span)
+	for _, span := range spans {
+		spanMap[span.ID] = span
+	}
+
+	var agents []*domain.Agent
+	var toolCalls []*domain.ToolCall
+
+	for _, resourceSpan := range req.ResourceSpans {
+		resourceAttrs := h.extractAttributes(resourceSpan.Resource.Attributes)
+		for _, scopeSpan := range resourceSpan.ScopeSpans {
+			for _, otlpSpan := range scopeSpan.Spans {
+				spanUUID := h.hexToUUID(otlpSpan.SpanID)
+
+				// Find domain span
+				dSpan, ok := spanMap[spanUUID]
+				if !ok {
+					continue
+				}
+
+				spanAttrs := h.extractAttributes(otlpSpan.Attributes)
+				for k, v := range resourceAttrs {
+					if _, exists := spanAttrs[k]; !exists {
+						spanAttrs[k] = v
+					}
+				}
+
+				// Extract Agent
+				if agent := h.extractAgent(dSpan, spanAttrs); agent != nil {
+					agents = append(agents, agent)
+				}
+
+				// Extract Tool Call
+				if tc := h.extractToolCall(dSpan, spanAttrs); tc != nil {
+					toolCalls = append(toolCalls, tc)
+				}
+			}
+		}
+	}
+
+	// Ingest Agents
+	if len(agents) > 0 {
+		if err := h.agentService.CreateAgentsBatch(ctx, agents); err != nil {
+			h.logger.Error("failed to create agents", zap.Error(err))
+		}
+	}
+
+	// Ingest Tool Calls
+	if len(toolCalls) > 0 {
+		// Link tool calls to agents
+		for _, tc := range toolCalls {
+			if dSpan, ok := spanMap[tc.SpanID]; ok && dSpan.ParentSpanID != nil {
+				for _, a := range agents {
+					if a.SpanID == *dSpan.ParentSpanID {
+						tc.AgentID = &a.ID
+						break
+					}
+				}
+			}
+		}
+
+		if err := h.agentService.CreateToolCallsBatch(ctx, toolCalls); err != nil {
+			h.logger.Error("failed to create tool calls", zap.Error(err))
+		}
+	}
+}
+
+func (h *OTLPHandler) extractAgent(
+	span *domain.Span,
+	attrs map[string]interface{},
+) *domain.Agent {
+	agentType := h.getStringAttr(attrs,
+		"agent.type",
+		"langfuse.agent_type",
+		"gen_ai.agent.type")
+
+	// If no explicit type, check if it's implicitly an agent
+	if agentType == "" {
+		if span.Type == domain.SpanTypeAgent {
+			agentType = "custom"
+		} else {
+			return nil // Not an agent
+		}
+	}
+
+	// Deterministic ID
+	agentID := uuid.NewSHA1(uuid.NameSpaceOID, span.ID[:])
+
+	agent := &domain.Agent{
+		ID:           agentID,
+		ProjectID:    span.ProjectID,
+		TraceID:      span.TraceID,
+		SpanID:       span.ID,
+		Name:         span.Name,
+		Type:         agentType,
+		StartTime:    span.StartTime,
+		EndTime:      span.EndTime,
+		LatencyMs:    span.LatencyMs,
+		TotalTokens:  span.Tokens,
+		Cost:         span.Cost,
+		Status:       span.Status,
+		ErrorMessage: span.ErrorMessage,
+		Metadata:     span.Metadata,
+		CreatedAt:    time.Now(),
+	}
+
+	// Role
+	if role := h.getStringAttr(attrs, "agent.role", "gen_ai.agent.role"); role != "" {
+		agent.Role = role
+	}
+
+	return agent
+}
+
+func (h *OTLPHandler) extractToolCall(
+	span *domain.Span,
+	attrs map[string]interface{},
+) *domain.ToolCall {
+	// Check for tool call attributes
+	isTool := false
+	if h.getStringAttr(attrs, "tool.name", "function.name", "gen_ai.tool.name") != "" {
+		isTool = true
+	} else if span.Type == domain.SpanTypeTool {
+		isTool = true
+	}
+
+	if !isTool {
+		return nil
+	}
+
+	toolName := h.getStringAttr(attrs, "tool.name", "function.name", "gen_ai.tool.name")
+	if toolName == "" {
+		toolName = span.Name
+	}
+
+	// Deterministic ID
+	tcID := uuid.NewSHA1(uuid.NameSpaceOID, span.ID[:])
+
+	tc := &domain.ToolCall{
+		ID:           tcID,
+		ProjectID:    span.ProjectID,
+		TraceID:      span.TraceID,
+		SpanID:       span.ID,
+		Name:         toolName,
+		Input:        span.Input,
+		Output:       span.Output,
+		StartTime:    span.StartTime,
+		EndTime:      span.EndTime,
+		LatencyMs:    span.LatencyMs,
+		Status:       span.Status,
+		ErrorMessage: span.ErrorMessage,
+		Metadata:     span.Metadata,
+		CreatedAt:    time.Now(),
+	}
+
+	return tc
 }

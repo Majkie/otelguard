@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 // EvaluatorType constants
@@ -113,10 +114,10 @@ type EvaluationResult struct {
 	RawResponse string  `db:"raw_response" json:"rawResponse,omitempty"`
 
 	// Cost and usage
-	PromptTokens     int     `db:"prompt_tokens" json:"promptTokens"`
-	CompletionTokens int     `db:"completion_tokens" json:"completionTokens"`
-	Cost             float64 `db:"cost" json:"cost"`
-	LatencyMs        int     `db:"latency_ms" json:"latencyMs"`
+	PromptTokens     int             `db:"prompt_tokens" json:"promptTokens"`
+	CompletionTokens int             `db:"completion_tokens" json:"completionTokens"`
+	Cost             decimal.Decimal `db:"cost" json:"cost"`
+	LatencyMs        int             `db:"latency_ms" json:"latencyMs"`
 
 	// Status
 	Status       string  `db:"status" json:"status"` // success, error

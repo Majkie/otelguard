@@ -63,9 +63,9 @@ func ProvidePostgresDB(cfg *config.Config, logger *zap.Logger) (*PostgresDB, err
 		DatabaseURL: cfg.Postgres.MigrationDSN(),
 		Logger:      logger,
 	}
-	if err := database.RunMigrations(migrateCfg); err != nil {
+	if err := database.RunPostgresMigrations(migrateCfg); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
+		return nil, fmt.Errorf("failed to run postgres migrations: %w", err)
 	}
 
 	return &PostgresDB{
@@ -77,7 +77,7 @@ func ProvidePostgresDB(cfg *config.Config, logger *zap.Logger) (*PostgresDB, err
 }
 
 // ProvideClickHouseConn creates a ClickHouse database connection.
-func ProvideClickHouseConn(cfg *config.Config) (*ClickHouseDB, error) {
+func ProvideClickHouseConn(cfg *config.Config, logger *zap.Logger) (*ClickHouseDB, error) {
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{fmt.Sprintf("%s:%d", cfg.ClickHouse.Host, cfg.ClickHouse.Port)},
 		Auth: clickhouse.Auth{
@@ -99,6 +99,16 @@ func ProvideClickHouseConn(cfg *config.Config) (*ClickHouseDB, error) {
 	if err := conn.Ping(context.Background()); err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("failed to ping clickhouse: %w", err)
+	}
+
+	// Run database migrations
+	migrateCfg := &database.MigrateConfig{
+		DatabaseURL: cfg.ClickHouse.MigrationDSN(),
+		Logger:      logger,
+	}
+	if err := database.RunClickHouseMigrations(migrateCfg); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to run clickhouse migrations: %w", err)
 	}
 
 	return &ClickHouseDB{

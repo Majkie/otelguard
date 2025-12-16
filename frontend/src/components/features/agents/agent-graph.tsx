@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
+import dagre from 'dagre';
 import {
   ReactFlow,
   MiniMap,
@@ -46,36 +47,42 @@ const edgeTypes = {
   agentEdge: AgentEdge,
 };
 
-// Auto-layout algorithm (Dagre-like vertical layout)
-function calculateLayout(graphNodes: GraphNode[], _graphEdges: GraphEdge[]) {
-  const NODE_WIDTH = 200;
-  const NODE_HEIGHT = 100;
-  const HORIZONTAL_SPACING = 80;
-  const VERTICAL_SPACING = 120;
+// Auto-layout algorithm using dagre
+function calculateLayout(graphNodes: GraphNode[], graphEdges: GraphEdge[]) {
+  const dagreGraph = new dagre.graphlib.Graph();
+  dagreGraph.setDefaultEdgeLabel(() => ({}));
 
-  // Group nodes by depth
-  const nodesByDepth: Map<number, GraphNode[]> = new Map();
-  graphNodes.forEach((node) => {
-    const depth = node.depth;
-    if (!nodesByDepth.has(depth)) {
-      nodesByDepth.set(depth, []);
-    }
-    nodesByDepth.get(depth)!.push(node);
+  // Node dimensions (must match or exceed the actual rendered size)
+  const NODE_WIDTH = 220;
+  const NODE_HEIGHT = 100;
+
+  // Set graph layout options
+  dagreGraph.setGraph({
+    rankdir: 'TB',
+    nodesep: 50,
+    ranksep: 80
   });
 
-  // Calculate positions
+  // Add nodes
+  graphNodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  });
+
+  // Add edges
+  graphEdges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  // Calculate layout
+  dagre.layout(dagreGraph);
+
+  // Get positions (convert from center-based to top-left)
   const positions: Map<string, { x: number; y: number }> = new Map();
-  const depths = Array.from(nodesByDepth.keys()).sort((a, b) => a - b);
-
-  depths.forEach((depth) => {
-    const nodesAtDepth = nodesByDepth.get(depth)!;
-    const totalWidth = nodesAtDepth.length * NODE_WIDTH + (nodesAtDepth.length - 1) * HORIZONTAL_SPACING;
-    const startX = -totalWidth / 2;
-
-    nodesAtDepth.forEach((node, index) => {
-      const x = startX + index * (NODE_WIDTH + HORIZONTAL_SPACING);
-      const y = depth * (NODE_HEIGHT + VERTICAL_SPACING);
-      positions.set(node.id, { x, y });
+  graphNodes.forEach((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+    positions.set(node.id, {
+      x: nodeWithPosition.x - NODE_WIDTH / 2,
+      y: nodeWithPosition.y - NODE_HEIGHT / 2,
     });
   });
 
@@ -237,6 +244,7 @@ export function AgentGraphVisualization({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           fitView
+          proOptions={{hideAttribution: true}}
           fitViewOptions={{ padding: 0.2 }}
           minZoom={0.1}
           maxZoom={2}

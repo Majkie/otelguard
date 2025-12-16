@@ -57,26 +57,26 @@ func NewTraceHandler(traceService *service.TraceService, logger *zap.Logger) *Tr
 
 // IngestTraceRequest represents a trace ingestion request
 type IngestTraceRequest struct {
-	ID               string   `json:"id,omitempty" binding:"omitempty,uuid"`
-	SessionID        string   `json:"sessionId,omitempty" binding:"max=255"`
-	UserID           string   `json:"userId,omitempty" binding:"max=255"`
-	Name             string   `json:"name" binding:"required,min=1,max=255"`
-	Input            string   `json:"input" binding:"max=1000000"`
-	Output           string   `json:"output" binding:"max=1000000"`
-	Metadata         any      `json:"metadata,omitempty"`
-	StartTime        string   `json:"startTime"`
-	EndTime          string   `json:"endTime"`
-	LatencyMs        uint32   `json:"latencyMs" binding:"gte=0"`
-	TotalTokens      uint32   `json:"totalTokens" binding:"gte=0"`
-	PromptTokens     uint32   `json:"promptTokens" binding:"gte=0"`
-	CompletionTokens uint32   `json:"completionTokens" binding:"gte=0"`
-	Cost             float64  `json:"cost" binding:"gte=0"`
-	Model            string   `json:"model" binding:"max=100"`
-	Tags             []string `json:"tags" binding:"max=50,dive,max=50"`
-	Status           string   `json:"status" binding:"omitempty,status"`
-	ErrorMessage     string   `json:"errorMessage,omitempty" binding:"max=5000"`
-	PromptID         string   `json:"promptId,omitempty" binding:"omitempty,uuid"`
-	PromptVersion    *int     `json:"promptVersion,omitempty"`
+	ID               string          `json:"id,omitempty" binding:"omitempty,uuid"`
+	SessionID        string          `json:"sessionId,omitempty" binding:"max=255"`
+	UserID           string          `json:"userId,omitempty" binding:"max=255"`
+	Name             string          `json:"name" binding:"required,min=1,max=255"`
+	Input            string          `json:"input" binding:"max=1000000"`
+	Output           string          `json:"output" binding:"max=1000000"`
+	Metadata         any             `json:"metadata,omitempty"`
+	StartTime        string          `json:"startTime"`
+	EndTime          string          `json:"endTime"`
+	LatencyMs        uint32          `json:"latencyMs" binding:"gte=0"`
+	TotalTokens      uint32          `json:"totalTokens" binding:"gte=0"`
+	PromptTokens     uint32          `json:"promptTokens" binding:"gte=0"`
+	CompletionTokens uint32          `json:"completionTokens" binding:"gte=0"`
+	Cost             decimal.Decimal `json:"cost" binding:"gte=0"`
+	Model            string          `json:"model" binding:"max=100"`
+	Tags             []string        `json:"tags" binding:"max=50,dive,max=50"`
+	Status           string          `json:"status" binding:"omitempty,status"`
+	ErrorMessage     string          `json:"errorMessage,omitempty" binding:"max=5000"`
+	PromptID         string          `json:"promptId,omitempty" binding:"omitempty,uuid"`
+	PromptVersion    *int            `json:"promptVersion,omitempty"`
 }
 
 // IngestTraceResponse represents the trace ingestion response
@@ -221,7 +221,7 @@ func (h *TraceHandler) IngestTrace(c *gin.Context) {
 		TotalTokens:      req.TotalTokens,
 		PromptTokens:     req.PromptTokens,
 		CompletionTokens: req.CompletionTokens,
-		Cost:             decimal.NewFromFloat(req.Cost),
+		Cost:             req.Cost,
 		Model:            req.Model,
 		Tags:             req.Tags,
 		Status:           req.Status,
@@ -305,7 +305,7 @@ func (h *TraceHandler) IngestBatch(c *gin.Context) {
 			TotalTokens:      r.TotalTokens,
 			PromptTokens:     r.PromptTokens,
 			CompletionTokens: r.CompletionTokens,
-			Cost:             decimal.NewFromFloat(r.Cost),
+			Cost:             r.Cost,
 			Model:            r.Model,
 			Tags:             r.Tags,
 			Status:           domain.StatusSuccess,
@@ -344,20 +344,20 @@ func (h *TraceHandler) IngestBatch(c *gin.Context) {
 // IngestSpan handles span ingestion
 func (h *TraceHandler) IngestSpan(c *gin.Context) {
 	var req struct {
-		TraceID      string  `json:"traceId" binding:"required"`
-		ParentSpanID string  `json:"parentSpanId,omitempty"`
-		ID           string  `json:"id,omitempty"`
-		Name         string  `json:"name" binding:"required"`
-		Type         string  `json:"type" binding:"required"`
-		Input        string  `json:"input"`
-		Output       string  `json:"output"`
-		StartTime    string  `json:"startTime"`
-		EndTime      string  `json:"endTime"`
-		LatencyMs    uint32  `json:"latencyMs"`
-		Tokens       uint32  `json:"tokens"`
-		Cost         float64 `json:"cost"`
-		Model        string  `json:"model,omitempty"`
-		Status       string  `json:"status"`
+		TraceID      string          `json:"traceId" binding:"required"`
+		ParentSpanID string          `json:"parentSpanId,omitempty"`
+		ID           string          `json:"id,omitempty"`
+		Name         string          `json:"name" binding:"required"`
+		Type         string          `json:"type" binding:"required"`
+		Input        string          `json:"input"`
+		Output       string          `json:"output"`
+		StartTime    string          `json:"startTime"`
+		EndTime      string          `json:"endTime"`
+		LatencyMs    uint32          `json:"latencyMs"`
+		Tokens       uint32          `json:"tokens"`
+		Cost         decimal.Decimal `json:"cost"`
+		Model        string          `json:"model,omitempty"`
+		Status       string          `json:"status"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -367,7 +367,7 @@ func (h *TraceHandler) IngestSpan(c *gin.Context) {
 		return
 	}
 
-	projectID := c.GetString(string(middleware.ContextProjectID))
+	projectID := c.GetString(middleware.ContextProjectID)
 	projectUUID, _ := uuid.Parse(projectID)
 
 	spanID := req.ID

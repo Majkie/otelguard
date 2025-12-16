@@ -24,7 +24,7 @@ func main() {
 		pgUser, pgPass, pgHost, pgPort, pgDB)
 
 	// Create file source
-	sourceDriver, err := (&file.File{}).Open("file://./migrations/postgres")
+	sourceDriver, err := (&file.File{}).Open("file://./internal/database/migrations/postgres")
 	if err != nil {
 		log.Fatalf("Failed to create migration source: %v", err)
 	}

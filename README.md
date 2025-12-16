@@ -208,6 +208,30 @@ npm install
 npm run dev
 ```
 
+### Database Migrations
+
+The project uses `golang-migrate` for database migrations.
+
+**Files Location:**
+- Postgres: `backend/internal/database/migrations/postgres/`
+- ClickHouse: `backend/internal/database/migrations/clickhouse/`
+
+**Adding a new migration:**
+Create a new pair of files `.up.sql` and `.down.sql` with the next version number (e.g., `000012_feature_name.up.sql`).
+
+Migrations are automatically run on application startup.
+
+### Fresh Migrations (Reset Database)
+
+If you need to completely reset the databases (drop all data and re-run migrations), you can use the reset script:
+
+```bash
+cd backend
+go run scripts/reset_db.go
+```
+
+Then restart the server to apply migrations.
+
 ### Regenerate Wire Dependencies
 
 After modifying dependency providers in `backend/internal/wire/`, regenerate the Wire code:

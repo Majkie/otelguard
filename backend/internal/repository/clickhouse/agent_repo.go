@@ -42,17 +42,13 @@ type AgentQueryOptions struct {
 func (r *AgentRepository) InsertAgent(ctx context.Context, agent *domain.Agent) error {
 	query := `
 		INSERT INTO agents (
-			id, project_id, trace_id, span_id, parent_agent_id, name,
+			id, project_id, trace_id, span_id, parent_span_id, parent_agent_id, name,
 			agent_type, role, model, system_prompt, start_time, end_time,
 			latency_ms, total_tokens, cost, status, error_message,
 			metadata, tags, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	parentAgentID := ""
-	if agent.ParentAgent != nil {
-		parentAgentID = agent.ParentAgent.String()
-	}
 	model := ""
 	if agent.Model != nil {
 		model = *agent.Model
@@ -71,7 +67,8 @@ func (r *AgentRepository) InsertAgent(ctx context.Context, agent *domain.Agent) 
 		agent.ProjectID,
 		agent.TraceID,
 		agent.SpanID,
-		parentAgentID,
+		agent.ParentSpanID,
+		agent.ParentAgent,
 		agent.Name,
 		agent.Type,
 		agent.Role,
@@ -98,7 +95,7 @@ func (r *AgentRepository) InsertAgents(ctx context.Context, agents []*domain.Age
 
 	batch, err := r.conn.PrepareBatch(ctx, `
 		INSERT INTO agents (
-			id, project_id, trace_id, span_id, parent_agent_id, name,
+			id, project_id, trace_id, span_id, parent_span_id, parent_agent_id, name,
 			agent_type, role, model, system_prompt, start_time, end_time,
 			latency_ms, total_tokens, cost, status, error_message,
 			metadata, tags, created_at
@@ -109,10 +106,6 @@ func (r *AgentRepository) InsertAgents(ctx context.Context, agents []*domain.Age
 	}
 
 	for _, agent := range agents {
-		parentAgentID := ""
-		if agent.ParentAgent != nil {
-			parentAgentID = agent.ParentAgent.String()
-		}
 		model := ""
 		if agent.Model != nil {
 			model = *agent.Model
@@ -131,7 +124,8 @@ func (r *AgentRepository) InsertAgents(ctx context.Context, agents []*domain.Age
 			agent.ProjectID,
 			agent.TraceID,
 			agent.SpanID,
-			parentAgentID,
+			agent.ParentSpanID,
+			agent.ParentAgent,
 			agent.Name,
 			agent.Type,
 			agent.Role,
@@ -160,7 +154,7 @@ func (r *AgentRepository) InsertAgents(ctx context.Context, agents []*domain.Age
 func (r *AgentRepository) GetAgentByID(ctx context.Context, projectID, agentID string) (*domain.Agent, error) {
 	query := `
 		SELECT
-			id, project_id, trace_id, span_id, parent_agent_id, name,
+			id, project_id, trace_id, span_id, parent_span_id, parent_agent_id, name,
 			agent_type, role, model, system_prompt, start_time, end_time,
 			latency_ms, total_tokens, cast(cost as Float64) as cost, status, error_message,
 			metadata, tags, created_at
@@ -172,7 +166,7 @@ func (r *AgentRepository) GetAgentByID(ctx context.Context, projectID, agentID s
 	row := r.conn.QueryRow(ctx, query, projectID, agentID)
 
 	var agent domain.Agent
-	var parentAgentID, model, systemPrompt, errorMsg string
+	var parentSpanID, parentAgentID, model, systemPrompt, errorMsg string
 	var tags []string
 
 	err := row.Scan(
@@ -180,6 +174,7 @@ func (r *AgentRepository) GetAgentByID(ctx context.Context, projectID, agentID s
 		&agent.ProjectID,
 		&agent.TraceID,
 		&agent.SpanID,
+		&parentSpanID,
 		&parentAgentID,
 		&agent.Name,
 		&agent.Type,
@@ -203,7 +198,11 @@ func (r *AgentRepository) GetAgentByID(ctx context.Context, projectID, agentID s
 		}
 		return nil, err
 	}
-
+	if parentSpanID != "" {
+		if parsed, err := uuid.Parse(parentSpanID); err == nil {
+			agent.ParentSpanID = &parsed
+		}
+	}
 	if parentAgentID != "" {
 		if parsed, err := uuid.Parse(parentAgentID); err == nil {
 			agent.ParentAgent = &parsed
@@ -227,7 +226,7 @@ func (r *AgentRepository) GetAgentByID(ctx context.Context, projectID, agentID s
 func (r *AgentRepository) GetAgentsByTraceID(ctx context.Context, projectID, traceID string) ([]*domain.Agent, error) {
 	query := `
 		SELECT
-			id, project_id, trace_id, span_id, parent_agent_id, name,
+			id, project_id, trace_id, span_id, parent_span_id, parent_agent_id, name,
 			agent_type, role, model, system_prompt, start_time, end_time,
 			latency_ms, total_tokens, cast(cost as Float64) as cost, status, error_message,
 			metadata, tags, created_at
@@ -320,7 +319,7 @@ func (r *AgentRepository) QueryAgents(ctx context.Context, opts *AgentQueryOptio
 
 	query := fmt.Sprintf(`
 		SELECT
-			id, project_id, trace_id, span_id, parent_agent_id, name,
+			id, project_id, trace_id, span_id, parent_span_id, parent_agent_id, name,
 			agent_type, role, model, system_prompt, start_time, end_time,
 			latency_ms, total_tokens, cast(cost as Float64) as cost, status, error_message,
 			metadata, tags, created_at
@@ -350,7 +349,7 @@ func scanAgents(rows driver.Rows) ([]*domain.Agent, error) {
 
 	for rows.Next() {
 		var agent domain.Agent
-		var parentAgentID, model, systemPrompt, errorMsg string
+		var parentSpanID, parentAgentID, model, systemPrompt, errorMsg string
 		var tags []string
 
 		err := rows.Scan(
@@ -358,6 +357,7 @@ func scanAgents(rows driver.Rows) ([]*domain.Agent, error) {
 			&agent.ProjectID,
 			&agent.TraceID,
 			&agent.SpanID,
+			&parentSpanID,
 			&parentAgentID,
 			&agent.Name,
 			&agent.Type,
@@ -378,7 +378,11 @@ func scanAgents(rows driver.Rows) ([]*domain.Agent, error) {
 		if err != nil {
 			return nil, err
 		}
-
+		if parentSpanID != "" {
+			if parsed, err := uuid.Parse(parentSpanID); err == nil {
+				agent.ParentSpanID = &parsed
+			}
+		}
 		if parentAgentID != "" {
 			if parsed, err := uuid.Parse(parentAgentID); err == nil {
 				agent.ParentAgent = &parsed
@@ -475,10 +479,6 @@ func (r *AgentRepository) InsertToolCall(ctx context.Context, tc *domain.ToolCal
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	agentID := ""
-	if tc.AgentID != nil {
-		agentID = tc.AgentID.String()
-	}
 	errorMsg := ""
 	if tc.ErrorMessage != nil {
 		errorMsg = *tc.ErrorMessage
@@ -489,7 +489,7 @@ func (r *AgentRepository) InsertToolCall(ctx context.Context, tc *domain.ToolCal
 		tc.ProjectID,
 		tc.TraceID,
 		tc.SpanID,
-		agentID,
+		tc.AgentID,
 		tc.Name,
 		tc.Description,
 		tc.Input,
@@ -524,10 +524,6 @@ func (r *AgentRepository) InsertToolCalls(ctx context.Context, toolCalls []*doma
 	}
 
 	for _, tc := range toolCalls {
-		agentID := ""
-		if tc.AgentID != nil {
-			agentID = tc.AgentID.String()
-		}
 		errorMsg := ""
 		if tc.ErrorMessage != nil {
 			errorMsg = *tc.ErrorMessage
@@ -538,7 +534,7 @@ func (r *AgentRepository) InsertToolCalls(ctx context.Context, toolCalls []*doma
 			tc.ProjectID,
 			tc.TraceID,
 			tc.SpanID,
-			agentID,
+			tc.AgentID,
 			tc.Name,
 			tc.Description,
 			tc.Input,
@@ -659,20 +655,11 @@ func (r *AgentRepository) InsertAgentMessage(ctx context.Context, msg *domain.Ag
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	spanID := ""
-	if msg.SpanID != nil {
-		spanID = msg.SpanID.String()
-	}
-	parentMsgID := ""
-	if msg.ParentMsgID != nil {
-		parentMsgID = msg.ParentMsgID.String()
-	}
-
 	return r.conn.Exec(ctx, query,
 		msg.ID,
 		msg.ProjectID,
 		msg.TraceID,
-		spanID,
+		msg.SpanID,
 		msg.FromAgentID,
 		msg.ToAgentID,
 		msg.MessageType,
@@ -680,7 +667,7 @@ func (r *AgentRepository) InsertAgentMessage(ctx context.Context, msg *domain.Ag
 		msg.Content,
 		msg.ContentType,
 		msg.SequenceNum,
-		parentMsgID,
+		msg.ParentMsgID,
 		msg.TokenCount,
 		msg.Timestamp,
 		msg.Metadata,
@@ -761,17 +748,12 @@ func (r *AgentRepository) InsertAgentState(ctx context.Context, state *domain.Ag
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	spanID := ""
-	if state.SpanID != nil {
-		spanID = state.SpanID.String()
-	}
-
 	return r.conn.Exec(ctx, query,
 		state.ID,
 		state.ProjectID,
 		state.TraceID,
 		state.AgentID,
-		spanID,
+		state.SpanID,
 		state.SequenceNum,
 		state.State,
 		state.Variables,

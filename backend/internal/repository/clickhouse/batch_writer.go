@@ -399,7 +399,7 @@ func (w *TraceBatchWriter) writeSpansWithRetry(ctx context.Context, spans []*dom
 
 		batch, err := w.conn.PrepareBatch(ctx, `
 			INSERT INTO spans (
-				id, trace_id, parent_span_id, project_id, name, type,
+				id, trace_id, parent_span_id, project_id, name, span_type,
 				input, output, metadata, start_time, end_time,
 				latency_ms, tokens, cost, model, status, error_message
 			)
@@ -410,9 +410,10 @@ func (w *TraceBatchWriter) writeSpansWithRetry(ctx context.Context, spans []*dom
 		}
 
 		for _, span := range spans {
-			parentSpanID := ""
+			var parentSpanID *string
 			if span.ParentSpanID != nil {
-				parentSpanID = span.ParentSpanID.String()
+				s := span.ParentSpanID.String()
+				parentSpanID = &s
 			}
 			model := ""
 			if span.Model != nil {

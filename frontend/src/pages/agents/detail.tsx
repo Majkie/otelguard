@@ -263,7 +263,7 @@ export function AgentGraphDetailPage() {
             />
           </TabsContent>
 
-          <TabsContent value="timeline" className="mt-0 p-0" style={{ height: 'calc(100vh - 16rem)' }}>
+          <TabsContent value="timeline" className="mt-0 p-4" style={{ height: 'calc(100vh - 16rem)' }}>
             <AgentTimeline
               graph={graphData}
               className="h-full"

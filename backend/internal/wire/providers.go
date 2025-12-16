@@ -32,10 +32,10 @@ var ProviderSet = wire.NewSet(
 
 // Application holds all the dependencies needed to run the server.
 type Application struct {
-	Config         *config.Config
-	Logger         *zap.Logger
-	PostgresDB     *pgxpool.Pool
-	ClickHouseConn clickhouse.Conn
+	Config            *config.Config
+	Logger            *zap.Logger
+	PostgresDB        *pgxpool.Pool
+	ClickHouseConn    clickhouse.Conn
 	Router            *gin.Engine
 	Handlers          *api.Handlers
 	TraceService      *service.TraceService
@@ -129,6 +129,7 @@ func ProvideRouter(
 // ProvideGRPCComponents creates the gRPC-related components.
 func ProvideGRPCComponents(
 	traceService *service.TraceService,
+	agentService *service.AgentService,
 	cfg *config.Config,
 	logger *zap.Logger,
 ) *GRPCComponents {
@@ -136,7 +137,7 @@ func ProvideGRPCComponents(
 		return nil
 	}
 
-	otlpService := grpcserver.NewOTLPTraceService(traceService, logger)
+	otlpService := grpcserver.NewOTLPTraceService(traceService, agentService, logger)
 	grpcConfig := &grpcserver.ServerConfig{
 		Port:             cfg.GRPC.Port,
 		MaxRecvMsgSize:   cfg.GRPC.MaxRecvMsgSize,

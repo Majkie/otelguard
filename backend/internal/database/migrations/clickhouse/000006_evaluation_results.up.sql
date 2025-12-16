@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS evaluation_results (
     -- Cost and usage tracking
     prompt_tokens UInt32 DEFAULT 0,
     completion_tokens UInt32 DEFAULT 0,
-    cost Decimal64(8) DEFAULT 0,
+    cost Decimal(18,8) DEFAULT 0,
     latency_ms UInt32 DEFAULT 0,
 
     -- Status
@@ -48,8 +48,8 @@ AS SELECT
     count() AS eval_count,
     sum(cost) AS total_cost,
     sum(prompt_tokens + completion_tokens) AS total_tokens,
-    avg(score) AS avg_score,
-    avg(latency_ms) AS avg_latency,
+    sum(score) AS total_score,
+    sum(latency_ms) AS total_latency_ms,
     countIf(status = 'success') AS success_count,
     countIf(status = 'error') AS error_count
 FROM evaluation_results

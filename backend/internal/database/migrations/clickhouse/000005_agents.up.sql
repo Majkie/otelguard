@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS agents (
     end_time DateTime64(3),
     latency_ms UInt32,
     total_tokens UInt32 DEFAULT 0,
-    cost Decimal64(8) DEFAULT 0,
+    cost Decimal(18,8) DEFAULT 0,
     status String DEFAULT 'success',  -- running, success, error, timeout
     error_message Nullable(String),
     metadata String DEFAULT '{}',
@@ -178,8 +178,7 @@ AS SELECT
     name,
     count() AS call_count,
     sum(latency_ms) AS total_latency_ms,
-    avg(latency_ms) AS avg_latency_ms,
-    countIf(status = 'success') AS success_count,
+    sum(if(status = 'success', 1, 0)) AS success_count,
     countIf(status = 'error') AS error_count,
     sum(retry_count) AS total_retries
 FROM tool_calls

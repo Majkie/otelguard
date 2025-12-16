@@ -11,6 +11,7 @@ import (
 	"github.com/otelguard/otelguard/internal/domain"
 	"github.com/otelguard/otelguard/internal/service"
 	"github.com/otelguard/otelguard/pkg/validator"
+	"github.com/shopspring/decimal"
 	"go.uber.org/zap"
 )
 
@@ -30,48 +31,48 @@ func NewAgentHandler(agentService *service.AgentService, logger *zap.Logger) *Ag
 
 // CreateAgentRequest represents an agent creation request
 type CreateAgentRequest struct {
-	ID           string   `json:"id,omitempty" binding:"omitempty,uuid"`
-	TraceID      string   `json:"traceId" binding:"required,uuid"`
-	SpanID       string   `json:"spanId" binding:"required,uuid"`
-	ParentAgent  string   `json:"parentAgentId,omitempty" binding:"omitempty,uuid"`
-	Name         string   `json:"name" binding:"required,min=1,max=255"`
-	Type         string   `json:"type" binding:"required,oneof=orchestrator worker tool_caller planner executor reviewer custom"`
-	Role         string   `json:"role,omitempty" binding:"max=255"`
-	Model        string   `json:"model,omitempty" binding:"max=100"`
-	SystemPrompt string   `json:"systemPrompt,omitempty"`
-	StartTime    string   `json:"startTime"`
-	EndTime      string   `json:"endTime"`
-	LatencyMs    uint32   `json:"latencyMs"`
-	TotalTokens  uint32   `json:"totalTokens"`
-	Cost         float64  `json:"cost"`
-	Status       string   `json:"status" binding:"oneof=running success error timeout"`
-	ErrorMessage string   `json:"errorMessage,omitempty"`
-	Metadata     string   `json:"metadata,omitempty"`
-	Tags         []string `json:"tags,omitempty" binding:"max=50,dive,max=50"`
+	ID           string          `json:"id,omitempty" binding:"omitempty,uuid"`
+	TraceID      string          `json:"traceId" binding:"required,uuid"`
+	SpanID       string          `json:"spanId" binding:"required,uuid"`
+	ParentAgent  string          `json:"parentAgentId,omitempty" binding:"omitempty,uuid"`
+	Name         string          `json:"name" binding:"required,min=1,max=255"`
+	Type         string          `json:"type" binding:"required,oneof=orchestrator worker tool_caller planner executor reviewer custom"`
+	Role         string          `json:"role,omitempty" binding:"max=255"`
+	Model        string          `json:"model,omitempty" binding:"max=100"`
+	SystemPrompt string          `json:"systemPrompt,omitempty"`
+	StartTime    string          `json:"startTime"`
+	EndTime      string          `json:"endTime"`
+	LatencyMs    uint32          `json:"latencyMs"`
+	TotalTokens  uint32          `json:"totalTokens"`
+	Cost         decimal.Decimal `json:"cost"`
+	Status       string          `json:"status" binding:"oneof=running success error timeout"`
+	ErrorMessage string          `json:"errorMessage,omitempty"`
+	Metadata     string          `json:"metadata,omitempty"`
+	Tags         []string        `json:"tags,omitempty" binding:"max=50,dive,max=50"`
 }
 
 // AgentResponse represents an agent in API responses
 type AgentResponse struct {
-	ID           string   `json:"id"`
-	ProjectID    string   `json:"projectId"`
-	TraceID      string   `json:"traceId"`
-	SpanID       string   `json:"spanId"`
-	ParentAgent  *string  `json:"parentAgentId,omitempty"`
-	Name         string   `json:"name"`
-	Type         string   `json:"agentType"`
-	Role         string   `json:"role"`
-	Model        *string  `json:"model,omitempty"`
-	SystemPrompt *string  `json:"systemPrompt,omitempty"`
-	StartTime    string   `json:"startTime"`
-	EndTime      string   `json:"endTime"`
-	LatencyMs    uint32   `json:"latencyMs"`
-	TotalTokens  uint32   `json:"totalTokens"`
-	Cost         float64  `json:"cost"`
-	Status       string   `json:"status"`
-	ErrorMessage *string  `json:"errorMessage,omitempty"`
-	Metadata     string   `json:"metadata,omitempty"`
-	Tags         []string `json:"tags,omitempty"`
-	CreatedAt    string   `json:"createdAt"`
+	ID           string          `json:"id"`
+	ProjectID    string          `json:"projectId"`
+	TraceID      string          `json:"traceId"`
+	SpanID       string          `json:"spanId"`
+	ParentAgent  *string         `json:"parentAgentId,omitempty"`
+	Name         string          `json:"name"`
+	Type         string          `json:"agentType"`
+	Role         string          `json:"role"`
+	Model        *string         `json:"model,omitempty"`
+	SystemPrompt *string         `json:"systemPrompt,omitempty"`
+	StartTime    string          `json:"startTime"`
+	EndTime      string          `json:"endTime"`
+	LatencyMs    uint32          `json:"latencyMs"`
+	TotalTokens  uint32          `json:"totalTokens"`
+	Cost         decimal.Decimal `json:"cost"`
+	Status       string          `json:"status"`
+	ErrorMessage *string         `json:"errorMessage,omitempty"`
+	Metadata     string          `json:"metadata,omitempty"`
+	Tags         []string        `json:"tags,omitempty"`
+	CreatedAt    string          `json:"createdAt"`
 }
 
 // toAgentResponse converts a domain agent to API response
